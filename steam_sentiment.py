@@ -2187,7 +2187,7 @@ HARD RULES:
                 full_text = ""
 
                 try:
-                    client = _openai.OpenAI(api_key="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")
+                    client = _openai.OpenAI(api_key="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")
                     status_placeholder.markdown(
                         '<div style="font-size:.78rem;color:var(--muted);">⏳ Connecting to OpenAI…</div>',
                         unsafe_allow_html=True,
