@@ -3,8 +3,7 @@ Steam Genre Review Analyzer — SEGA-branded Streamlit App
 =========================================================
 Run with:  streamlit run steam_review_app.py
 
-Required:  pip install streamlit requests pandas plotly vaderSentiment
-Optional:  pip install transformers torch   (enables RoBERTa analysis)
+Required:  pip install streamlit requests pandas plotly openai matplotlib wordcloud httpx
 """
 
 import time
@@ -33,42 +32,12 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
-# ── VADER (required for NLP) ──────────────────────────────────
 try:
-    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer as VaderAnalyzer
+    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer as _VaderAnalyzer
     VADER_AVAILABLE = True
 except ImportError:
     VADER_AVAILABLE = False
 
-# ── RoBERTa (optional — requires torch + transformers) ────────
-ROBERTA_AVAILABLE = False
-_roberta_pipeline  = None
-
-def _load_roberta():
-    """Lazy-load the RoBERTa pipeline on first use."""
-    global _roberta_pipeline, ROBERTA_AVAILABLE
-    if _roberta_pipeline is not None:
-        return _roberta_pipeline
-    try:
-        from transformers import pipeline
-        import torch  # noqa
-        _roberta_pipeline = pipeline(
-            "sentiment-analysis",
-            model="cardiffnlp/twitter-roberta-base-sentiment-latest",
-            truncation=True, max_length=512,
-        )
-        ROBERTA_AVAILABLE = True
-        return _roberta_pipeline
-    except Exception:
-        return None
-
-# Probe at startup
-try:
-    import torch         # noqa
-    from transformers import pipeline as _tp  # noqa
-    ROBERTA_AVAILABLE = True
-except ImportError:
-    pass
 
 # ─────────────────────────────────────────────────────────────
 # PAGE CONFIG
@@ -739,74 +708,7 @@ def build_summary(df: pd.DataFrame) -> pd.DataFrame:
 # NLP SENTIMENT ANALYSIS
 # ─────────────────────────────────────────────────────────────
 
-def run_vader(texts):
-    """Score a list of texts with VADER. Returns list of score dicts."""
-    if not VADER_AVAILABLE:
-        return [{"compound": None, "pos": None, "neu": None, "neg": None}] * len(texts)
-    analyzer = VaderAnalyzer()
-    return [analyzer.polarity_scores(t or "") for t in texts]
 
-
-def run_roberta(texts, batch_size=32, progress_cb=None):
-    """Score texts with RoBERTa. Returns list of {label, score} dicts."""
-    pipe = _load_roberta()
-    if pipe is None:
-        return [{"label": None, "score": None}] * len(texts)
-    results = []
-    for i in range(0, len(texts), batch_size):
-        batch = [t[:1000] if t else "" for t in texts[i:i + batch_size]]
-        out = pipe(batch)
-        results.extend(out)
-        if progress_cb:
-            progress_cb(min((i + batch_size) / len(texts), 1.0))
-    return results
-
-
-def roberta_to_sentiment(label):
-    """Normalise RoBERTa labels to positive / neutral / negative."""
-    if not label:
-        return None
-    label = label.lower()
-    if "pos" in label or label == "label_2":
-        return "positive"
-    if "neg" in label or label == "label_0":
-        return "negative"
-    return "neutral"
-
-
-@st.cache_data(show_spinner=False)
-def analyse_dataframe(df_json, run_rob, sample_n):
-    """
-    Run VADER (all rows) and optionally RoBERTa (sampled rows).
-    Accepts/returns JSON strings so Streamlit can cache the result.
-    """
-    df = pd.read_json(df_json, orient="records")
-
-    # VADER on every review
-    if VADER_AVAILABLE:
-        scores = run_vader(df["review_text"].fillna("").tolist())
-        df["vader_compound"] = [s["compound"] for s in scores]
-        df["vader_pos"]      = [s["pos"]      for s in scores]
-        df["vader_neu"]      = [s["neu"]      for s in scores]
-        df["vader_neg"]      = [s["neg"]      for s in scores]
-        df["vader_label"]    = df["vader_compound"].apply(
-            lambda c: "positive" if c >= 0.05 else ("negative" if c <= -0.05 else "neutral")
-        )
-    else:
-        for col in ["vader_compound","vader_pos","vader_neu","vader_neg","vader_label"]:
-            df[col] = None
-
-    # RoBERTa on a sample
-    df["roberta_label"] = None
-    df["roberta_score"] = None
-    if run_rob and ROBERTA_AVAILABLE:
-        idx    = df.sample(min(sample_n, len(df)), random_state=42).index
-        texts  = df.loc[idx, "review_text"].fillna("").tolist()
-        rob_out = run_roberta(texts)
-        df.loc[idx, "roberta_label"] = [roberta_to_sentiment(r.get("label")) for r in rob_out]
-        df.loc[idx, "roberta_score"] = [r.get("score") for r in rob_out]
-
-    return df.to_json(orient="records")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -897,6 +799,20 @@ def generate_wordcloud_img(freq_json: str, positive: bool) -> bytes:
     plt.close(fig)
     buf.seek(0)
     return buf.read()
+
+
+@st.cache_data(show_spinner=False)
+def run_vader_on_df(df_json: str) -> str:
+    """Run VADER on all reviews. Accepts/returns JSON for Streamlit caching."""
+    import pandas as _pd
+    df = _pd.read_json(df_json, orient="records")
+    if VADER_AVAILABLE:
+        analyzer = _VaderAnalyzer()
+        scores = [analyzer.polarity_scores(t or "") for t in df["review_text"].fillna("").tolist()]
+        df["vader_compound"] = [s["compound"] for s in scores]
+    else:
+        df["vader_compound"] = None
+    return df.to_json(orient="records")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1037,7 +953,6 @@ for key, default in [
     ("selected_games",      {}),
     ("results_df",          None),
     ("summary_df",          None),
-    ("nlp_df",              None),
     ("last_genre",          ""),
     ("game_search_results", []),   # candidates from "add a game" lookup
     ("openai_api_key",       os.environ.get("OPENAI_API_KEY", "")),
@@ -1109,7 +1024,6 @@ if search_clicked and genre_input.strip():
         st.session_state.selected_games = {g["app_id"]: True for g in games}
         st.session_state.results_df     = None
         st.session_state.summary_df     = None
-        st.session_state.nlp_df         = None
         st.session_state.last_genre     = genre_input.strip()
     else:
         st.warning("No games found. Try a different search term.")
@@ -1174,7 +1088,6 @@ with st.expander("➕  Add a specific game to the list", expanded=False):
                         st.session_state.selected_games[candidate["app_id"]] = True
                         st.session_state.results_df = None
                         st.session_state.summary_df = None
-                        st.session_state.nlp_df     = None
 
 # ─────────────────────────────────────────────────────────────
 # GAME SELECTION PANEL
@@ -1261,7 +1174,10 @@ if st.session_state.found_games:
             game_bar.empty()
 
             if all_reviews:
-                st.session_state.results_df = pd.DataFrame(all_reviews)
+                _rdf = pd.DataFrame(all_reviews)
+                if VADER_AVAILABLE:
+                    _rdf = pd.read_json(run_vader_on_df(_rdf.to_json(orient="records")), orient="records")
+                st.session_state.results_df = _rdf
                 st.session_state.summary_df = build_summary(st.session_state.results_df)
             else:
                 st.error("No reviews collected. Try different games or a higher review limit.")
@@ -1370,7 +1286,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ── Tabs ──
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["SENTIMENT", "ENGAGEMENT", "GAME TABLE", "REVIEWS", "KEYWORD INSIGHTS", "NLP ANALYSIS", "AI ANALYSIS"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["SENTIMENT", "ENGAGEMENT", "GAME TABLE", "REVIEWS", "KEYWORD INSIGHTS", "AI ANALYSIS"])
 
     with tab1:
         # ── Methodology explainer ──
@@ -1973,354 +1889,9 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 )
                 st.plotly_chart(fig_kn, width="stretch", config={"displayModeBar": False})
 
-    # ──────────────────────────────────────────────────────────
-    # TAB 6 — NLP ANALYSIS
+    # TAB 6 — AI ANALYSIS
     # ──────────────────────────────────────────────────────────
     with tab6:
-        st.markdown("""
-        <div style="background:#15161E;border:1px solid #252840;border-radius:8px;
-                    padding:1.4rem 1.75rem;margin-bottom:1.5rem;">
-          <div style="font-family:'Inter Tight',sans-serif;font-size:.7rem;font-weight:800;
-                      letter-spacing:.18em;text-transform:uppercase;color:#0057FF;margin-bottom:.7rem;">
-            ABOUT THE TWO NLP ENGINES
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:.9rem;">
-            <div style="background:#1c1e2a;border-radius:6px;padding:.9rem 1.1rem;">
-              <div style="font-family:'Inter Tight',sans-serif;font-weight:800;font-size:.9rem;
-                          color:#F4F6F9;margin-bottom:.4rem;">⚡ VADER</div>
-              <div style="font-size:.8rem;color:#C3C5D5;line-height:1.65;">
-                <strong style="color:#F4F6F9;">Valence Aware Dictionary and sEntiment Reasoner</strong> —
-                a rule-based lexicon model built for social media text.
-                It scores each review from <strong>−1</strong> (very negative) to <strong>+1</strong> (very positive),
-                with anything between −0.05 and +0.05 counted as <em>neutral</em>.
-                Runs in milliseconds on every review. No GPU required.
-              </div>
-              <div style="margin-top:.6rem;font-size:.75rem;color:#8b90a8;">
-                Hutto & Gilbert (2014) · <code style="background:#252840;padding:.1rem .3rem;border-radius:2px;">vaderSentiment</code>
-              </div>
-            </div>
-            <div style="background:#1c1e2a;border-radius:6px;padding:.9rem 1.1rem;">
-              <div style="font-family:'Inter Tight',sans-serif;font-weight:800;font-size:.9rem;
-                          color:#F4F6F9;margin-bottom:.4rem;">🤖 RoBERTa</div>
-              <div style="font-size:.8rem;color:#C3C5D5;line-height:1.65;">
-                <strong style="color:#F4F6F9;">twitter-roberta-base-sentiment-latest</strong> —
-                a transformer model fine-tuned on ~124 M tweets, then adapted for sentiment.
-                Far more context-aware than VADER; handles sarcasm, negation, and slang much better.
-                Slower (~1–3s per batch on CPU) so it runs on a <em>sample</em> of reviews.
-              </div>
-              <div style="margin-top:.6rem;font-size:.75rem;color:#8b90a8;">
-                Loureiro et al. (2022) · Cardiff NLP · <code style="background:#252840;padding:.1rem .3rem;border-radius:2px;">transformers</code> + <code style="background:#252840;padding:.1rem .3rem;border-radius:2px;">torch</code>
-              </div>
-            </div>
-          </div>
-          <div style="font-size:.78rem;color:#8b90a8;border-top:1px solid #252840;padding-top:.75rem;">
-            💡 <strong style="color:#C3C5D5;">Why both?</strong>
-            VADER is fast enough to run on the whole dataset and is great for spotting obvious sentiment.
-            RoBERTa is more accurate on ambiguous or ironic text, but needs sampling to stay responsive.
-            Comparing them to each other — and to Steam's own <code style="background:#252840;padding:.1rem .3rem;border-radius:2px;">voted_up</code> signal —
-            reveals where the models agree and where nuance is being missed.
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ── Install status ──
-        col_v, col_r, _ = st.columns([1, 1, 3])
-        with col_v:
-            if VADER_AVAILABLE:
-                st.success("✓ VADER ready")
-            else:
-                st.error("✗ VADER missing")
-                st.caption("`pip install vaderSentiment`")
-        with col_r:
-            if ROBERTA_AVAILABLE:
-                st.success("✓ RoBERTa ready")
-            else:
-                st.warning("⚠ RoBERTa not installed")
-                st.caption("`pip install transformers torch`")
-
-        if not VADER_AVAILABLE:
-            st.info("Install vaderSentiment to enable NLP analysis.")
-        else:
-            # ── Run controls ──
-            st.markdown(
-                '<div class="section-header"><span class="dot"></span>RUN NLP ANALYSIS</div>',
-                unsafe_allow_html=True,
-            )
-            rc1, rc2, rc3 = st.columns([1.2, 1.2, 3])
-            with rc1:
-                run_roberta_cb = st.checkbox(
-                    "Include RoBERTa",
-                    value=ROBERTA_AVAILABLE,
-                    disabled=not ROBERTA_AVAILABLE,
-                    help="Requires torch + transformers. Runs on a sample only.",
-                )
-            with rc2:
-                rob_sample = st.selectbox(
-                    "RoBERTa sample size",
-                    [100, 200, 500],
-                    index=1,
-                    disabled=not (ROBERTA_AVAILABLE and run_roberta_cb),
-                    label_visibility="visible",
-                )
-
-            run_btn_col, _ = st.columns([1, 4])
-            with run_btn_col:
-                run_nlp = st.button("▶  RUN NLP ANALYSIS", width='stretch')
-
-            if run_nlp or st.session_state.nlp_df is not None:
-                if run_nlp:
-                    with st.spinner("Running VADER on all reviews…"):
-                        nlp_json = analyse_dataframe(
-                            df.to_json(orient="records"),
-                            run_roberta_cb,
-                            rob_sample,
-                        )
-                    st.session_state.nlp_df = pd.read_json(nlp_json, orient="records")
-
-                ndf = st.session_state.nlp_df
-
-                # ── KPI row ──
-                st.markdown(
-                    '<div class="section-header"><span class="dot"></span>NLP OVERVIEW</div>',
-                    unsafe_allow_html=True,
-                )
-                vader_pos_pct = (ndf["vader_label"] == "positive").mean() * 100
-                vader_neg_pct = (ndf["vader_label"] == "negative").mean() * 100
-                vader_neu_pct = (ndf["vader_label"] == "neutral").mean() * 100
-                avg_compound  = ndf["vader_compound"].mean()
-
-                # Agreement: Steam voted_up vs VADER label
-                has_both = ndf["vader_label"].notna() & ndf["voted_up"].notna()
-                steam_pos = ndf.loc[has_both, "voted_up"].astype(bool)
-                vader_pos_bool = ndf.loc[has_both, "vader_label"] == "positive"
-                agreement_pct = (steam_pos == vader_pos_bool).mean() * 100
-
-                k1, k2, k3, k4 = st.columns(4)
-                with k1:
-                    st.markdown(f"""
-                    <div class="metric-card bt-pos">
-                      <div class="metric-label">VADER Positive</div>
-                      <div class="metric-value" style="color:var(--pos);">{vader_pos_pct:.0f}%</div>
-                      <div class="metric-sub">of reviews</div>
-                    </div>""", unsafe_allow_html=True)
-                with k2:
-                    st.markdown(f"""
-                    <div class="metric-card bt-neg">
-                      <div class="metric-label">VADER Negative</div>
-                      <div class="metric-value" style="color:var(--neg);">{vader_neg_pct:.0f}%</div>
-                      <div class="metric-sub">of reviews</div>
-                    </div>""", unsafe_allow_html=True)
-                with k3:
-                    st.markdown(f"""
-                    <div class="metric-card bt-blue">
-                      <div class="metric-label">Avg Compound Score</div>
-                      <div class="metric-value">{avg_compound:+.3f}</div>
-                      <div class="metric-sub">−1 = very negative, +1 = very positive</div>
-                    </div>""", unsafe_allow_html=True)
-                with k4:
-                    st.markdown(f"""
-                    <div class="metric-card bt-blue">
-                      <div class="metric-label">VADER vs Steam Agreement</div>
-                      <div class="metric-value">{agreement_pct:.0f}%</div>
-                      <div class="metric-sub">of pos/neg reviews match</div>
-                    </div>""", unsafe_allow_html=True)
-
-                st.markdown("<br>", unsafe_allow_html=True)
-
-                # ── Two columns: compound distribution + per-game VADER ──
-                left, right = st.columns(2)
-
-                with left:
-                    st.markdown(
-                        '<div class="section-header"><span class="dot"></span>VADER SCORE DISTRIBUTION</div>',
-                        unsafe_allow_html=True,
-                    )
-                    fig_dist = go.Figure()
-                    for label, color in [("positive","#2ecc71"),("neutral","#0057FF"),("negative","#e74c3c")]:
-                        sub = ndf[ndf["vader_label"] == label]["vader_compound"]
-                        fig_dist.add_trace(go.Histogram(
-                            x=sub, nbinsx=30, name=label.capitalize(),
-                            marker_color=color, opacity=0.75,
-                        ))
-                    fig_dist.update_layout(
-                        **PLOTLY_BASE, barmode="overlay", height=300,
-                        xaxis=dict(title="Compound score", tickfont=dict(color="#8b90a8"),
-                                   range=[-1,1], showgrid=False),
-                        yaxis=dict(title="Count", showgrid=True, gridcolor="#252840",
-                                   tickfont=dict(color="#8b90a8")),
-                        legend=dict(font=dict(color="#F4F6F9"), bgcolor="rgba(0,0,0,0)"),
-                    )
-                    st.plotly_chart(fig_dist, width='stretch', config={"displayModeBar": False})
-
-                with right:
-                    st.markdown(
-                        '<div class="section-header"><span class="dot"></span>STEAM vs VADER AGREEMENT</div>',
-                        unsafe_allow_html=True,
-                    )
-                    # Build a confusion-style stacked bar per game
-                    rows = []
-                    for game, grp in ndf.groupby("game_title"):
-                        valid = grp[grp["vader_label"].notna() & grp["voted_up"].notna()]
-                        if len(valid) == 0:
-                            continue
-                        agree = ((valid["voted_up"].astype(bool)) == (valid["vader_label"] == "positive")).mean() * 100
-                        rows.append({"game": game[:22], "agree": agree, "disagree": 100 - agree})
-                    agree_df = pd.DataFrame(rows).sort_values("agree", ascending=True)
-                    fig_agree = go.Figure()
-                    fig_agree.add_trace(go.Bar(
-                        y=agree_df["game"], x=agree_df["agree"],
-                        name="Agree", marker_color="#0057FF", orientation="h",
-                        text=[f"{v:.0f}%" for v in agree_df["agree"]],
-                        textposition="inside", textfont=dict(color="#fff", size=10),
-                    ))
-                    fig_agree.add_trace(go.Bar(
-                        y=agree_df["game"], x=agree_df["disagree"],
-                        name="Disagree", marker_color="#252840", orientation="h",
-                    ))
-                    fig_agree.update_layout(
-                        **PLOTLY_BASE, barmode="stack", height=300,
-                        xaxis=dict(range=[0,100], tickfont=dict(color="#8b90a8"), showgrid=False),
-                        yaxis=dict(tickfont=dict(color="#F4F6F9", size=10), showgrid=False),
-                        legend=dict(font=dict(color="#F4F6F9"), bgcolor="rgba(0,0,0,0)"),
-                    )
-                    st.plotly_chart(fig_agree, width='stretch', config={"displayModeBar": False})
-
-                # ── Per-game VADER avg compound score ──
-                st.markdown(
-                    '<div class="section-header"><span class="dot"></span>VADER COMPOUND SCORE BY GAME</div>',
-                    unsafe_allow_html=True,
-                )
-                game_vader = (
-                    ndf.groupby("game_title")["vader_compound"]
-                    .mean()
-                    .sort_values()
-                    .reset_index()
-                )
-                fig_vg = go.Figure(go.Bar(
-                    y=game_vader["game_title"],
-                    x=game_vader["vader_compound"],
-                    orientation="h",
-                    marker_color=[
-                        "#2ecc71" if v >= 0.05 else "#e74c3c" if v <= -0.05 else "#0057FF"
-                        for v in game_vader["vader_compound"]
-                    ],
-                    text=[f"{v:+.3f}" for v in game_vader["vader_compound"]],
-                    textposition="outside",
-                    textfont=dict(color="#F4F6F9", size=10),
-                ))
-                fig_vg.update_layout(
-                    **PLOTLY_BASE,
-                    xaxis=dict(range=[-1, 1], showgrid=True, gridcolor="#252840",
-                               zeroline=True, zerolinecolor="#444",
-                               tickfont=dict(color="#8b90a8"),
-                               title="Avg VADER Compound (−1 to +1)"),
-                    yaxis=dict(showgrid=False, tickfont=dict(color="#F4F6F9", size=11)),
-                    height=max(300, len(game_vader) * 36),
-                )
-                st.plotly_chart(fig_vg, width='stretch', config={"displayModeBar": False})
-
-                # ── RoBERTa section (only if ran) ──
-                rob_ran = ndf["roberta_label"].notna().any()
-                if rob_ran:
-                    st.markdown(
-                        '<div class="section-header"><span class="dot"></span>ROBERTA RESULTS</div>',
-                        unsafe_allow_html=True,
-                    )
-                    rob_valid = ndf[ndf["roberta_label"].notna()]
-                    n_sampled = len(rob_valid)
-
-                    r1, r2, r3 = st.columns(3)
-                    rob_pos = (rob_valid["roberta_label"] == "positive").mean() * 100
-                    rob_neg = (rob_valid["roberta_label"] == "negative").mean() * 100
-                    rob_neu = (rob_valid["roberta_label"] == "neutral").mean() * 100
-                    with r1:
-                        st.markdown(f"""
-                        <div class="metric-card bt-pos">
-                          <div class="metric-label">RoBERTa Positive</div>
-                          <div class="metric-value" style="color:var(--pos);">{rob_pos:.0f}%</div>
-                          <div class="metric-sub">of {n_sampled:,} sampled reviews</div>
-                        </div>""", unsafe_allow_html=True)
-                    with r2:
-                        st.markdown(f"""
-                        <div class="metric-card bt-neg">
-                          <div class="metric-label">RoBERTa Negative</div>
-                          <div class="metric-value" style="color:var(--neg);">{rob_neg:.0f}%</div>
-                          <div class="metric-sub">of {n_sampled:,} sampled reviews</div>
-                        </div>""", unsafe_allow_html=True)
-                    with r3:
-                        st.markdown(f"""
-                        <div class="metric-card bt-blue">
-                          <div class="metric-label">RoBERTa Neutral</div>
-                          <div class="metric-value">{rob_neu:.0f}%</div>
-                          <div class="metric-sub">of {n_sampled:,} sampled reviews</div>
-                        </div>""", unsafe_allow_html=True)
-
-                    st.markdown("<br>", unsafe_allow_html=True)
-
-                    # Three-way comparison: Steam / VADER / RoBERTa
-                    st.markdown(
-                        '<div class="section-header"><span class="dot"></span>'
-                        'THREE-WAY COMPARISON: STEAM vs VADER vs ROBERTA</div>',
-                        unsafe_allow_html=True,
-                    )
-                    # Only compare rows where all three exist
-                    comp = rob_valid[rob_valid["voted_up"].notna() & rob_valid["vader_label"].notna()].copy()
-                    comp["steam_lbl"]  = comp["voted_up"].apply(lambda v: "positive" if v else "negative")
-                    games_list = sorted(comp["game_title"].unique())
-                    rows3 = []
-                    for g in games_list:
-                        sub = comp[comp["game_title"] == g]
-                        rows3.append({
-                            "Game":    g[:24],
-                            "Steam":   (sub["steam_lbl"] == "positive").mean() * 100,
-                            "VADER":   (sub["vader_label"] == "positive").mean() * 100,
-                            "RoBERTa": (sub["roberta_label"] == "positive").mean() * 100,
-                        })
-                    df3 = pd.DataFrame(rows3).sort_values("Steam", ascending=True)
-                    fig3 = go.Figure()
-                    for col_, color_ in [("Steam","#C3C5D5"),("VADER","#0057FF"),("RoBERTa","#2ecc71")]:
-                        fig3.add_trace(go.Bar(
-                            y=df3["Game"], x=df3[col_],
-                            name=col_, marker_color=color_, orientation="h", opacity=0.85,
-                        ))
-                    fig3.update_layout(
-                        **PLOTLY_BASE, barmode="group",
-                        xaxis=dict(range=[0,110], title="% Positive",
-                                   tickfont=dict(color="#8b90a8"), showgrid=False),
-                        yaxis=dict(tickfont=dict(color="#F4F6F9", size=10), showgrid=False),
-                        legend=dict(font=dict(color="#F4F6F9"), bgcolor="rgba(0,0,0,0)"),
-                        height=max(320, len(df3) * 42),
-                    )
-                    st.plotly_chart(fig3, width='stretch', config={"displayModeBar": False})
-
-                    # Divergence table
-                    st.markdown(
-                        '<div class="section-header"><span class="dot"></span>'
-                        'MODEL DIVERGENCE — WHERE THEY DISAGREE</div>',
-                        unsafe_allow_html=True,
-                    )
-                    df3["VADER−Steam"] = (df3["VADER"] - df3["Steam"]).round(1)
-                    df3["RoBERTa−Steam"] = (df3["RoBERTa"] - df3["Steam"]).round(1)
-                    st.dataframe(
-                        df3[["Game","Steam","VADER","RoBERTa","VADER−Steam","RoBERTa−Steam"]]
-                          .sort_values("RoBERTa−Steam", key=abs, ascending=False)
-                          .reset_index(drop=True),
-                        width='stretch', hide_index=True,
-                    )
-                else:
-                    st.info(
-                        "RoBERTa results not yet available. "
-                        "Enable **Include RoBERTa** above and click **Run NLP Analysis**."
-                        if ROBERTA_AVAILABLE else
-                        "RoBERTa requires `pip install transformers torch`. "
-                        "VADER analysis is shown above."
-                    )
-
-
-    # ──────────────────────────────────────────────────────────
-    # TAB 7 — AI ANALYSIS
-    # ──────────────────────────────────────────────────────────
-    with tab7:
 
         st.markdown(
             '<div class="section-header"><span class="dot"></span>AI-POWERED REPORT</div>',
@@ -2391,7 +1962,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                         st.error(f"✗ {type(e).__name__}: {e}")
 
             # ── Prompt builder ─────────────────────────────────
-            def build_analysis_prompt(df_, sdf_, nlp_df_, focus, tone) -> str:
+            def build_analysis_prompt(df_, sdf_, focus, tone) -> str:
                 genre_label = st.session_state.get("last_genre", "unknown genre")
                 n_games     = sdf_["game_title"].nunique()
                 n_reviews   = len(df_)
@@ -2410,10 +1981,10 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                     pt_med  = pt.median()
                     pt_p90  = pt.quantile(0.90)
 
-                    # VADER if available
+                    # VADER compound for this game (computed inline)
                     vader_str = ""
-                    if nlp_df_ is not None and "vader_compound" in nlp_df_.columns:
-                        gv = nlp_df_[nlp_df_["game_title"] == g]["vader_compound"].mean()
+                    if VADER_AVAILABLE and "vader_compound" in df_.columns:
+                        gv = df_[df_["game_title"] == g]["vader_compound"].mean()
                         if not pd.isna(gv):
                             vader_str = f", VADER compound {gv:+.3f}"
 
@@ -2609,7 +2180,7 @@ HARD RULES:
             # ── Generate ───────────────────────────────────────
             if generate_clicked:
                 st.session_state.ai_report = ""
-                prompt = build_analysis_prompt(df, sdf, st.session_state.nlp_df,
+                prompt = build_analysis_prompt(df, sdf,
                                                report_focus, report_tone)
                 report_placeholder = st.empty()
                 status_placeholder = st.empty()
