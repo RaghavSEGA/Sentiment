@@ -16,6 +16,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 import io
+import json as _json
 
 try:
     from wordcloud import WordCloud as _WC
@@ -37,7 +38,6 @@ try:
     VADER_AVAILABLE = True
 except ImportError:
     VADER_AVAILABLE = False
-
 
 # ─────────────────────────────────────────────────────────────
 # PAGE CONFIG
@@ -115,18 +115,10 @@ html, body, [class*="css"] {
 }
 
 /* ── Hero ── */
-.hero { padding: 2.5rem 0 2rem; }
-.hero-eyebrow {
-    font-size: 0.68rem;
-    font-weight: 600;
-    letter-spacing: 0.25em;
-    color: var(--blue);
-    text-transform: uppercase;
-    margin-bottom: 0.5rem;
-}
+.hero { padding: 1.2rem 0 1rem; }
 .hero-title {
     font-family: 'Inter Tight', sans-serif;
-    font-size: 3.8rem;
+    font-size: 2.8rem;
     font-weight: 800;
     line-height: 0.92;
     color: var(--text);
@@ -138,8 +130,8 @@ html, body, [class*="css"] {
     font-size: 0.92rem;
     font-weight: 300;
     color: var(--muted);
-    max-width: 520px;
-    line-height: 1.65;
+    max-width: 600px;
+    line-height: 1.55;
 }
 
 /* ── Search panel ── */
@@ -704,12 +696,6 @@ def build_summary(df: pd.DataFrame) -> pd.DataFrame:
 # CHART HELPERS
 # ─────────────────────────────────────────────────────────────
 
-# ─────────────────────────────────────────────────────────────
-# NLP SENTIMENT ANALYSIS
-# ─────────────────────────────────────────────────────────────
-
-
-
 
 # ─────────────────────────────────────────────────────────────
 # KEYWORD EXTRACTION
@@ -750,7 +736,6 @@ def extract_keywords(texts: list[str], top_n: int = 30) -> list[tuple[str, int]]
     return counter.most_common(top_n)
 
 
-@st.cache_data(show_spinner=False)
 @st.cache_data(show_spinner=False)
 def generate_wordcloud_img(freq_json: str, positive: bool) -> bytes:
     """
@@ -804,8 +789,7 @@ def generate_wordcloud_img(freq_json: str, positive: bool) -> bytes:
 @st.cache_data(show_spinner=False)
 def run_vader_on_df(df_json: str) -> str:
     """Run VADER on all reviews. Accepts/returns JSON for Streamlit caching."""
-    import pandas as _pd
-    df = _pd.read_json(df_json, orient="records")
+    df = pd.read_json(df_json, orient="records")
     if VADER_AVAILABLE:
         analyzer = _VaderAnalyzer()
         scores = [analyzer.polarity_scores(t or "") for t in df["review_text"].fillna("").tolist()]
@@ -979,12 +963,8 @@ st.markdown("""
 
 st.markdown("""
 <div class="hero">
-  <div class="hero-eyebrow">Steam Review Intelligence</div>
-  <div class="hero-title">GENRE<br><span class="accent">ANALYTICS</span></div>
-  <div class="hero-sub">
-    Enter any game genre to discover how players rate titles on Steam.
-    Sentiment, playtime, and engagement — all in one view.
-  </div>
+  <div class="hero-title">GENRE <span class="accent">ANALYTICS</span></div>
+  <div class="hero-sub">Pull Steam reviews for any genre and explore sentiment, playtime, and keywords — all in one view.</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1006,11 +986,10 @@ with c2:
 with c3:
     st.markdown('<div class="field-label">Reviews / Game</div>', unsafe_allow_html=True)
     reviews_per = st.selectbox("reviews per game", [100, 250, 500], index=0, label_visibility="collapsed")
-st.markdown("</div>", unsafe_allow_html=True)
-
 btn_col, _ = st.columns([1, 5])
 with btn_col:
     search_clicked = st.button("🔍  SEARCH GENRE", width='stretch')
+st.markdown("</div>", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
 # SEARCH LOGIC
@@ -1290,48 +1269,15 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
 
     with tab1:
         # ── Methodology explainer ──
-        st.markdown("""
-        <div style="background:#15161E;border:1px solid #252840;border-radius:8px;padding:1.4rem 1.75rem;margin-bottom:1.75rem;">
-          <div style="font-family:'Inter Tight',sans-serif;font-size:.7rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#0057FF;margin-bottom:.65rem;">
-            HOW THIS SENTIMENT SCORE IS CALCULATED
-          </div>
-          <div style="font-size:.88rem;line-height:1.75;color:#C3C5D5;">
-            <strong style="color:#F4F6F9;">No AI or NLP is involved.</strong>
-            Every Steam reviewer must click a <strong style="color:#2ecc71;">thumbs up</strong>
-            or <strong style="color:#e74c3c;">thumbs down</strong> before submitting their review.
-            This app reads that binary signal directly from Steam's public review API and divides
-            positive votes by total votes to produce the <em>% Positive</em> score.
-          </div>
-          <div style="display:flex;gap:2rem;margin-top:1.1rem;flex-wrap:wrap;">
-            <div style="flex:1;min-width:160px;background:#1c1e2a;border-radius:6px;padding:.85rem 1rem;">
-              <div style="font-size:.65rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:#8b90a8;margin-bottom:.3rem;">Formula</div>
-              <div style="font-family:'Inter Tight',sans-serif;font-size:1rem;font-weight:700;color:#F4F6F9;">
-                👍 positive ÷ total reviews × 100
-              </div>
-            </div>
-            <div style="flex:1;min-width:160px;background:#1c1e2a;border-radius:6px;padding:.85rem 1rem;">
-              <div style="font-size:.65rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:#8b90a8;margin-bottom:.3rem;">Source</div>
-              <div style="font-size:.85rem;color:#F4F6F9;">Steam's <code style="background:#252840;padding:.1rem .35rem;border-radius:3px;font-size:.8rem;">voted_up</code> field per review — set by the reviewer, not inferred</div>
-            </div>
-            <div style="flex:1;min-width:160px;background:#1c1e2a;border-radius:6px;padding:.85rem 1rem;">
-              <div style="font-size:.65rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:#8b90a8;margin-bottom:.3rem;">What it means</div>
-              <div style="font-size:.85rem;color:#F4F6F9;">A score of <strong>80%</strong> means 8 in 10 reviewers explicitly recommended the game</div>
-            </div>
-            <div style="flex:1;min-width:200px;background:#1c1e2a;border-radius:6px;padding:.85rem 1rem;">
-              <div style="font-size:.65rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:#8b90a8;margin-bottom:.3rem;">Limitations</div>
-              <div style="font-size:.85rem;color:#F4F6F9;">Binary signal only — no nuance, no topic extraction. Review bombing or incentivised reviews can skew scores. Sample here is capped at your chosen review limit.</div>
-            </div>
-          </div>
-          <div style="margin-top:1rem;font-size:.78rem;color:#8b90a8;border-top:1px solid #252840;padding-top:.75rem;">
-            💡 <strong style="color:#C3C5D5;">Steam's own rating labels:</strong>
-            &nbsp;≥ 95% = Overwhelmingly Positive &nbsp;·&nbsp;
-            ≥ 80% = Very Positive &nbsp;·&nbsp;
-            ≥ 70% = Mostly Positive &nbsp;·&nbsp;
-            ≥ 40% = Mixed &nbsp;·&nbsp;
-            &lt; 40% = Mostly / Overwhelmingly Negative
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+        with st.expander("ℹ️  How sentiment is calculated", expanded=False):
+            st.markdown(
+                'Steam reviewers must click 👍 or 👎 before submitting. '
+                'This app reads that signal directly from the Steam API and computes '
+                '**% Positive = thumbs up ÷ total reviews × 100**. '
+                'No NLP or AI is involved in the score itself.\\n\\n'
+                'Steam labels: ≥95% Overwhelmingly Positive · ≥80% Very Positive · '
+                '≥70% Mostly Positive · ≥40% Mixed · <40% Negative.'
+            )
 
         st.markdown(
             '<div class="section-header"><span class="dot"></span>POSITIVE SENTIMENT RANKING</div>',
@@ -1349,7 +1295,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                         config={"displayModeBar": False})
 
     with tab2:
-        left, right = st.columns(2)
+        left, mid, right = st.columns(3)
         with left:
             st.markdown(
                 '<div class="section-header"><span class="dot"></span>REVIEW VOLUME</div>',
@@ -1357,7 +1303,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             )
             st.plotly_chart(chart_stacked_bar(sdf), width='stretch',
                             config={"displayModeBar": False})
-        with right:
+        with mid:
             st.markdown(
                 '<div class="section-header"><span class="dot"></span>PLAYTIME DISTRIBUTION</div>',
                 unsafe_allow_html=True,
@@ -1365,13 +1311,14 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             st.caption("Capped at 500 hrs for readability")
             st.plotly_chart(chart_playtime_hist(df), width='stretch',
                             config={"displayModeBar": False})
+        with right:
+            st.markdown(
+                '<div class="section-header"><span class="dot"></span>EARLY ACCESS</div>',
+                unsafe_allow_html=True,
+            )
+            st.plotly_chart(chart_ea_donut(df), width='stretch',
+                            config={"displayModeBar": False})
 
-        st.markdown(
-            '<div class="section-header"><span class="dot"></span>EARLY ACCESS vs FULL RELEASE</div>',
-            unsafe_allow_html=True,
-        )
-        st.plotly_chart(chart_ea_donut(df), width='stretch',
-                        config={"displayModeBar": False})
 
     with tab3:
         st.markdown(
@@ -1530,13 +1477,6 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             st.session_state.kw_selected_term = None
         if "kw_selected_sentiment" not in st.session_state:
             st.session_state.kw_selected_sentiment = None   # "pos" | "neg"
-        if "kw_drill_game_sel" not in st.session_state:
-            st.session_state.kw_drill_game_sel = None
-        if "kw_drill_term" not in st.session_state:
-            st.session_state.kw_drill_term = None
-        if "kw_drill_sentiment" not in st.session_state:
-            st.session_state.kw_drill_sentiment = None
-
         st.markdown(
             '<div class="section-header"><span class="dot"></span>WHAT ARE PEOPLE TALKING ABOUT?</div>',
             unsafe_allow_html=True,
@@ -1601,7 +1541,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         </style>
         """, unsafe_allow_html=True)
 
-        def render_keyword_buttons(kws, sentiment, key_prefix, df_source, active_term):
+        def render_keyword_buttons(kws, sentiment, key_prefix, active_term):
             """Render keyword buttons; clicking one shows matching reviews below."""
             if not kws:
                 st.markdown('<span style="font-size:.8rem;color:var(--muted);">No data</span>',
@@ -1609,7 +1549,6 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 return
 
             is_pos   = sentiment == "pos"
-            colour   = "#2ecc71" if is_pos else "#e74c3c"
             max_c    = kws[0][1]
             n_cols   = 5
             rows     = [kws[i:i+n_cols] for i in range(0, len(kws), n_cols)]
@@ -1727,8 +1666,6 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 )
 
         # ─── Unified keyword insights (single game selector) ────
-        import json as _json
-
         st.markdown(
             '<div class="section-header"><span class="dot"></span>'
             'KEYWORD INSIGHTS  '
@@ -1819,7 +1756,6 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             )
             render_keyword_buttons(
                 top_pos[:30], "pos", "kw_selected",
-                df_source=ki_df,
                 active_term=st.session_state.kw_selected_term
                     if st.session_state.kw_selected_sentiment == "pos" else None,
             )
@@ -1833,7 +1769,6 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             )
             render_keyword_buttons(
                 top_neg[:30], "neg", "kw_selected",
-                df_source=ki_df,
                 active_term=st.session_state.kw_selected_term
                     if st.session_state.kw_selected_sentiment == "neg" else None,
             )
@@ -1904,7 +1839,6 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             _env_key = os.environ.get("OPENAI_API_KEY", "")
             if _env_key:
                 st.session_state.openai_api_key = _env_key
-            
 
             # ── Report options ─────────────────────────────────
             opt_left, opt_right = st.columns(2)
@@ -1936,19 +1870,17 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                     label_visibility="visible",
                 )
             with gen_col:
-                st.markdown("<div style='padding-top:1.85rem;'>", unsafe_allow_html=True)
+                st.markdown("<br>", unsafe_allow_html=True)
                 generate_clicked = st.button(
                     "✨  GENERATE REPORT",
                     width='stretch',
                 )
-                st.markdown("</div>", unsafe_allow_html=True)
             with test_col:
-                st.markdown("<div style='padding-top:1.85rem;'>", unsafe_allow_html=True)
+                st.markdown("<br>", unsafe_allow_html=True)
                 test_clicked = st.button(
-                    "🔌  Test",
+                    "🔌  Test connection",
                     width='stretch',
                 )
-                st.markdown("</div>", unsafe_allow_html=True)
 
             if test_clicked:
                 import httpx as _httpx
