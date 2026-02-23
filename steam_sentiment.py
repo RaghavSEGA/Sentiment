@@ -1318,31 +1318,30 @@ st.markdown("""
 # QUICK-START GENRE CHIPS
 # ─────────────────────────────────────────────────────────────
 QUICK_GENRES = [
-    ("⚔️", "soulslike"), ("🥊", "fighting"), ("🏃", "roguelike"),
-    ("🗺️", "metroidvania"), ("🔫", "battle royale"), ("🧙", "rpg"),
-    ("🌆", "open world"), ("🏗️", "city builder"), ("🎯", "tactical shooter"),
-    ("🌌", "space sim"),
+    "soulslike", "fighting", "roguelike",
+    "metroidvania", "battle royale", "rpg",
 ]
 
 st.markdown("""
 <style>
-.chip-row { display:flex; flex-wrap:wrap; gap:.4rem; margin:.4rem 0 1.1rem; }
+.chip-row { display:flex; gap:.65rem; margin:.4rem 0 1.1rem; }
 .genre-chip > button {
     background: var(--surface) !important;
     color: var(--text-dim) !important;
     border: 1px solid var(--border) !important;
-    border-radius: 20px !important;
-    font-family: 'Poppins', sans-serif !important;
-    font-size: .75rem !important;
-    font-weight: 500 !important;
-    letter-spacing: .03em !important;
-    padding: .25rem .9rem !important;
+    border-radius: 6px !important;
+    font-family: 'Inter Tight', sans-serif !important;
+    font-size: .78rem !important;
+    font-weight: 700 !important;
+    letter-spacing: .1em !important;
+    text-transform: uppercase !important;
+    padding: .4rem 1.1rem !important;
     min-height: unset !important;
     height: auto !important;
-    line-height: 1.6 !important;
-    transition: all .15s !important;
+    line-height: 1.5 !important;
+    transition: border-color .15s, color .15s, background .15s !important;
     box-shadow: none !important;
-    text-transform: none !important;
+    width: 100% !important;
 }
 .genre-chip > button:hover {
     background: var(--surface2) !important;
@@ -1357,10 +1356,10 @@ st.markdown("""
 st.markdown('<div class="chip-row">', unsafe_allow_html=True)
 _chip_cols = st.columns(len(QUICK_GENRES))
 _chip_clicked = None
-for _ci, (_emoji, _label) in enumerate(QUICK_GENRES):
+for _ci, _label in enumerate(QUICK_GENRES):
     with _chip_cols[_ci]:
         st.markdown('<div class="genre-chip">', unsafe_allow_html=True)
-        if st.button(f"{_emoji} {_label}", key=f"chip_{_label}"):
+        if st.button(_label, key=f"chip_{_label}"):
             _chip_clicked = _label
         st.markdown('</div>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
@@ -1644,6 +1643,154 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                     unsafe_allow_html=True,
                 )
                 sdf = build_summary(df) if len(df) else sdf
+
+    # ── Date range filter ─────────────────────────────────────
+    from datetime import datetime, timedelta, timezone, date as _date
+
+    # Compute the actual min/max dates present in the data
+    _ts_col = df["timestamp_created"].dropna()
+    if len(_ts_col):
+        _ts_min = int(_ts_col.min())
+        _ts_max = int(_ts_col.max())
+        _data_start = datetime.fromtimestamp(_ts_min, timezone.utc).date()
+        _data_end   = datetime.fromtimestamp(_ts_max, timezone.utc).date()
+    else:
+        _data_start = _date(2010, 1, 1)
+        _data_end   = _date.today()
+
+    _today = _date.today()
+
+    # Initialise session state for date filter
+    if "date_from" not in st.session_state:
+        st.session_state.date_from = _data_start
+    if "date_to" not in st.session_state:
+        st.session_state.date_to = _data_end
+
+    # Clamp stored values to actual data range on new dataset load
+    _stored_from = st.session_state.date_from
+    _stored_to   = st.session_state.date_to
+    if _stored_from < _data_start or _stored_from > _data_end:
+        st.session_state.date_from = _data_start
+    if _stored_to < _data_start or _stored_to > _data_end:
+        st.session_state.date_to = _data_end
+
+    with st.expander("📅  Filter by review date", expanded=False):
+        st.markdown(
+            '<div style="font-size:.78rem;color:var(--muted);margin-bottom:.9rem;">'
+            'Only include reviews written within a specific date range. '
+            'Use the quick-select buttons or enter custom dates below.</div>',
+            unsafe_allow_html=True,
+        )
+
+        # ── Quick-select preset buttons ──────────────────────
+        st.markdown('<div class="field-label" style="margin-bottom:.45rem;">Quick select</div>',
+                    unsafe_allow_html=True)
+
+        _qb_css = """
+<style>
+.date-preset > button {
+    background: var(--surface2) !important;
+    color: var(--text-dim) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 6px !important;
+    font-family: 'Poppins', sans-serif !important;
+    font-size: .72rem !important;
+    font-weight: 500 !important;
+    letter-spacing: .04em !important;
+    padding: .28rem .7rem !important;
+    min-height: unset !important;
+    height: auto !important;
+    line-height: 1.5 !important;
+    text-transform: none !important;
+    box-shadow: none !important;
+    transition: border-color .15s, color .15s !important;
+}
+.date-preset > button:hover {
+    border-color: var(--blue) !important;
+    color: var(--text) !important;
+    background: var(--surface3) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+</style>"""
+        st.markdown(_qb_css, unsafe_allow_html=True)
+
+        _presets = [
+            ("Last 7 days",   _today - timedelta(days=7),   _today),
+            ("Last 30 days",  _today - timedelta(days=30),  _today),
+            ("Last 90 days",  _today - timedelta(days=90),  _today),
+            ("Last year",     _today - timedelta(days=365), _today),
+            ("Last 3 years",  _today - timedelta(days=1095),_today),
+            ("All time",      _data_start,                  _data_end),
+        ]
+
+        _pb_cols = st.columns(len(_presets))
+        for _pi, (_plabel, _pfrom, _pto) in enumerate(_presets):
+            with _pb_cols[_pi]:
+                st.markdown('<div class="date-preset">', unsafe_allow_html=True)
+                if st.button(_plabel, key=f"date_preset_{_pi}"):
+                    # Clamp to data range
+                    st.session_state.date_from = max(_pfrom, _data_start)
+                    st.session_state.date_to   = min(_pto,   _data_end)
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<div style="height:.6rem;"></div>', unsafe_allow_html=True)
+
+        # ── Custom date inputs ────────────────────────────────
+        st.markdown('<div class="field-label" style="margin-bottom:.45rem;">Custom range</div>',
+                    unsafe_allow_html=True)
+        _dc1, _dc2, _dc3 = st.columns([1, 1, 3])
+        with _dc1:
+            st.markdown('<div class="field-label">From</div>', unsafe_allow_html=True)
+            _di_from = st.date_input(
+                "date_from_input", label_visibility="collapsed",
+                value=st.session_state.date_from,
+                min_value=_data_start, max_value=_data_end,
+                key="date_from_widget",
+            )
+        with _dc2:
+            st.markdown('<div class="field-label">To</div>', unsafe_allow_html=True)
+            _di_to = st.date_input(
+                "date_to_input", label_visibility="collapsed",
+                value=st.session_state.date_to,
+                min_value=_data_start, max_value=_data_end,
+                key="date_to_widget",
+            )
+
+        # Sync widget values back to session state
+        st.session_state.date_from = _di_from
+        st.session_state.date_to   = _di_to
+
+        # ── Apply the date filter ─────────────────────────────
+        _dt_active = (
+            st.session_state.date_from != _data_start or
+            st.session_state.date_to   != _data_end
+        )
+        _df_before = len(df)
+        if _di_from > _di_to:
+            st.warning("'From' date must be on or before 'To' date.")
+        else:
+            _ts_from = int(datetime.combine(_di_from, datetime.min.time(),
+                                            tzinfo=timezone.utc).timestamp())
+            _ts_to   = int(datetime.combine(_di_to,   datetime.max.time(),
+                                            tzinfo=timezone.utc).timestamp())
+            df = df[
+                (df["timestamp_created"] >= _ts_from) &
+                (df["timestamp_created"] <= _ts_to)
+            ].copy()
+            _df_after = len(df)
+            if _dt_active:
+                _label_from = _di_from.strftime("%b %d, %Y")
+                _label_to   = _di_to.strftime("%b %d, %Y")
+                st.markdown(
+                    f'<div style="font-size:.75rem;color:var(--blue);margin-top:.5rem;">'
+                    f'Showing <strong>{_df_after:,}</strong> of {_df_before:,} reviews'
+                    f' &nbsp;·&nbsp; {_label_from} → {_label_to}</div>',
+                    unsafe_allow_html=True,
+                )
+                if len(df):
+                    sdf = build_summary(df)
 
     # ── KPI strip ──
     total_reviews = len(df)
