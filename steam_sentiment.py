@@ -1054,105 +1054,224 @@ def lookup_game(query: str) -> list[dict]:
 
 def chart_sentiment_bar(sdf: pd.DataFrame) -> go.Figure:
     df = sdf.sort_values("positive_pct", ascending=True).tail(15)
+    # Colour gradient: red → amber → blue by score
+    def bar_colour(v):
+        if v >= 80: return "#4080ff"
+        if v >= 70: return "#2d6aee"
+        if v >= 55: return "#f0a500"
+        return "#ff3d52"
+    colours = [bar_colour(v) for v in df["positive_pct"]]
+    # Steam label overlay
+    def steam_label(v):
+        if v >= 95: return "Overwhelmingly Positive"
+        if v >= 80: return "Very Positive"
+        if v >= 70: return "Mostly Positive"
+        if v >= 40: return "Mixed"
+        return "Negative"
+    labels = [f"  {v:.0f}%  {steam_label(v)}" for v in df["positive_pct"]]
     fig = go.Figure(go.Bar(
         y=df["game_title"], x=df["positive_pct"], orientation="h",
-        marker_color=[
-            "#4080ff" if v >= 70 else "#003FBF" if v >= 50 else "#0a1540"
-            for v in df["positive_pct"]
-        ],
-        text=[f"{v:.0f}%" for v in df["positive_pct"]],
+        marker=dict(
+            color=colours,
+            line=dict(color="rgba(0,0,0,0)", width=0),
+        ),
+        text=labels,
         textposition="outside",
-        textfont=dict(size=11, color="#eef0fa"),
+        textfont=dict(size=10, color="#b8bcd4"),
+        cliponaxis=False,
     ))
+    # Subtle 80% reference line
+    fig.add_vline(x=80, line=dict(color="rgba(64,128,255,0.2)", width=1, dash="dot"))
     fig.update_layout(
         **PLOTLY_BASE,
-        xaxis=dict(range=[0, 112], showgrid=False, zeroline=False,
-                   tickfont=dict(color="#5a5f82")),
-        yaxis=dict(showgrid=False, tickfont=dict(color="#eef0fa", size=11)),
-        height=max(300, len(df) * 38),
+        xaxis=dict(range=[0, 130], showgrid=False, zeroline=False,
+                   tickfont=dict(color="#5a5f82"), showticklabels=False),
+        yaxis=dict(showgrid=False, tickfont=dict(color="#eef0fa", size=11),
+                   ticksuffix="  "),
+        height=max(320, len(df) * 42),
+        bargap=0.35,
     )
     return fig
 
 
 def chart_scatter(sdf: pd.DataFrame) -> go.Figure:
+    # Colour by sentiment, size by review count
     fig = go.Figure(go.Scatter(
         x=sdf["avg_playtime_hrs"],
         y=sdf["positive_pct"],
         mode="markers+text",
-        text=sdf["game_title"].str[:22],
+        text=sdf["game_title"].str[:20],
         textposition="top center",
-        textfont=dict(size=9, color="#5a5f82"),
+        textfont=dict(size=9, color="#6b7194"),
         marker=dict(
-            size=sdf["total_reviews"].apply(lambda v: max(8, min(30, v / 8))),
+            size=sdf["total_reviews"].apply(lambda v: max(10, min(36, v / 6))),
             color=sdf["positive_pct"],
-            colorscale=[[0, "#0a1540"], [0.5, "#4080ff"], [1, "#c8d8ff"]],
+            colorscale=[[0, "#ff3d52"], [0.4, "#f0a500"], [0.7, "#4080ff"], [1, "#a0c8ff"]],
             showscale=True,
-            colorbar=dict(title="% Pos", tickfont=dict(color="#5a5f82", size=9)),
-            line=dict(color="#0a0c1a", width=1),
+            colorbar=dict(
+                title=dict(text="% Pos", font=dict(color="#5a5f82", size=10)),
+                tickfont=dict(color="#5a5f82", size=9),
+                thickness=10,
+                len=0.7,
+            ),
+            line=dict(color="rgba(0,0,0,0.4)", width=1),
+            opacity=0.9,
+        ),
+        hovertemplate=(
+            "<b>%{text}</b><br>"
+            "%{y:.1f}% positive<br>"
+            "%{x:.1f} hrs avg playtime<br>"
+            "<extra></extra>"
         ),
     ))
     fig.update_layout(
         **PLOTLY_BASE,
-        xaxis=dict(title="Avg Playtime (hrs)", showgrid=True,
-                   gridcolor="#232640", tickfont=dict(color="#5a5f82")),
-        yaxis=dict(title="% Positive", showgrid=True,
-                   gridcolor="#232640", tickfont=dict(color="#5a5f82")),
-        height=400,
+        xaxis=dict(
+            title=dict(text="Avg Playtime at Review (hrs)", font=dict(color="#5a5f82", size=11)),
+            showgrid=True, gridcolor="#1a1d2e", zeroline=False,
+            tickfont=dict(color="#5a5f82"),
+        ),
+        yaxis=dict(
+            title=dict(text="% Positive", font=dict(color="#5a5f82", size=11)),
+            showgrid=True, gridcolor="#1a1d2e", zeroline=False,
+            tickfont=dict(color="#5a5f82"), range=[0, 105],
+        ),
+        height=420,
     )
     return fig
 
 
-def chart_stacked_bar(sdf: pd.DataFrame) -> go.Figure:
-    df = sdf.sort_values("total_reviews", ascending=False)
+def chart_review_volume(sdf: pd.DataFrame) -> go.Figure:
+    """Grouped bar: positive vs negative per game, sorted by total."""
+    df = sdf.sort_values("total_reviews", ascending=False).head(12)
+    short = df["game_title"].str[:18]
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=df["game_title"].str[:20], y=df["positive_reviews"],
-        name="Positive", marker_color="#4080ff",
+        name="Positive", x=short, y=df["positive_reviews"],
+        marker=dict(color="#4080ff", opacity=0.9,
+                    line=dict(color="rgba(0,0,0,0)", width=0)),
+        hovertemplate="%{x}<br>%{y:,} positive<extra></extra>",
     ))
     fig.add_trace(go.Bar(
-        x=df["game_title"].str[:20], y=df["negative_reviews"],
-        name="Negative", marker_color="#ff3d52",
+        name="Negative", x=short, y=df["negative_reviews"],
+        marker=dict(color="#ff3d52", opacity=0.75,
+                    line=dict(color="rgba(0,0,0,0)", width=0)),
+        hovertemplate="%{x}<br>%{y:,} negative<extra></extra>",
     ))
     fig.update_layout(
-        **PLOTLY_BASE, barmode="stack",
-        xaxis=dict(tickangle=-38, tickfont=dict(color="#5a5f82", size=10)),
-        yaxis=dict(showgrid=True, gridcolor="#232640", tickfont=dict(color="#5a5f82")),
-        legend=dict(font=dict(color="#eef0fa"), bgcolor="rgba(0,0,0,0)"),
-        height=360,
+        **PLOTLY_BASE, barmode="group",
+        xaxis=dict(tickangle=-32, tickfont=dict(color="#6b7194", size=10),
+                   showgrid=False),
+        yaxis=dict(showgrid=True, gridcolor="#1a1d2e",
+                   tickfont=dict(color="#5a5f82")),
+        legend=dict(font=dict(color="#b8bcd4", size=11),
+                    bgcolor="rgba(0,0,0,0)", orientation="h",
+                    yanchor="bottom", y=1.02, xanchor="right", x=1),
+        bargap=0.22, bargroupgap=0.06,
+        height=380,
     )
     return fig
 
 
 def chart_playtime_hist(df: pd.DataFrame) -> go.Figure:
-    capped = df[df["author_playtime_hrs"] <= 500]["author_playtime_hrs"]
+    capped = df[df["author_playtime_hrs"] <= 200]["author_playtime_hrs"]
+    # Colour bins by playtime bucket
     fig = go.Figure(go.Histogram(
-        x=capped, nbinsx=40, marker_color="#4080ff",
-        marker_line=dict(color="#0a0c1a", width=0.5),
+        x=capped, nbinsx=30,
+        marker=dict(
+            color=capped,
+            colorscale=[[0, "#1a3acc"], [0.5, "#4080ff"], [1, "#a0c8ff"]],
+            line=dict(color="#0a0c1a", width=0.3),
+        ),
+        hovertemplate="~%{x:.0f} hrs: %{y} reviews<extra></extra>",
     ))
+    # Median line
+    med = capped.median()
+    fig.add_vline(
+        x=med,
+        line=dict(color="#f0a500", width=1.5, dash="dash"),
+        annotation=dict(
+            text=f"median {med:.0f}h",
+            font=dict(color="#f0a500", size=10),
+            yanchor="top",
+        ),
+    )
     fig.update_layout(
         **PLOTLY_BASE,
-        xaxis=dict(title="Hrs at Review", tickfont=dict(color="#5a5f82"), showgrid=False),
-        yaxis=dict(title="Count", showgrid=True, gridcolor="#232640",
-                   tickfont=dict(color="#5a5f82")),
-        height=300,
+        xaxis=dict(
+            title=dict(text="Hours at Review", font=dict(color="#5a5f82", size=11)),
+            tickfont=dict(color="#5a5f82"), showgrid=False,
+        ),
+        yaxis=dict(
+            title=dict(text="Reviews", font=dict(color="#5a5f82", size=11)),
+            showgrid=True, gridcolor="#1a1d2e",
+            tickfont=dict(color="#5a5f82"),
+        ),
+        height=340,
     )
     return fig
 
 
-def chart_ea_donut(df: pd.DataFrame) -> go.Figure:
-    ea   = int(df["written_during_ea"].sum())
-    full = len(df) - ea
-    fig = go.Figure(go.Pie(
-        labels=["Full Release", "Early Access"],
-        values=[full, ea], hole=0.55,
-        marker_colors=["#4080ff", "#0a1540"],
-        textfont=dict(color="#eef0fa", size=12),
-    ))
+def chart_sentiment_timeline(df: pd.DataFrame) -> go.Figure:
+    """Monthly rolling sentiment % over time, one line per game."""
+    from datetime import datetime, UTC
+    _df = df.copy()
+    _df["month"] = pd.to_datetime(_df["timestamp_created"].apply(
+        lambda ts: datetime.fromtimestamp(int(ts), UTC).strftime("%Y-%m")
+        if pd.notna(ts) and ts else None
+    ), errors="coerce")
+    _df = _df.dropna(subset=["month"])
+    if _df.empty:
+        return go.Figure()
+
+    fig = go.Figure()
+    palette = ["#4080ff", "#20c65a", "#ff3d52", "#f0a500", "#a060ff",
+               "#00d4ff", "#ff8c00", "#60ff9a", "#ff60a0", "#c0ff40"]
+    games = sorted(_df["game_title"].unique())
+    for i, game in enumerate(games):
+        g = _df[_df["game_title"] == game]
+        monthly = (
+            g.groupby("month")
+            .apply(lambda x: x["voted_up"].mean() * 100, include_groups=False)
+            .reset_index()
+        )
+        monthly.columns = ["month", "pct_pos"]
+        monthly = monthly.sort_values("month")
+        if len(monthly) < 2:
+            continue
+        colour = palette[i % len(palette)]
+        fig.add_trace(go.Scatter(
+            x=monthly["month"].astype(str),
+            y=monthly["pct_pos"],
+            mode="lines+markers",
+            name=game[:22],
+            line=dict(color=colour, width=2, shape="spline", smoothing=0.6),
+            marker=dict(size=5, color=colour,
+                        line=dict(color="#0a0c1a", width=1)),
+            hovertemplate=f"<b>{game[:30]}</b><br>%{{x}}<br>%{{y:.1f}}% positive<extra></extra>",
+        ))
+    fig.add_hline(y=70, line=dict(color="rgba(64,128,255,0.18)", width=1, dash="dot"))
     fig.update_layout(
-        **PLOTLY_BASE, height=260,
-        legend=dict(font=dict(color="#eef0fa"), bgcolor="rgba(0,0,0,0)"),
+        **PLOTLY_BASE,
+        xaxis=dict(
+            tickangle=-38, tickfont=dict(color="#5a5f82", size=9),
+            showgrid=False, title=None,
+        ),
+        yaxis=dict(
+            title=dict(text="% Positive", font=dict(color="#5a5f82", size=11)),
+            showgrid=True, gridcolor="#1a1d2e",
+            tickfont=dict(color="#5a5f82"), range=[0, 105],
+        ),
+        legend=dict(
+            font=dict(color="#b8bcd4", size=10),
+            bgcolor="rgba(15,17,32,0.8)",
+            bordercolor="#232640", borderwidth=1,
+        ),
+        height=420,
+        hovermode="x unified",
     )
     return fig
+
 
 # ─────────────────────────────────────────────────────────────
 # SESSION STATE
@@ -1191,9 +1310,60 @@ st.markdown("""
 st.markdown("""
 <div class="hero">
   <div class="hero-title">GENRE <span class="accent">ANALYTICS</span></div>
-  <div class="hero-sub">Pull Steam reviews for any genre and explore sentiment, playtime, and keywords — all in one view.</div>
+  <div class="hero-sub">Pull Steam reviews for any genre — explore sentiment, playtime, keywords, and AI insights in one view.</div>
 </div>
 """, unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────
+# QUICK-START GENRE CHIPS
+# ─────────────────────────────────────────────────────────────
+QUICK_GENRES = [
+    ("⚔️", "soulslike"), ("🥊", "fighting"), ("🏃", "roguelike"),
+    ("🗺️", "metroidvania"), ("🔫", "battle royale"), ("🧙", "rpg"),
+    ("🌆", "open world"), ("🏗️", "city builder"), ("🎯", "tactical shooter"),
+    ("🌌", "space sim"),
+]
+
+st.markdown("""
+<style>
+.chip-row { display:flex; flex-wrap:wrap; gap:.4rem; margin:.4rem 0 1.1rem; }
+.genre-chip > button {
+    background: var(--surface) !important;
+    color: var(--text-dim) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 20px !important;
+    font-family: 'Poppins', sans-serif !important;
+    font-size: .75rem !important;
+    font-weight: 500 !important;
+    letter-spacing: .03em !important;
+    padding: .25rem .9rem !important;
+    min-height: unset !important;
+    height: auto !important;
+    line-height: 1.6 !important;
+    transition: all .15s !important;
+    box-shadow: none !important;
+    text-transform: none !important;
+}
+.genre-chip > button:hover {
+    background: var(--surface2) !important;
+    border-color: var(--blue) !important;
+    color: var(--text) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="chip-row">', unsafe_allow_html=True)
+_chip_cols = st.columns(len(QUICK_GENRES))
+_chip_clicked = None
+for _ci, (_emoji, _label) in enumerate(QUICK_GENRES):
+    with _chip_cols[_ci]:
+        st.markdown('<div class="genre-chip">', unsafe_allow_html=True)
+        if st.button(f"{_emoji} {_label}", key=f"chip_{_label}"):
+            _chip_clicked = _label
+        st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
 # SEARCH FORM
@@ -1206,6 +1376,8 @@ with c1:
     genre_input = st.text_input(
         "genre", label_visibility="collapsed",
         placeholder="e.g.  fighting,  soulslike,  battle royale,  metroidvania…",
+        value=_chip_clicked or "",
+        key="genre_text_input",
     )
 with c2:
     st.markdown('<div class="field-label">Max Games</div>', unsafe_allow_html=True)
@@ -1217,6 +1389,11 @@ btn_col, _ = st.columns([1, 5])
 with btn_col:
     search_clicked = st.button("🔍  SEARCH GENRE", width='stretch')
 st.markdown("</div>", unsafe_allow_html=True)
+
+# If chip was clicked, auto-trigger search
+if _chip_clicked:
+    search_clicked = True
+    genre_input = _chip_clicked
 
 # ─────────────────────────────────────────────────────────────
 # SEARCH LOGIC
@@ -1269,15 +1446,19 @@ with st.expander("➕  Add a specific game to the list", expanded=False):
                           for g in st.session_state.found_games)
             rc1, rc2 = st.columns([5, 1])
             with rc1:
-                img_tag = (f'<img src="{candidate["img"]}" style="height:32px;border-radius:3px;'
-                           f'margin-right:.6rem;vertical-align:middle;">'
-                           if candidate.get("img") else "")
+                # Steam capsule header image
+                header_url = f'https://cdn.cloudflare.steamstatic.com/steam/apps/{candidate["app_id"]}/capsule_sm_120.jpg'
+                _img_html = (
+                    f'<img src="{header_url}" style="height:45px;width:80px;object-fit:cover;'
+                    f'border-radius:4px;border:1px solid var(--border);flex-shrink:0;">'
+                )
                 st.markdown(
-                    f'<div style="display:flex;align-items:center;padding:.35rem 0;">'
-                    f'{img_tag}'
-                    f'<span style="font-size:.88rem;color:var(--text);">{candidate["name"]}</span>'
-                    f'<span style="font-size:.72rem;color:var(--muted);margin-left:.5rem;">'
-                    f'App {candidate["app_id"]}</span></div>',
+                    f'<div style="display:flex;align-items:center;gap:.75rem;padding:.3rem 0;">'
+                    + _img_html +
+                    f'<div>'
+                    f'<div style="font-size:.88rem;color:var(--text);font-weight:500;">{candidate["name"]}</div>'
+                    f'<div style="font-size:.7rem;color:var(--muted);margin-top:.1rem;">App ID {candidate["app_id"]}</div>'
+                    f'</div></div>',
                     unsafe_allow_html=True,
                 )
             with rc2:
@@ -1350,7 +1531,11 @@ if st.session_state.found_games:
                 '<div class="section-header"><span class="dot"></span>FETCHING REVIEWS</div>',
                 unsafe_allow_html=True,
             )
-            overall_bar = st.progress(0.0)
+            _fetch_cols = st.columns([3, 1])
+            with _fetch_cols[0]:
+                overall_bar = st.progress(0.0)
+            with _fetch_cols[1]:
+                live_counter = st.empty()
             status_box  = st.empty()
             game_bar    = st.progress(0.0)
 
@@ -1364,17 +1549,35 @@ if st.session_state.found_games:
                     unsafe_allow_html=True,
                 )
                 game_bar.progress(0.0)
+                _reviews_before = len(all_reviews)
 
-                def _cb(pct, bar=game_bar):
+                def _cb(pct, bar=game_bar, counter=live_counter,
+                        total_so_far=all_reviews, target=reviews_per, gidx=idx):
                     bar.progress(float(pct))
+                    _est = _reviews_before + int(pct * target)
+                    counter.markdown(
+                        f'<div style="font-size:.82rem;font-family:Inter Tight,sans-serif;'
+                        f'font-weight:800;color:var(--blue);text-align:right;padding-top:.3rem;">'
+                        f'{len(total_so_far) + int(pct * target):,}'
+                        f'<span style="font-size:.65rem;font-weight:400;color:var(--muted);">'
+                        f' reviews</span></div>',
+                        unsafe_allow_html=True,
+                    )
 
                 reviews = fetch_reviews_for_game(app_id, title, reviews_per, _cb)
                 all_reviews.extend(reviews)
                 overall_bar.progress((idx + 1) / len(selected_list))
+                live_counter.markdown(
+                    f'<div style="font-size:.82rem;font-family:Inter Tight,sans-serif;'
+                    f'font-weight:800;color:var(--blue);text-align:right;padding-top:.3rem;">'
+                    f'{len(all_reviews):,}'
+                    f'<span style="font-size:.65rem;font-weight:400;color:var(--muted);"> reviews</span></div>',
+                    unsafe_allow_html=True,
+                )
 
             status_box.markdown(
-                '<div style="font-size:0.83rem;color:#2ecc71;padding:0.25rem 0;">'
-                '✓ All games fetched successfully</div>',
+                f'<div style="font-size:0.83rem;color:#20c65a;padding:0.25rem 0;">'
+                f'✓ Fetched <strong>{len(all_reviews):,}</strong> reviews across {len(selected_list)} games</div>',
                 unsafe_allow_html=True,
             )
             game_bar.empty()
@@ -1450,46 +1653,88 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
     top_game_pct  = sdf.iloc[0]["positive_pct"] if len(sdf) else 0
     avg_playtime  = df["author_playtime_hrs"].mean()
 
-    st.markdown(
-        '<div class="section-header"><span class="dot"></span>OVERVIEW</div>',
-        unsafe_allow_html=True,
-    )
-    k1, k2, k3, k4 = st.columns(4)
-    with k1:
-        st.markdown(f"""
-        <div class="metric-card blue-top">
-          <div class="metric-label">Reviews Collected</div>
-          <div class="metric-value">{total_reviews:,}</div>
-          <div class="metric-sub">across {total_games} games</div>
-        </div>""", unsafe_allow_html=True)
-    with k2:
-        st.markdown(f"""
-        <div class="metric-card pos-top">
-          <div class="metric-label">Avg Sentiment</div>
-          <div class="metric-value" style="color:var(--pos);">{avg_sentiment:.0f}%</div>
-          <div class="metric-sub">positive reviews</div>
-        </div>""", unsafe_allow_html=True)
-    with k3:
-        short = top_game[:26] + ("…" if len(top_game) > 26 else "")
-        st.markdown(f"""
-        <div class="metric-card blue-top">
-          <div class="metric-label">Top Rated</div>
-          <div class="metric-value" style="font-size:1.15rem;line-height:1.3;padding-top:0.2rem;">
-            {short}
-          </div>
-          <div class="metric-sub">{top_game_pct:.0f}% positive</div>
-        </div>""", unsafe_allow_html=True)
-    with k4:
-        st.markdown(f"""
-        <div class="metric-card blue-top">
-          <div class="metric-label">Avg Playtime at Review</div>
-          <div class="metric-value">{avg_playtime:.1f}
-            <span style="font-size:1.1rem;font-weight:400;"> hrs</span>
-          </div>
-          <div class="metric-sub">across all reviewers</div>
-        </div>""", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
+    # ── Sticky KPI bar + animated count-up ──
+    _sentiment_colour = "#20c65a" if avg_sentiment >= 70 else "#f0a500" if avg_sentiment >= 50 else "#ff3d52"
+    short = top_game[:24] + ("…" if len(top_game) > 24 else "")
+    st.markdown(f"""
+<style>
+/* Sticky KPI strip */
+.kpi-sticky {{
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    background: var(--bg);
+    padding: .6rem 0 .5rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.25rem;
+}}
+.kpi-strip {{
+    display: flex;
+    gap: 1rem;
+    align-items: stretch;
+}}
+.kpi-tile {{
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .9rem 1.2rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .2s;
+}}
+.kpi-tile:hover {{ border-color: var(--border-hi); }}
+.kpi-tile.blue-top {{ border-top: 2px solid var(--blue); }}
+.kpi-tile.pos-top  {{ border-top: 2px solid {_sentiment_colour}; }}
+.kpi-tile-label {{
+    font-size: .58rem;
+    font-weight: 700;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: .3rem;
+}}
+.kpi-tile-val {{
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 1.9rem;
+    font-weight: 900;
+    color: var(--text);
+    line-height: 1;
+    letter-spacing: -.025em;
+}}
+.kpi-tile-sub {{ font-size: .68rem; color: var(--muted); margin-top: .2rem; }}
+/* Count-up animation */
+@keyframes countUp {{
+    from {{ opacity: 0; transform: translateY(6px); }}
+    to   {{ opacity: 1; transform: translateY(0); }}
+}}
+.kpi-tile-val {{ animation: countUp .5s ease forwards; }}
+</style>
+<div class="kpi-sticky">
+  <div class="kpi-strip">
+    <div class="kpi-tile blue-top">
+      <div class="kpi-tile-label">Reviews Collected</div>
+      <div class="kpi-tile-val">{total_reviews:,}</div>
+      <div class="kpi-tile-sub">across {total_games} games</div>
+    </div>
+    <div class="kpi-tile pos-top">
+      <div class="kpi-tile-label">Avg Sentiment</div>
+      <div class="kpi-tile-val" style="color:{_sentiment_colour};">{avg_sentiment:.0f}%</div>
+      <div class="kpi-tile-sub">positive reviews</div>
+    </div>
+    <div class="kpi-tile blue-top">
+      <div class="kpi-tile-label">Top Rated</div>
+      <div class="kpi-tile-val" style="font-size:1.1rem;line-height:1.25;padding-top:.15rem;">{short}</div>
+      <div class="kpi-tile-sub">{top_game_pct:.0f}% positive</div>
+    </div>
+    <div class="kpi-tile blue-top">
+      <div class="kpi-tile-label">Avg Playtime at Review</div>
+      <div class="kpi-tile-val">{avg_playtime:.1f}<span style="font-size:1rem;font-weight:400;"> hrs</span></div>
+      <div class="kpi-tile-sub">across all reviewers</div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
     # ── Tabs ──
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["SENTIMENT", "ENGAGEMENT", "GAME TABLE", "REVIEWS", "KEYWORD INSIGHTS", "AI ANALYSIS"])
@@ -1521,29 +1766,35 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         st.plotly_chart(chart_scatter(sdf), use_container_width=True,
                         config={"displayModeBar": False})
 
+        # ── Sentiment timeline ────────────────────────────────
+        st.markdown(
+            '<div class="section-header"><span class="dot"></span>SENTIMENT OVER TIME</div>',
+            unsafe_allow_html=True,
+        )
+        st.caption("Monthly % positive reviews — shows how reception has shifted over time")
+        _tl = chart_sentiment_timeline(df)
+        if _tl.data:
+            st.plotly_chart(_tl, use_container_width=True,
+                            config={"displayModeBar": False})
+        else:
+            st.info("Not enough timestamped reviews to plot a timeline.")
+
     with tab2:
-        left, mid, right = st.columns(3)
+        left, right = st.columns(2)
         with left:
             st.markdown(
-                '<div class="section-header"><span class="dot"></span>REVIEW VOLUME</div>',
+                '<div class="section-header"><span class="dot"></span>REVIEW VOLUME BY GAME</div>',
                 unsafe_allow_html=True,
             )
-            st.plotly_chart(chart_stacked_bar(sdf), use_container_width=True,
+            st.plotly_chart(chart_review_volume(sdf), use_container_width=True,
                             config={"displayModeBar": False})
-        with mid:
+        with right:
             st.markdown(
                 '<div class="section-header"><span class="dot"></span>PLAYTIME DISTRIBUTION</div>',
                 unsafe_allow_html=True,
             )
-            st.caption("Capped at 500 hrs for readability")
+            st.caption("Reviews capped at 200 hrs · amber line = median")
             st.plotly_chart(chart_playtime_hist(df), use_container_width=True,
-                            config={"displayModeBar": False})
-        with right:
-            st.markdown(
-                '<div class="section-header"><span class="dot"></span>EARLY ACCESS</div>',
-                unsafe_allow_html=True,
-            )
-            st.plotly_chart(chart_ea_donut(df), use_container_width=True,
                             config={"displayModeBar": False})
 
 
@@ -1552,7 +1803,30 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             '<div class="section-header"><span class="dot"></span>GAME SUMMARY</div>',
             unsafe_allow_html=True,
         )
-        display = sdf.rename(columns={
+        # Build sparkline data: monthly sentiment % per game as a list
+        from datetime import datetime, UTC as _UTC
+        _df_ts = df.copy()
+        _df_ts["month"] = pd.to_datetime(_df_ts["timestamp_created"].apply(
+            lambda ts: datetime.fromtimestamp(int(ts), _UTC).strftime("%Y-%m")
+            if pd.notna(ts) and ts else None
+        ), errors="coerce")
+
+        def _sparkline(game):
+            g = _df_ts[_df_ts["game_title"] == game].dropna(subset=["month"])
+            if len(g) < 3:
+                return []
+            monthly = (
+                g.groupby("month")
+                .apply(lambda x: round(x["voted_up"].mean() * 100, 1), include_groups=False)
+                .reset_index()
+            )
+            monthly.columns = ["month", "pct"]
+            monthly = monthly.sort_values("month")
+            return monthly["pct"].tolist()
+
+        display = sdf.copy()
+        display["Trend"] = display["game_title"].apply(_sparkline)
+        display = display.rename(columns={
             "game_title":          "Game",
             "total_reviews":       "Reviews",
             "positive_reviews":    "👍 Positive",
@@ -1562,13 +1836,20 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             "median_playtime_hrs": "Median Hrs",
             "avg_helpful_votes":   "Avg Helpful",
         })
+        # Reorder columns
+        col_order = ["Game", "Reviews", "% Positive", "Trend",
+                     "👍 Positive", "👎 Negative", "Avg Hrs", "Median Hrs", "Avg Helpful"]
+        display = display[[c for c in col_order if c in display.columns]]
         st.dataframe(
             display,
-            width='stretch',
+            use_container_width=True,
             hide_index=True,
             column_config={
                 "% Positive": st.column_config.ProgressColumn(
                     "% Positive", min_value=0, max_value=100, format="%.1f%%",
+                ),
+                "Trend": st.column_config.LineChartColumn(
+                    "Sentiment Trend", y_min=0, y_max=100,
                 ),
             },
         )
@@ -1589,7 +1870,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             '<div class="section-header"><span class="dot"></span>SAMPLE REVIEWS</div>',
             unsafe_allow_html=True,
         )
-        f_col, g_col, _ = st.columns([1.2, 1.5, 4])
+        f_col, g_col, s_col, _ = st.columns([1.3, 1.6, 1.5, 2])
         with f_col:
             filter_mode = st.selectbox(
                 "Show", ["Most Helpful", "Positive Only", "Negative Only", "Random"],
@@ -1598,6 +1879,41 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         with g_col:
             game_options = ["All Games"] + sorted(df["game_title"].unique().tolist())
             game_filter  = st.selectbox("Game", game_options, label_visibility="visible")
+        with s_col:
+            _has_vader = "vader_compound" in df.columns and df["vader_compound"].notna().any()
+            sort_opts = ["Default", "Date (newest)", "Date (oldest)",
+                         "Helpfulness", "Playtime (high→low)", "Playtime (low→high)"]
+            if _has_vader:
+                sort_opts += ["VADER (most positive)", "VADER (most negative)"]
+            sort_by = st.selectbox("Sort by", sort_opts, label_visibility="visible")
+
+        # Copy button CSS injected once
+        st.markdown("""
+<style>
+.copy-btn > button {
+    background: transparent !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 4px !important;
+    color: var(--muted) !important;
+    font-size: .65rem !important;
+    font-weight: 600 !important;
+    letter-spacing: .08em !important;
+    padding: .15rem .5rem !important;
+    min-height: unset !important;
+    height: auto !important;
+    line-height: 1.5 !important;
+    text-transform: uppercase !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+.copy-btn > button:hover {
+    border-color: var(--blue) !important;
+    color: var(--blue) !important;
+    background: transparent !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+</style>""", unsafe_allow_html=True)
 
         sample = df.copy()
         if game_filter != "All Games":
@@ -1607,11 +1923,29 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         elif filter_mode == "Negative Only":
             sample = sample[sample["voted_up"] == False]
         elif filter_mode == "Most Helpful":
-            sample = sample.nlargest(20, "votes_helpful")
+            sample = sample.nlargest(50, "votes_helpful")
         else:
-            sample = sample.sample(min(20, len(sample)), random_state=42)
+            sample = sample.sample(min(50, len(sample)), random_state=42)
 
-        sample = sample[sample["review_text"].str.len() > 30].head(15)
+        sample = sample[sample["review_text"].str.len() > 30].copy()
+
+        # Apply sort
+        if sort_by == "Date (newest)" and "timestamp_created" in sample.columns:
+            sample = sample.sort_values("timestamp_created", ascending=False)
+        elif sort_by == "Date (oldest)" and "timestamp_created" in sample.columns:
+            sample = sample.sort_values("timestamp_created", ascending=True)
+        elif sort_by == "Helpfulness":
+            sample = sample.sort_values("votes_helpful", ascending=False)
+        elif sort_by == "Playtime (high→low)":
+            sample = sample.sort_values("author_playtime_hrs", ascending=False)
+        elif sort_by == "Playtime (low→high)":
+            sample = sample.sort_values("author_playtime_hrs", ascending=True)
+        elif sort_by == "VADER (most positive)" and _has_vader:
+            sample = sample.sort_values("vader_compound", ascending=False)
+        elif sort_by == "VADER (most negative)" and _has_vader:
+            sample = sample.sort_values("vader_compound", ascending=True)
+
+        sample = sample.head(15)
 
         if sample.empty:
             st.info("No reviews match the selected filters.")
@@ -1664,31 +1998,64 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             react_meta  = " &nbsp;·&nbsp; ".join(filter(None, [helpful_str, funny_str]))
 
             border_color = "#20c65a" if is_pos else "#ff3d52"
-            bg_color     = "rgba(46,204,113,.15)" if is_pos else "rgba(231,76,60,.15)"
+            bg_color     = "rgba(32,198,90,.13)" if is_pos else "rgba(255,61,82,.13)"
             badge_color  = "#20c65a" if is_pos else "#ff3d52"
-            badge_border = "rgba(46,204,113,.3)" if is_pos else "rgba(231,76,60,.3)"
+            badge_border = "rgba(32,198,90,.28)" if is_pos else "rgba(255,61,82,.28)"
             date_html    = f"<span>{date_str}</span>" if date_str else ""
             react_html   = f"<span>{react_meta}</span>" if react_meta else ""
             meta_html    = (" &nbsp;·&nbsp; " + author_meta) if author_meta else ""
+
+            # VADER badge
+            vader_val = row.get("vader_compound") if VADER_AVAILABLE else None
+            if vader_val is not None and not pd.isna(vader_val):
+                _vc = float(vader_val)
+                _vc_col = "#20c65a" if _vc >= 0.05 else "#ff3d52" if _vc <= -0.05 else "#f0a500"
+                _vc_sign = "+" if _vc >= 0 else ""
+                vader_badge = (
+                    f'<span style="background:rgba(0,0,0,.22);border:1px solid {_vc_col}44;'
+                    f'color:{_vc_col};font-size:.64rem;font-weight:700;letter-spacing:.04em;'
+                    f'padding:.1rem .38rem;border-radius:3px;font-family:Inter Tight,sans-serif;">'
+                    f'VADER {_vc_sign}{_vc:.2f}</span>'
+                )
+            else:
+                vader_badge = ""
+
+            # Copy button (uses inline JS clipboard API)
+            _copy_text = snippet.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+            copy_btn = (
+                f'<button onclick="navigator.clipboard.writeText(`{_copy_text}`).catch(()=>{{}})" '
+                f'style="flex-shrink:0;background:transparent;border:1px solid var(--border);'
+                f'border-radius:4px;color:var(--muted);font-size:.62rem;font-weight:600;'
+                f'letter-spacing:.06em;padding:.18rem .44rem;cursor:pointer;'
+                f'text-transform:uppercase;font-family:Poppins,sans-serif;line-height:1.5;'
+                f'transition:border-color .15s,color .15s;white-space:nowrap;" '
+                f'onmouseover="this.style.borderColor=\'#4080ff\';this.style.color=\'#4080ff\';" '
+                f'onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\';">'
+                f'⎘ Copy</button>'
+            )
+
             card_html = (
                 f'<div style="background:var(--surface2);border:1px solid var(--border);'
                 f'border-left:3px solid {border_color};border-radius:0 6px 6px 0;'
-                f'padding:.9rem 1.1rem 1rem;margin-bottom:1rem;">'
-                f'<div style="font-size:.85rem;line-height:1.65;color:var(--text);margin-bottom:.7rem;">'
-                f'{snippet}</div>'
-                f'<div style="border-top:1px solid var(--border);padding-top:.6rem;">'
-                f'<div style="display:flex;flex-wrap:wrap;gap:.3rem .8rem;align-items:center;'
-                f'font-size:.73rem;color:var(--muted);margin-bottom:.35rem;">'
+                f'padding:.9rem 1.1rem 1rem;margin-bottom:.8rem;">'
+                f'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem;">'
+                f'<div style="font-size:.85rem;line-height:1.65;color:var(--text);">{snippet}</div>'
+                f'{copy_btn}'
+                f'</div>'
+                f'<div style="border-top:1px solid var(--border);padding-top:.55rem;margin-top:.65rem;">'
+                f'<div style="display:flex;flex-wrap:wrap;gap:.28rem .65rem;align-items:center;'
+                f'font-size:.72rem;color:var(--muted);margin-bottom:.32rem;">'
                 f'<span style="background:{bg_color};color:{badge_color};'
                 f'border:1px solid {badge_border};'
-                f'font-size:.68rem;font-weight:700;letter-spacing:.06em;'
-                f'padding:.12rem .45rem;border-radius:3px;text-transform:uppercase;">'
+                f'font-size:.66rem;font-weight:700;letter-spacing:.06em;'
+                f'padding:.1rem .42rem;border-radius:3px;text-transform:uppercase;">'
                 f'{icon} {sentiment}</span>'
+                f'{vader_badge}'
                 f'<strong style="color:var(--text);">{row["game_title"]}</strong>'
                 f'<span>{at_rev_hrs:.0f} hrs at review</span>'
                 f'{date_html}{react_html}'
                 f'</div>'
-                f'<div style="font-size:.72rem;color:var(--muted);">'
+                f'<div style="font-size:.71rem;color:var(--muted);">'
                 f'👤 {profile_html}{meta_html} {review_link_html}'
                 f'</div></div></div>'
             )
@@ -1714,8 +2081,8 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                     font-size:.83rem;color:var(--muted);line-height:1.7;">
           Keywords are extracted by tokenising every review, removing common stopwords, and counting
           the most frequent single words and two-word phrases. Positive and negative clouds
-          are built from <strong style="color:#2ecc71;">👍 positive</strong> and
-          <strong style="color:#e74c3c;">👎 negative</strong> reviews respectively.
+          are built from <strong style="color:#20c65a;">👍 positive</strong> and
+          <strong style="color:#ff3d52;">👎 negative</strong> reviews respectively.
           <strong style="color:var(--text);">Click any keyword</strong> to see the reviews that mention it.
         </div>
         """, unsafe_allow_html=True)
@@ -1726,9 +2093,9 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         /* keyword chip buttons */
         div[data-testid="stHorizontalBlock"] .kw-btn-pos > button,
         .kw-btn-pos > button {
-            background: rgba(46,204,113,0.12) !important;
-            border: 1px solid rgba(46,204,113,0.35) !important;
-            color: #2ecc71 !important;
+            background: rgba(32,198,90,0.12) !important;
+            border: 1px solid rgba(32,198,90,0.35) !important;
+            color: #20c65a !important;
             border-radius: 3px !important;
             font-size: .78rem !important;
             font-weight: 500 !important;
@@ -1738,11 +2105,11 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             height: auto !important;
             line-height: 1.4 !important;
         }
-        .kw-btn-pos > button:hover { background: rgba(46,204,113,0.22) !important; }
+        .kw-btn-pos > button:hover { background: rgba(32,198,90,0.22) !important; }
         .kw-btn-neg > button {
-            background: rgba(231,76,60,0.12) !important;
-            border: 1px solid rgba(231,76,60,0.35) !important;
-            color: #e74c3c !important;
+            background: rgba(255,61,82,0.12) !important;
+            border: 1px solid rgba(255,61,82,0.35) !important;
+            color: #ff3d52 !important;
             border-radius: 3px !important;
             font-size: .78rem !important;
             font-weight: 500 !important;
@@ -1752,16 +2119,16 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             height: auto !important;
             line-height: 1.4 !important;
         }
-        .kw-btn-neg > button:hover { background: rgba(231,76,60,0.22) !important; }
+        .kw-btn-neg > button:hover { background: rgba(255,61,82,0.22) !important; }
         .kw-btn-active-pos > button {
-            background: rgba(46,204,113,0.3) !important;
-            border: 1px solid #2ecc71 !important;
+            background: rgba(32,198,90,0.3) !important;
+            border: 1px solid #20c65a !important;
             color: #fff !important;
             font-weight: 700 !important;
         }
         .kw-btn-active-neg > button {
-            background: rgba(231,76,60,0.3) !important;
-            border: 1px solid #e74c3c !important;
+            background: rgba(255,61,82,0.3) !important;
+            border: 1px solid #ff3d52 !important;
             color: #fff !important;
             font-weight: 700 !important;
         }
@@ -1929,7 +2296,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             st.markdown(
                 f'<div style="font-size:.78rem;color:var(--muted);padding-top:.45rem;">'
                 f'{len(ki_df):,} reviews for {label} &nbsp;·&nbsp; '
-                f'<span style="color:#2ecc71;">{pos_pct:.0f}% positive</span></div>',
+                f'<span style="color:#20c65a;">{pos_pct:.0f}% positive</span></div>',
                 unsafe_allow_html=True,
             )
 
@@ -1939,7 +2306,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             with wc_l:
                 st.markdown(
                     '<div style="font-size:.7rem;font-weight:700;letter-spacing:.15em;'
-                    'text-transform:uppercase;color:#2ecc71;margin-bottom:.4rem;">✅ Positive</div>',
+                    'text-transform:uppercase;color:#20c65a;margin-bottom:.4rem;">✅ Positive</div>',
                     unsafe_allow_html=True,
                 )
                 if top_pos:
@@ -1953,7 +2320,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             with wc_r:
                 st.markdown(
                     '<div style="font-size:.7rem;font-weight:700;letter-spacing:.15em;'
-                    'text-transform:uppercase;color:#e74c3c;margin-bottom:.4rem;">❌ Negative</div>',
+                    'text-transform:uppercase;color:#ff3d52;margin-bottom:.4rem;">❌ Negative</div>',
                     unsafe_allow_html=True,
                 )
                 if top_neg:
