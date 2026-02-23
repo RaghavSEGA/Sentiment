@@ -60,189 +60,456 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;700;800&family=Poppins:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;700;800;900&family=Poppins:wght@300;400;500;600&display=swap');
 
-:root {
-    --bg:           #0D1126;
-    --surface:      #15161E;
-    --surface2:     #1c1e2a;
-    --border:       #252840;
-    --blue:         #0057FF;
-    --blue-bright:  #0044FF;
-    --blue-light:   #E1EAFF;
-    --blue-mid:     #C3C5D5;
-    --navy:         #002266;
-    --text:         #F4F6F9;
-    --muted:        #8b90a8;
-    --pos:          #2ecc71;
-    --neg:          #e74c3c;
+/* ═══════════════════════════════════════════════════════
+   LOCK TO DARK THEME — defeats Streamlit light mode
+   ═══════════════════════════════════════════════════════ */
+:root,
+html[data-theme="light"],
+html[data-theme="dark"],
+[data-theme="light"],
+[data-theme="dark"] {
+    color-scheme: dark !important;
+    --bg:           #0a0c1a;
+    --surface:      #0f1120;
+    --surface2:     #141728;
+    --surface3:     #1a1e30;
+    --border:       #232640;
+    --border-hi:    #323760;
+    --blue:         #4080ff;
+    --blue-lo:      #1a3acc;
+    --blue-glow:    rgba(64,128,255,0.16);
+    --blue-glow-hi: rgba(64,128,255,0.32);
+    --text:         #eef0fa;
+    --text-dim:     #b8bcd4;
+    --muted:        #5a5f82;
+    --pos:          #20c65a;
+    --pos-dim:      rgba(32,198,90,0.14);
+    --neg:          #ff3d52;
+    --neg-dim:      rgba(255,61,82,0.14);
 }
 
-html, body, [class*="css"] {
-    font-family: 'Poppins', sans-serif;
+/* ── Global reset: force every pixel dark ── */
+html, body {
+    background: var(--bg) !important;
+    color: var(--text) !important;
+    color-scheme: dark !important;
+}
+.stApp,
+.stApp > div,
+section[data-testid="stAppViewContainer"],
+section[data-testid="stAppViewContainer"] > div,
+div[data-testid="stMain"],
+div[data-testid="stVerticalBlock"],
+div[data-testid="stHorizontalBlock"],
+.main .block-container,
+.block-container {
     background-color: var(--bg) !important;
     color: var(--text) !important;
 }
-.stApp { background-color: var(--bg) !important; }
-#MainMenu, footer, header { visibility: hidden; }
-.block-container { padding: 0 2.5rem 4rem !important; max-width: 1400px !important; }
 
-/* ── Top nav bar ── */
+/* Typography */
+*, *::before, *::after {
+    font-family: 'Poppins', sans-serif;
+    box-sizing: border-box;
+}
+
+/* Force text colour on every Streamlit text node */
+p, span, div, li, td, th, label,
+h1, h2, h3, h4, h5, h6,
+.stMarkdown, .stMarkdown p, .stMarkdown span,
+[data-testid="stText"],
+[data-testid="stMarkdownContainer"],
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] span,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] strong,
+[data-testid="stMarkdownContainer"] em,
+[class*="css"] {
+    color: var(--text) !important;
+}
+
+/* Captions */
+.stCaption, [data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] p {
+    color: var(--muted) !important;
+}
+
+/* code blocks */
+code { background: var(--surface3) !important; color: var(--blue) !important; padding: 0.1em 0.4em; border-radius: 3px; }
+
+#MainMenu, footer, header { visibility: hidden; }
+.block-container { padding: 0 2.5rem 4rem !important; max-width: 1440px !important; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ══════════════════════════════════
+   TOP NAV
+══════════════════════════════════ */
 .topbar {
     background: var(--surface);
-    border-bottom: 2px solid var(--blue);
-    padding: 0.85rem 2.5rem;
-    margin: 0 -2.5rem 2.5rem;
+    border-bottom: 1px solid var(--border);
+    padding: 0.8rem 2.5rem;
+    margin: 0 -2.5rem 1.75rem;
     display: flex;
     align-items: center;
-    gap: 1.5rem;
+    gap: 1.25rem;
+    position: relative;
+}
+.topbar::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, var(--blue) 0%, rgba(64,128,255,0) 55%);
 }
 .topbar-logo {
     font-family: 'Inter Tight', sans-serif;
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: var(--text);
-    letter-spacing: 0.06em;
-}
-.topbar-logo .seg { color: var(--blue); }
-.topbar-divider { width: 1px; height: 22px; background: var(--border); }
-.topbar-label {
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: var(--muted);
-    letter-spacing: 0.14em;
+    font-size: 0.95rem;
+    font-weight: 900;
+    color: var(--text) !important;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
 }
+.topbar-logo .seg { color: var(--blue); }
+.topbar-divider { width: 1px; height: 18px; background: var(--border-hi); flex-shrink: 0; }
+.topbar-label {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--muted) !important;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+.topbar-pill {
+    margin-left: auto;
+    background: var(--blue-glow);
+    border: 1px solid rgba(64,128,255,0.28);
+    border-radius: 20px;
+    padding: 0.18rem 0.7rem;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--blue) !important;
+}
 
-/* ── Hero ── */
-.hero { padding: 1.2rem 0 1rem; }
+/* ══════════════════════════════════
+   HERO
+══════════════════════════════════ */
+.hero { padding: 1.5rem 0 0.75rem; }
 .hero-title {
     font-family: 'Inter Tight', sans-serif;
-    font-size: 2.8rem;
-    font-weight: 800;
-    line-height: 0.92;
-    color: var(--text);
-    letter-spacing: -0.02em;
-    margin-bottom: 0.8rem;
+    font-size: 2.4rem;
+    font-weight: 900;
+    line-height: 1.05;
+    color: var(--text) !important;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.5rem;
 }
-.hero-title .accent { color: var(--blue); }
+.hero-title .accent {
+    color: var(--blue);
+    position: relative;
+}
 .hero-sub {
-    font-size: 0.92rem;
+    font-size: 0.87rem;
     font-weight: 300;
-    color: var(--muted);
-    max-width: 600px;
-    line-height: 1.55;
+    color: var(--muted) !important;
+    max-width: 520px;
+    line-height: 1.65;
 }
 
-/* ── Search panel ── */
+/* ══════════════════════════════════
+   SEARCH BLOCK
+══════════════════════════════════ */
 .search-block {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-top: 3px solid var(--blue);
-    border-radius: 0 0 8px 8px;
-    padding: 1.75rem 2rem;
-    margin: 2rem 0;
+    border-top: 2px solid var(--blue);
+    border-radius: 0 0 10px 10px;
+    padding: 1.4rem 1.75rem 1.25rem;
+    margin: 1.25rem 0 0;
 }
 .field-label {
-    font-size: 0.63rem;
-    font-weight: 600;
-    letter-spacing: 0.18em;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
     text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 0.35rem;
+    color: var(--muted) !important;
+    margin-bottom: 0.3rem;
 }
 
-/* ── Widget overrides ── */
+/* ══════════════════════════════════
+   FORM CONTROLS
+══════════════════════════════════ */
+/* Text + number inputs */
 .stTextInput > div > div > input,
 .stNumberInput > div > div > input {
     background: var(--bg) !important;
     border: 1px solid var(--border) !important;
-    border-radius: 4px !important;
+    border-radius: 6px !important;
     color: var(--text) !important;
     font-family: 'Poppins', sans-serif !important;
-    font-size: 0.95rem !important;
+    font-size: 0.88rem !important;
+    caret-color: var(--blue) !important;
 }
-.stTextInput > div > div > input:focus {
+.stTextInput > div > div > input:focus,
+.stNumberInput > div > div > input:focus {
     border-color: var(--blue) !important;
-    box-shadow: 0 0 0 2px rgba(0,87,255,0.2) !important;
+    box-shadow: 0 0 0 3px var(--blue-glow) !important;
 }
-div[data-baseweb="select"] > div {
+input::placeholder { color: var(--muted) !important; opacity: 0.6 !important; }
+
+/* Number input +/− buttons */
+.stNumberInput button {
+    background: var(--surface2) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+}
+
+/* Selectbox */
+div[data-baseweb="select"] > div,
+div[data-baseweb="select"] > div > div {
     background: var(--bg) !important;
     border-color: var(--border) !important;
     color: var(--text) !important;
 }
-[data-testid="stSlider"] > div > div > div > div { background: var(--blue) !important; }
+div[data-baseweb="select"] svg { fill: var(--muted) !important; }
+div[data-baseweb="select"] span,
+div[data-baseweb="select"] input { color: var(--text) !important; }
+div[data-baseweb="menu"],
+div[data-baseweb="popover"] {
+    background: var(--surface2) !important;
+    border: 1px solid var(--border-hi) !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+}
+div[data-baseweb="menu"] li,
+div[data-baseweb="menu"] [role="option"] {
+    color: var(--text) !important;
+    background: transparent !important;
+}
+div[data-baseweb="menu"] li:hover,
+div[data-baseweb="menu"] [aria-selected="true"] {
+    background: var(--surface3) !important;
+    color: var(--text) !important;
+}
 
-/* ── Primary button ── */
+/* Checkbox */
+.stCheckbox > label,
+.stCheckbox > label > span,
+.stCheckbox label p,
+[data-testid="stCheckbox"] span,
+[data-testid="stCheckbox"] p {
+    color: var(--text) !important;
+    font-size: 0.84rem !important;
+}
+
+/* ══════════════════════════════════
+   BUTTONS
+══════════════════════════════════ */
 .stButton > button {
     background: var(--blue) !important;
     color: #fff !important;
     border: none !important;
-    border-radius: 4px !important;
+    border-radius: 6px !important;
     font-family: 'Inter Tight', sans-serif !important;
-    font-size: 0.88rem !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.08em !important;
+    font-size: 0.78rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.12em !important;
     text-transform: uppercase !important;
-    padding: 0.55rem 1.8rem !important;
-    transition: background 0.15s ease !important;
+    padding: 0.5rem 1.5rem !important;
+    transition: background 0.15s, box-shadow 0.15s, transform 0.1s !important;
+    box-shadow: 0 2px 10px rgba(64,128,255,0.3) !important;
 }
-.stButton > button:hover { background: #0044CC !important; }
+.stButton > button:hover {
+    background: #2d6aee !important;
+    box-shadow: 0 4px 18px rgba(64,128,255,0.45) !important;
+    transform: translateY(-1px) !important;
+}
+.stButton > button:active { transform: translateY(0px) !important; }
 
-/* ── Metric cards ── */
+.stDownloadButton > button {
+    background: transparent !important;
+    color: var(--blue) !important;
+    border: 1px solid rgba(64,128,255,0.35) !important;
+    border-radius: 6px !important;
+    font-family: 'Inter Tight', sans-serif !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+    transition: all 0.15s !important;
+    box-shadow: none !important;
+}
+.stDownloadButton > button:hover {
+    background: var(--blue-glow) !important;
+    border-color: var(--blue) !important;
+    transform: none !important;
+}
+
+/* ══════════════════════════════════
+   KPI METRIC CARDS
+══════════════════════════════════ */
 .metric-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 1.2rem 1.5rem;
+    border-radius: 8px;
+    padding: 1.2rem 1.4rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    height: 100%;
 }
-.metric-card.blue-top { border-top: 3px solid var(--blue); }
-.metric-card.pos-top  { border-top: 3px solid var(--pos);  }
+.metric-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 80px;
+    background: linear-gradient(180deg, rgba(64,128,255,0.04) 0%, transparent 100%);
+    pointer-events: none;
+}
+.metric-card.blue-top { border-top: 2px solid var(--blue); }
+.metric-card.pos-top  { border-top: 2px solid var(--pos);  }
+.metric-card:hover { border-color: var(--border-hi); box-shadow: 0 4px 24px rgba(0,0,0,0.3); }
 .metric-label {
-    font-size: 0.63rem;
-    font-weight: 600;
-    letter-spacing: 0.18em;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
     text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 0.3rem;
+    color: var(--muted) !important;
+    margin-bottom: 0.45rem;
 }
 .metric-value {
     font-family: 'Inter Tight', sans-serif;
-    font-size: 2.4rem;
-    font-weight: 800;
-    color: var(--text);
+    font-size: 2.1rem;
+    font-weight: 900;
+    color: var(--text) !important;
     line-height: 1;
-    margin-bottom: 0.15rem;
+    margin-bottom: 0.25rem;
+    letter-spacing: -0.025em;
 }
-.metric-sub { font-size: 0.73rem; color: var(--muted); font-weight: 300; }
+.metric-sub { font-size: 0.69rem; color: var(--muted) !important; font-weight: 300; }
 
-/* ── Section header ── */
+/* ══════════════════════════════════
+   SECTION HEADER
+══════════════════════════════════ */
 .section-header {
     font-family: 'Inter Tight', sans-serif;
-    font-size: 1rem;
+    font-size: 0.68rem;
     font-weight: 800;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.24em;
     text-transform: uppercase;
-    color: var(--text);
-    margin: 2rem 0 1rem;
-    padding-bottom: 0.5rem;
+    color: var(--text-dim) !important;
+    margin: 1.75rem 0 0.9rem;
+    padding-bottom: 0.55rem;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.55rem;
 }
 .section-header .dot {
-    width: 7px; height: 7px;
+    width: 5px; height: 5px;
     background: var(--blue);
     border-radius: 1px;
     display: inline-block;
     flex-shrink: 0;
+    box-shadow: 0 0 5px var(--blue);
 }
 
-/* ── Progress ── */
-.stProgress > div > div > div > div { background: var(--blue) !important; }
+/* ══════════════════════════════════
+   PROGRESS BARS
+══════════════════════════════════ */
+.stProgress > div > div > div > div {
+    background: linear-gradient(90deg, var(--blue) 0%, #7ab0ff 100%) !important;
+    border-radius: 4px !important;
+}
 
-/* ── Review cards ── */
+/* ══════════════════════════════════
+   TABS
+══════════════════════════════════ */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0 !important;
+    border-bottom: 1px solid var(--border) !important;
+    background: transparent !important;
+    margin-bottom: 0.25rem !important;
+}
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    color: var(--muted) !important;
+    font-family: 'Inter Tight', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.16em !important;
+    text-transform: uppercase !important;
+    padding: 0.6rem 1.1rem !important;
+    border-bottom: 2px solid transparent !important;
+    transition: color 0.15s !important;
+}
+.stTabs [data-baseweb="tab"]:hover { color: var(--text-dim) !important; }
+.stTabs [aria-selected="true"] {
+    color: var(--text) !important;
+    border-bottom-color: var(--blue) !important;
+}
+.stTabs [data-baseweb="tab-panel"] { padding-top: 0.5rem !important; }
+
+/* ══════════════════════════════════
+   EXPANDERS
+══════════════════════════════════ */
+[data-testid="stExpander"],
+details[data-testid="stExpander"] {
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    overflow: hidden;
+}
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary span,
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary div {
+    color: var(--text) !important;
+    background: var(--surface) !important;
+}
+[data-testid="stExpanderDetails"],
+[data-testid="stExpanderDetails"] > div {
+    background: var(--surface) !important;
+    color: var(--text) !important;
+}
+
+/* ══════════════════════════════════
+   DATA TABLE
+══════════════════════════════════ */
+[data-testid="stDataFrame"] {
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    overflow: hidden;
+}
+[data-testid="stDataFrame"] iframe { background: var(--surface) !important; color: var(--text) !important; }
+
+/* ══════════════════════════════════
+   ALERTS (info / success / error / warning)
+══════════════════════════════════ */
+[data-testid="stAlert"],
+div[data-baseweb="notification"] {
+    background: var(--surface2) !important;
+    border: 1px solid var(--border-hi) !important;
+    border-radius: 6px !important;
+    color: var(--text) !important;
+}
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] span { color: var(--text) !important; }
+
+/* ══════════════════════════════════
+   SPINNER
+══════════════════════════════════ */
+[data-testid="stSpinner"] p { color: var(--text) !important; }
+
+/* ══════════════════════════════════
+   REVIEW CARDS  (legacy class — used in keyword tab)
+══════════════════════════════════ */
 .review-card {
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -250,85 +517,46 @@ div[data-baseweb="select"] > div {
     border-radius: 0 6px 6px 0;
     padding: 0.9rem 1.1rem;
     margin-bottom: 0.75rem;
-    font-size: 0.85rem;
-    line-height: 1.6;
+    font-size: 0.84rem;
+    line-height: 1.65;
     color: var(--text);
 }
 .review-card.negative { border-left-color: var(--neg); }
-.review-meta {
-    font-size: 0.68rem;
-    color: var(--muted);
-    margin-top: 0.4rem;
-    font-weight: 500;
-}
+.review-meta { font-size: 0.67rem; color: var(--muted); margin-top: 0.4rem; font-weight: 500; }
 
-/* ── Tabs ── */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 0 !important;
-    border-bottom: 1px solid var(--border) !important;
-    background: transparent !important;
-}
-.stTabs [data-baseweb="tab"] {
-    background: transparent !important;
-    color: var(--muted) !important;
-    font-family: 'Inter Tight', sans-serif !important;
-    font-weight: 700 !important;
-    font-size: 0.78rem !important;
-    letter-spacing: 0.1em !important;
-    text-transform: uppercase !important;
-    padding: 0.6rem 1.4rem !important;
-    border-bottom: 2px solid transparent !important;
-}
-.stTabs [aria-selected="true"] {
-    color: var(--text) !important;
-    border-bottom-color: var(--blue) !important;
-}
-
-/* ── Checkbox ── */
-.stCheckbox > label { color: var(--text) !important; font-size: 0.85rem !important; }
-
-/* ── Download button ── */
-.stDownloadButton > button {
-    background: transparent !important;
-    color: var(--blue) !important;
-    border: 1px solid var(--blue) !important;
-    border-radius: 4px !important;
-    font-family: 'Inter Tight', sans-serif !important;
-    font-size: 0.78rem !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.08em !important;
-    text-transform: uppercase !important;
-}
-.stDownloadButton > button:hover { background: rgba(0,87,255,0.1) !important; }
-
-/* ── Empty state ── */
+/* ══════════════════════════════════
+   EMPTY STATE
+══════════════════════════════════ */
 .empty-state {
-    margin-top: 3rem;
+    margin-top: 3.5rem;
     text-align: center;
-    padding: 3.5rem 2rem;
-    border: 1px dashed var(--border);
-    border-radius: 8px;
+    padding: 4rem 2rem;
+    border: 1px dashed var(--border-hi);
+    border-radius: 12px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(64,128,255,0.05) 0%, transparent 65%);
 }
 .empty-title {
     font-family: 'Inter Tight', sans-serif;
-    font-size: 2.5rem;
-    font-weight: 800;
-    color: var(--border);
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--border-hi) !important;
     letter-spacing: -0.02em;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.7rem;
 }
 .empty-sub {
-    font-size: 0.88rem;
-    color: var(--muted);
-    max-width: 360px;
+    font-size: 0.86rem;
+    color: var(--muted) !important;
+    max-width: 340px;
     margin: 0 auto;
-    line-height: 1.7;
+    line-height: 1.75;
 }
 
-/* ── Footer ── */
+/* ══════════════════════════════════
+   FOOTER
+══════════════════════════════════ */
 .footer {
     margin-top: 4rem;
-    padding-top: 1.5rem;
+    padding-top: 1.25rem;
     border-top: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
@@ -336,17 +564,15 @@ div[data-baseweb="select"] > div {
 }
 .footer-brand {
     font-family: 'Inter Tight', sans-serif;
-    font-weight: 800;
-    font-size: 0.8rem;
-    color: var(--border);
-    letter-spacing: 0.08em;
+    font-weight: 900;
+    font-size: 0.7rem;
+    color: var(--border-hi) !important;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
 }
-.footer-note { font-size: 0.68rem; color: var(--muted); }
+.footer-note { font-size: 0.63rem; color: var(--muted) !important; }
 </style>
 """, unsafe_allow_html=True)
-
-# ─────────────────────────────────────────────────────────────
-# CONSTANTS & PLOTLY THEME
 # ─────────────────────────────────────────────────────────────
 
 STEAM_SEARCH_URL = "https://store.steampowered.com/search/results"
@@ -355,7 +581,7 @@ STEAM_REVIEW_URL = "https://store.steampowered.com/appreviews/{app_id}"
 PLOTLY_BASE = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="Poppins, sans-serif", color="#F4F6F9"),
+    font=dict(family="Poppins, sans-serif", color="#eef0fa"),
     margin=dict(l=10, r=10, t=30, b=10),
 )
 
@@ -748,7 +974,7 @@ def generate_wordcloud_img(freq_json: str, positive: bool) -> bytes:
         return b""
 
     bg      = "#0d0f1a"
-    hi      = "#2ecc71" if positive else "#e74c3c"
+    hi      = "#20c65a" if positive else "#ff3d52"
     lo      = "#1a4a2e" if positive else "#4a1a1a"
 
     def colour_fn(word, font_size, position, orientation, random_state=None, **kw):
@@ -831,18 +1057,18 @@ def chart_sentiment_bar(sdf: pd.DataFrame) -> go.Figure:
     fig = go.Figure(go.Bar(
         y=df["game_title"], x=df["positive_pct"], orientation="h",
         marker_color=[
-            "#0057FF" if v >= 70 else "#003FBF" if v >= 50 else "#002266"
+            "#4080ff" if v >= 70 else "#003FBF" if v >= 50 else "#0a1540"
             for v in df["positive_pct"]
         ],
         text=[f"{v:.0f}%" for v in df["positive_pct"]],
         textposition="outside",
-        textfont=dict(size=11, color="#F4F6F9"),
+        textfont=dict(size=11, color="#eef0fa"),
     ))
     fig.update_layout(
         **PLOTLY_BASE,
         xaxis=dict(range=[0, 112], showgrid=False, zeroline=False,
-                   tickfont=dict(color="#8b90a8")),
-        yaxis=dict(showgrid=False, tickfont=dict(color="#F4F6F9", size=11)),
+                   tickfont=dict(color="#5a5f82")),
+        yaxis=dict(showgrid=False, tickfont=dict(color="#eef0fa", size=11)),
         height=max(300, len(df) * 38),
     )
     return fig
@@ -855,22 +1081,22 @@ def chart_scatter(sdf: pd.DataFrame) -> go.Figure:
         mode="markers+text",
         text=sdf["game_title"].str[:22],
         textposition="top center",
-        textfont=dict(size=9, color="#8b90a8"),
+        textfont=dict(size=9, color="#5a5f82"),
         marker=dict(
             size=sdf["total_reviews"].apply(lambda v: max(8, min(30, v / 8))),
             color=sdf["positive_pct"],
-            colorscale=[[0, "#002266"], [0.5, "#0057FF"], [1, "#E1EAFF"]],
+            colorscale=[[0, "#0a1540"], [0.5, "#4080ff"], [1, "#c8d8ff"]],
             showscale=True,
-            colorbar=dict(title="% Pos", tickfont=dict(color="#8b90a8", size=9)),
-            line=dict(color="#0D1126", width=1),
+            colorbar=dict(title="% Pos", tickfont=dict(color="#5a5f82", size=9)),
+            line=dict(color="#0a0c1a", width=1),
         ),
     ))
     fig.update_layout(
         **PLOTLY_BASE,
         xaxis=dict(title="Avg Playtime (hrs)", showgrid=True,
-                   gridcolor="#252840", tickfont=dict(color="#8b90a8")),
+                   gridcolor="#232640", tickfont=dict(color="#5a5f82")),
         yaxis=dict(title="% Positive", showgrid=True,
-                   gridcolor="#252840", tickfont=dict(color="#8b90a8")),
+                   gridcolor="#232640", tickfont=dict(color="#5a5f82")),
         height=400,
     )
     return fig
@@ -881,17 +1107,17 @@ def chart_stacked_bar(sdf: pd.DataFrame) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=df["game_title"].str[:20], y=df["positive_reviews"],
-        name="Positive", marker_color="#0057FF",
+        name="Positive", marker_color="#4080ff",
     ))
     fig.add_trace(go.Bar(
         x=df["game_title"].str[:20], y=df["negative_reviews"],
-        name="Negative", marker_color="#e74c3c",
+        name="Negative", marker_color="#ff3d52",
     ))
     fig.update_layout(
         **PLOTLY_BASE, barmode="stack",
-        xaxis=dict(tickangle=-38, tickfont=dict(color="#8b90a8", size=10)),
-        yaxis=dict(showgrid=True, gridcolor="#252840", tickfont=dict(color="#8b90a8")),
-        legend=dict(font=dict(color="#F4F6F9"), bgcolor="rgba(0,0,0,0)"),
+        xaxis=dict(tickangle=-38, tickfont=dict(color="#5a5f82", size=10)),
+        yaxis=dict(showgrid=True, gridcolor="#232640", tickfont=dict(color="#5a5f82")),
+        legend=dict(font=dict(color="#eef0fa"), bgcolor="rgba(0,0,0,0)"),
         height=360,
     )
     return fig
@@ -900,14 +1126,14 @@ def chart_stacked_bar(sdf: pd.DataFrame) -> go.Figure:
 def chart_playtime_hist(df: pd.DataFrame) -> go.Figure:
     capped = df[df["author_playtime_hrs"] <= 500]["author_playtime_hrs"]
     fig = go.Figure(go.Histogram(
-        x=capped, nbinsx=40, marker_color="#0057FF",
-        marker_line=dict(color="#0D1126", width=0.5),
+        x=capped, nbinsx=40, marker_color="#4080ff",
+        marker_line=dict(color="#0a0c1a", width=0.5),
     ))
     fig.update_layout(
         **PLOTLY_BASE,
-        xaxis=dict(title="Hrs at Review", tickfont=dict(color="#8b90a8"), showgrid=False),
-        yaxis=dict(title="Count", showgrid=True, gridcolor="#252840",
-                   tickfont=dict(color="#8b90a8")),
+        xaxis=dict(title="Hrs at Review", tickfont=dict(color="#5a5f82"), showgrid=False),
+        yaxis=dict(title="Count", showgrid=True, gridcolor="#232640",
+                   tickfont=dict(color="#5a5f82")),
         height=300,
     )
     return fig
@@ -919,12 +1145,12 @@ def chart_ea_donut(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure(go.Pie(
         labels=["Full Release", "Early Access"],
         values=[full, ea], hole=0.55,
-        marker_colors=["#0057FF", "#002266"],
-        textfont=dict(color="#F4F6F9", size=12),
+        marker_colors=["#4080ff", "#0a1540"],
+        textfont=dict(color="#eef0fa", size=12),
     ))
     fig.update_layout(
         **PLOTLY_BASE, height=260,
-        legend=dict(font=dict(color="#F4F6F9"), bgcolor="rgba(0,0,0,0)"),
+        legend=dict(font=dict(color="#eef0fa"), bgcolor="rgba(0,0,0,0)"),
     )
     return fig
 
@@ -954,6 +1180,7 @@ st.markdown("""
   <div class="topbar-logo"><span class="seg">SEGA</span> STEAM LENS</div>
   <div class="topbar-divider"></div>
   <div class="topbar-label">Review Analytics Platform</div>
+  <div class="topbar-pill">Beta</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1283,7 +1510,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             '<div class="section-header"><span class="dot"></span>POSITIVE SENTIMENT RANKING</div>',
             unsafe_allow_html=True,
         )
-        st.plotly_chart(chart_sentiment_bar(sdf), width='stretch',
+        st.plotly_chart(chart_sentiment_bar(sdf), use_container_width=True,
                         config={"displayModeBar": False})
 
         st.markdown(
@@ -1291,7 +1518,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             unsafe_allow_html=True,
         )
         st.caption("Bubble size = number of reviews collected")
-        st.plotly_chart(chart_scatter(sdf), width='stretch',
+        st.plotly_chart(chart_scatter(sdf), use_container_width=True,
                         config={"displayModeBar": False})
 
     with tab2:
@@ -1301,7 +1528,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 '<div class="section-header"><span class="dot"></span>REVIEW VOLUME</div>',
                 unsafe_allow_html=True,
             )
-            st.plotly_chart(chart_stacked_bar(sdf), width='stretch',
+            st.plotly_chart(chart_stacked_bar(sdf), use_container_width=True,
                             config={"displayModeBar": False})
         with mid:
             st.markdown(
@@ -1309,14 +1536,14 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 unsafe_allow_html=True,
             )
             st.caption("Capped at 500 hrs for readability")
-            st.plotly_chart(chart_playtime_hist(df), width='stretch',
+            st.plotly_chart(chart_playtime_hist(df), use_container_width=True,
                             config={"displayModeBar": False})
         with right:
             st.markdown(
                 '<div class="section-header"><span class="dot"></span>EARLY ACCESS</div>',
                 unsafe_allow_html=True,
             )
-            st.plotly_chart(chart_ea_donut(df), width='stretch',
+            st.plotly_chart(chart_ea_donut(df), use_container_width=True,
                             config={"displayModeBar": False})
 
 
@@ -1436,36 +1663,36 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             author_meta = " &nbsp;·&nbsp; ".join(filter(None, [games_str, reviews_str, total_str]))
             react_meta  = " &nbsp;·&nbsp; ".join(filter(None, [helpful_str, funny_str]))
 
-            border_color = "#2ecc71" if is_pos else "#e74c3c"
-            st.markdown(f"""
-            <div style="background:var(--surface2);border:1px solid var(--border);
-                        border-left:3px solid {border_color};border-radius:0 6px 6px 0;
-                        padding:.9rem 1.1rem 1rem;margin-bottom:1rem;">
-              <div style="font-size:.85rem;line-height:1.65;color:var(--text);margin-bottom:.7rem;">
-                {snippet}
-              </div>
-              <div style="border-top:1px solid var(--border);padding-top:.6rem;">
-                <div style="display:flex;flex-wrap:wrap;gap:.3rem .8rem;align-items:center;
-                            font-size:.73rem;color:var(--muted);margin-bottom:.35rem;">
-                  <span style="background:{'rgba(46,204,113,.15)' if is_pos else 'rgba(231,76,60,.15)'};
-                               color:{'#2ecc71' if is_pos else '#e74c3c'};
-                               border:1px solid {'rgba(46,204,113,.3)' if is_pos else 'rgba(231,76,60,.3)'};
-                               font-size:.68rem;font-weight:700;letter-spacing:.06em;
-                               padding:.12rem .45rem;border-radius:3px;text-transform:uppercase;">
-                    {icon} {sentiment}
-                  </span>
-                  <strong style="color:var(--text);">{row["game_title"]}</strong>
-                  <span>{at_rev_hrs:.0f} hrs at review</span>
-                  {"<span>" + date_str + "</span>" if date_str else ""}
-                  {("<span>" + react_meta + "</span>") if react_meta else ""}
-                </div>
-                <div style="font-size:.72rem;color:var(--muted);">
-                  👤 {profile_html}
-                  {(" &nbsp;·&nbsp; " + author_meta) if author_meta else ""}
-                  {review_link_html}
-                </div>
-              </div>
-            </div>""", unsafe_allow_html=True)
+            border_color = "#20c65a" if is_pos else "#ff3d52"
+            bg_color     = "rgba(46,204,113,.15)" if is_pos else "rgba(231,76,60,.15)"
+            badge_color  = "#20c65a" if is_pos else "#ff3d52"
+            badge_border = "rgba(46,204,113,.3)" if is_pos else "rgba(231,76,60,.3)"
+            date_html    = f"<span>{date_str}</span>" if date_str else ""
+            react_html   = f"<span>{react_meta}</span>" if react_meta else ""
+            meta_html    = (" &nbsp;·&nbsp; " + author_meta) if author_meta else ""
+            card_html = (
+                f'<div style="background:var(--surface2);border:1px solid var(--border);'
+                f'border-left:3px solid {border_color};border-radius:0 6px 6px 0;'
+                f'padding:.9rem 1.1rem 1rem;margin-bottom:1rem;">'
+                f'<div style="font-size:.85rem;line-height:1.65;color:var(--text);margin-bottom:.7rem;">'
+                f'{snippet}</div>'
+                f'<div style="border-top:1px solid var(--border);padding-top:.6rem;">'
+                f'<div style="display:flex;flex-wrap:wrap;gap:.3rem .8rem;align-items:center;'
+                f'font-size:.73rem;color:var(--muted);margin-bottom:.35rem;">'
+                f'<span style="background:{bg_color};color:{badge_color};'
+                f'border:1px solid {badge_border};'
+                f'font-size:.68rem;font-weight:700;letter-spacing:.06em;'
+                f'padding:.12rem .45rem;border-radius:3px;text-transform:uppercase;">'
+                f'{icon} {sentiment}</span>'
+                f'<strong style="color:var(--text);">{row["game_title"]}</strong>'
+                f'<span>{at_rev_hrs:.0f} hrs at review</span>'
+                f'{date_html}{react_html}'
+                f'</div>'
+                f'<div style="font-size:.72rem;color:var(--muted);">'
+                f'👤 {profile_html}{meta_html} {review_link_html}'
+                f'</div></div></div>'
+            )
+            st.markdown(card_html, unsafe_allow_html=True)
 
     # ──────────────────────────────────────────────────────────
     # ──────────────────────────────────────────────────────────
@@ -1579,7 +1806,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             """Show reviews from df_source that contain term (case-insensitive)."""
             is_pos   = sentiment == "pos"
             voted    = True if is_pos else False
-            colour   = "#2ecc71" if is_pos else "#e74c3c"
+            colour   = "#20c65a" if is_pos else "#ff3d52"
             icon     = "👍" if is_pos else "👎"
 
             pool = df_source[df_source["voted_up"] == voted].copy()
@@ -1795,34 +2022,34 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 counts_p = [c for _, c in top_pos[:15]][::-1]
                 fig_kp = go.Figure(go.Bar(
                     y=words_p, x=counts_p, orientation="h",
-                    marker_color="#2ecc71", marker_opacity=0.8,
+                    marker_color="#20c65a", marker_opacity=0.8,
                     text=counts_p, textposition="outside",
-                    textfont=dict(color="#F4F6F9", size=10),
+                    textfont=dict(color="#eef0fa", size=10),
                 ))
                 fig_kp.update_layout(
                     **PLOTLY_BASE, height=420,
-                    xaxis=dict(showgrid=False, tickfont=dict(color="#8b90a8")),
-                    yaxis=dict(showgrid=False, tickfont=dict(color="#F4F6F9", size=11)),
-                    title=dict(text="Top Positive Terms", font=dict(color="#F4F6F9", size=12)),
+                    xaxis=dict(showgrid=False, tickfont=dict(color="#5a5f82")),
+                    yaxis=dict(showgrid=False, tickfont=dict(color="#eef0fa", size=11)),
+                    title=dict(text="Top Positive Terms", font=dict(color="#eef0fa", size=12)),
                 )
-                st.plotly_chart(fig_kp, width="stretch", config={"displayModeBar": False})
+                st.plotly_chart(fig_kp, use_container_width=True, config={"displayModeBar": False})
         with bc_r:
             if top_neg:
                 words_n  = [w for w, _ in top_neg[:15]][::-1]
                 counts_n = [c for _, c in top_neg[:15]][::-1]
                 fig_kn = go.Figure(go.Bar(
                     y=words_n, x=counts_n, orientation="h",
-                    marker_color="#e74c3c", marker_opacity=0.8,
+                    marker_color="#ff3d52", marker_opacity=0.8,
                     text=counts_n, textposition="outside",
-                    textfont=dict(color="#F4F6F9", size=10),
+                    textfont=dict(color="#eef0fa", size=10),
                 ))
                 fig_kn.update_layout(
                     **PLOTLY_BASE, height=420,
-                    xaxis=dict(showgrid=False, tickfont=dict(color="#8b90a8")),
-                    yaxis=dict(showgrid=False, tickfont=dict(color="#F4F6F9", size=11)),
-                    title=dict(text="Top Negative Terms", font=dict(color="#F4F6F9", size=12)),
+                    xaxis=dict(showgrid=False, tickfont=dict(color="#5a5f82")),
+                    yaxis=dict(showgrid=False, tickfont=dict(color="#eef0fa", size=11)),
+                    title=dict(text="Top Negative Terms", font=dict(color="#eef0fa", size=12)),
                 )
-                st.plotly_chart(fig_kn, width="stretch", config={"displayModeBar": False})
+                st.plotly_chart(fig_kn, use_container_width=True, config={"displayModeBar": False})
 
     # TAB 6 — AI ANALYSIS
     # ──────────────────────────────────────────────────────────
@@ -2181,7 +2408,7 @@ elif not st.session_state.found_games:
     <div class="empty-state">
       <div class="empty-title">NO DATA YET</div>
       <div class="empty-sub">
-        Enter a genre above and click <strong style="color:#0057FF;">Search Genre</strong>
+        Enter a genre above and click <strong style="color:var(--blue);">Search Genre</strong>
         to find games on Steam and pull their reviews.
       </div>
     </div>
