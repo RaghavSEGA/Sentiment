@@ -1015,7 +1015,8 @@ def generate_wordcloud_img(freq_json: str, positive: bool) -> bytes:
 @st.cache_data(show_spinner=False)
 def run_vader_on_df(df_json: str) -> str:
     """Run VADER on all reviews. Accepts/returns JSON for Streamlit caching."""
-    df = pd.read_json(df_json, orient="records")
+    import io as _io
+    df = pd.read_json(_io.StringIO(df_json), orient="records", dtype={"timestamp_created": "Int64", "timestamp_updated": "Int64"})
     if VADER_AVAILABLE:
         analyzer = _VaderAnalyzer()
         scores = [analyzer.polarity_scores(t or "") for t in df["review_text"].fillna("").tolist()]
@@ -1445,10 +1446,13 @@ with st.expander("➕  Add a specific game to the list", expanded=False):
                           for g in st.session_state.found_games)
             rc1, rc2 = st.columns([5, 1])
             with rc1:
-                # Steam capsule header image
-                header_url = f'https://cdn.cloudflare.steamstatic.com/steam/apps/{candidate["app_id"]}/capsule_sm_120.jpg'
+                # Use tiny_image from API if present, else fall back to header capsule
+                _img_src = (
+                    candidate.get("img") or
+                    f'https://cdn.cloudflare.steamstatic.com/steam/apps/{candidate["app_id"]}/header.jpg'
+                )
                 _img_html = (
-                    f'<img src="{header_url}" style="height:45px;width:80px;object-fit:cover;'
+                    f'<img src="{_img_src}" style="height:45px;width:80px;object-fit:cover;'
                     f'border-radius:4px;border:1px solid var(--border);flex-shrink:0;">'
                 )
                 st.markdown(
@@ -1584,7 +1588,8 @@ if st.session_state.found_games:
             if all_reviews:
                 _rdf = pd.DataFrame(all_reviews)
                 if VADER_AVAILABLE:
-                    _rdf = pd.read_json(run_vader_on_df(_rdf.to_json(orient="records")), orient="records")
+                    import io as _io2
+                _rdf = pd.read_json(_io2.StringIO(run_vader_on_df(_rdf.to_json(orient="records"))), orient="records", dtype={"timestamp_created": "Int64", "timestamp_updated": "Int64"})
                 st.session_state.results_df = _rdf
                 st.session_state.summary_df = build_summary(st.session_state.results_df)
             else:
@@ -1650,8 +1655,18 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
     # Compute the actual min/max dates present in the data
     _ts_col = df["timestamp_created"].dropna()
     if len(_ts_col):
-        _ts_min = int(_ts_col.min())
-        _ts_max = int(_ts_col.max())
+        # Normalise: Timestamp objects → unix int, plain ints stay as-is
+        def _to_unix(v):
+            import pandas as _pd2
+            if isinstance(v, _pd2.Timestamp):
+                return int(v.timestamp())
+            try:
+                return int(v)
+            except Exception:
+                return None
+        _ts_vals = _ts_col.apply(_to_unix).dropna()
+        _ts_min = int(_ts_vals.min())
+        _ts_max = int(_ts_vals.max())
         _data_start = datetime.fromtimestamp(_ts_min, timezone.utc).date()
         _data_end   = datetime.fromtimestamp(_ts_max, timezone.utc).date()
     else:
@@ -1775,9 +1790,14 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                                             tzinfo=timezone.utc).timestamp())
             _ts_to   = int(datetime.combine(_di_to,   datetime.max.time(),
                                             tzinfo=timezone.utc).timestamp())
+            # Normalise column to int for comparison (handles Timestamp or int)
+            import pandas as _pd3
+            _ts_norm = df["timestamp_created"].apply(
+                lambda v: int(v.timestamp()) if isinstance(v, _pd3.Timestamp) else (int(v) if v is not None else None)
+            )
             df = df[
-                (df["timestamp_created"] >= _ts_from) &
-                (df["timestamp_created"] <= _ts_to)
+                (_ts_norm >= _ts_from) &
+                (_ts_norm <= _ts_to)
             ].copy()
             _df_after = len(df)
             if _dt_active:
