@@ -1611,11 +1611,11 @@ if st.session_state.found_games:
 
     sa, ca, _ = st.columns([1.5, 1.5, 7])
     with sa:
-        if st.button("Select All", use_container_width=True):
+        if st.button("Select All", width='stretch'):
             for g in st.session_state.found_games:
                 st.session_state.selected_games[g["app_id"]] = True
     with ca:
-        if st.button("Clear All", use_container_width=True):
+        if st.button("Clear All", width='stretch'):
             for g in st.session_state.found_games:
                 st.session_state.selected_games[g["app_id"]] = False
 
@@ -1702,12 +1702,15 @@ if st.session_state.found_games:
             game_bar.empty()
 
             if all_reviews:
+                import io as _io2
                 _rdf = pd.DataFrame(all_reviews)
                 _rdf = _normalise_timestamps(_rdf)
                 if VADER_AVAILABLE:
-                    import io as _io2
-                _rdf = pd.read_json(_io2.StringIO(run_vader_on_df(_rdf.to_json(orient="records"))), orient="records")
-                _rdf = _normalise_timestamps(_rdf)
+                    _rdf = pd.read_json(
+                        _io2.StringIO(run_vader_on_df(_rdf.to_json(orient="records"))),
+                        orient="records",
+                    )
+                    _rdf = _normalise_timestamps(_rdf)
                 st.session_state.results_df = _rdf
                 st.session_state.summary_df = build_summary(st.session_state.results_df)
                 # Auto-fetch Steam News events for all selected games
@@ -2268,7 +2271,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                         })
                     st.dataframe(
                         pd.DataFrame(_pg_rows),
-                        use_container_width=True,
+                        width='stretch',
                         hide_index=True,
                         column_config={"Change": st.column_config.NumberColumn("Change (pp)", format="%.1f")},
                     )
@@ -2295,7 +2298,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                             data=_cdf.to_csv(index=False).encode("utf-8"),
                             file_name=_cfname,
                             mime="text/csv",
-                            use_container_width=True,
+                            width='stretch',
                             key=f"dl_csv_{_clabel.lower()}_{_ev['ts']}",
                         )
 
@@ -2308,7 +2311,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                         'Timeline with all events marked</div>',
                         unsafe_allow_html=True,
                     )
-                    st.plotly_chart(_tl2, use_container_width=True,
+                    st.plotly_chart(_tl2, width='stretch',
                                     config={"displayModeBar": False})
 
         elif st.session_state.results_df is not None and not _all_ev_flat:
@@ -2319,7 +2322,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             '<div class="section-header"><span class="dot"></span>POSITIVE SENTIMENT RANKING</div>',
             unsafe_allow_html=True,
         )
-        st.plotly_chart(chart_sentiment_bar(sdf), use_container_width=True,
+        st.plotly_chart(chart_sentiment_bar(sdf), width='stretch',
                         config={"displayModeBar": False})
 
         st.markdown(
@@ -2327,7 +2330,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             unsafe_allow_html=True,
         )
         st.caption("Bubble size = number of reviews collected")
-        st.plotly_chart(chart_scatter(sdf), use_container_width=True,
+        st.plotly_chart(chart_scatter(sdf), width='stretch',
                         config={"displayModeBar": False})
 
         st.markdown(
@@ -2337,7 +2340,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         st.caption("Monthly % positive reviews — shows how reception has shifted over time")
         _tl = chart_sentiment_timeline(df)
         if _tl.data:
-            st.plotly_chart(_tl, use_container_width=True,
+            st.plotly_chart(_tl, width='stretch',
                             config={"displayModeBar": False})
         else:
             st.info("Not enough timestamped reviews to plot a timeline.")
@@ -2349,7 +2352,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 '<div class="section-header"><span class="dot"></span>REVIEW VOLUME BY GAME</div>',
                 unsafe_allow_html=True,
             )
-            st.plotly_chart(chart_review_volume(sdf), use_container_width=True,
+            st.plotly_chart(chart_review_volume(sdf), width='stretch',
                             config={"displayModeBar": False})
         with right:
             st.markdown(
@@ -2357,7 +2360,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 unsafe_allow_html=True,
             )
             st.caption("Reviews capped at 200 hrs · amber line = median")
-            st.plotly_chart(chart_playtime_hist(df), use_container_width=True,
+            st.plotly_chart(chart_playtime_hist(df), width='stretch',
                             config={"displayModeBar": False})
 
 
@@ -2405,7 +2408,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         display = display[[c for c in col_order if c in display.columns]]
         st.dataframe(
             display,
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config={
                 "% Positive": st.column_config.ProgressColumn(
@@ -2970,7 +2973,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                     yaxis=dict(showgrid=False, tickfont=dict(color="#eef0fa", size=11)),
                     title=dict(text="Top Positive Terms", font=dict(color="#eef0fa", size=12)),
                 )
-                st.plotly_chart(fig_kp, use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(fig_kp, width='stretch', config={"displayModeBar": False})
         with bc_r:
             if top_neg:
                 words_n  = [w for w, _ in top_neg[:15]][::-1]
@@ -2987,7 +2990,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                     yaxis=dict(showgrid=False, tickfont=dict(color="#eef0fa", size=11)),
                     title=dict(text="Top Negative Terms", font=dict(color="#eef0fa", size=12)),
                 )
-                st.plotly_chart(fig_kn, use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(fig_kn, width='stretch', config={"displayModeBar": False})
 
     # TAB 6 — AI ANALYSIS
     # ──────────────────────────────────────────────────────────
