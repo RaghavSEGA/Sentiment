@@ -45,7 +45,7 @@ except ImportError:
 
 st.set_page_config(
     page_title="SEGA Steam Lens",
-    page_icon="🎮",
+    page_icon=":material/sports_esports:",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -1016,7 +1016,7 @@ def generate_wordcloud_img(freq_json: str, positive: bool) -> bytes:
 def run_vader_on_df(df_json: str) -> str:
     """Run VADER on all reviews. Accepts/returns JSON for Streamlit caching."""
     import io as _io
-    df = pd.read_json(_io.StringIO(df_json), orient="records", dtype={"timestamp_created": "Int64", "timestamp_updated": "Int64"})
+    df = pd.read_json(_io.StringIO(df_json), orient="records")
     if VADER_AVAILABLE:
         analyzer = _VaderAnalyzer()
         scores = [analyzer.polarity_scores(t or "") for t in df["review_text"].fillna("").tolist()]
@@ -1024,6 +1024,25 @@ def run_vader_on_df(df_json: str) -> str:
     else:
         df["vader_compound"] = None
     return df.to_json(orient="records")
+
+
+def _normalise_timestamps(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert timestamp_created/updated from any type (int, Timestamp, str)
+    to plain Python int (Unix seconds). Called once after every DataFrame load."""
+    for col in ("timestamp_created", "timestamp_updated"):
+        if col not in df.columns:
+            continue
+        def _to_int(v):
+            if v is None or (isinstance(v, float) and pd.isna(v)):
+                return None
+            if hasattr(v, "timestamp"):          # pd.Timestamp
+                return int(v.timestamp())
+            try:
+                return int(v)
+            except Exception:
+                return None
+        df[col] = df[col].apply(_to_int)
+    return df
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1219,7 +1238,7 @@ def chart_sentiment_timeline(df: pd.DataFrame) -> go.Figure:
     _df = df.copy()
     _df["month"] = pd.to_datetime(_df["timestamp_created"].apply(
         lambda ts: datetime.fromtimestamp(int(ts), UTC).strftime("%Y-%m")
-        if pd.notna(ts) and ts else None
+        if ts is not None and pd.notna(ts) else None
     ), errors="coerce")
     _df = _df.dropna(subset=["month"])
     if _df.empty:
@@ -1387,7 +1406,7 @@ with c3:
     reviews_per = st.selectbox("reviews per game", [100, 250, 500], index=0, label_visibility="collapsed")
 btn_col, _ = st.columns([1, 5])
 with btn_col:
-    search_clicked = st.button("🔍  SEARCH GENRE", width='stretch')
+    search_clicked = st.button("SEARCH GENRE", width='stretch')
 st.markdown("</div>", unsafe_allow_html=True)
 
 # If chip was clicked, auto-trigger search
@@ -1415,7 +1434,7 @@ if search_clicked and genre_input.strip():
 # ADD A SPECIFIC GAME
 # ─────────────────────────────────────────────────────────────
 
-with st.expander("➕  Add a specific game to the list", expanded=False):
+with st.expander("Add a specific game to the list", expanded=False):
     st.markdown(
         '<div class="field-label" style="margin-bottom:.5rem;">Search for a game by name</div>',
         unsafe_allow_html=True,
@@ -1428,7 +1447,7 @@ with st.expander("➕  Add a specific game to the list", expanded=False):
             key="add_game_input",
         )
     with ab_col:
-        add_search = st.button("🔍  FIND", width='stretch', key="btn_add_search")
+        add_search = st.button("FIND", width='stretch', key="btn_add_search")
 
     if add_search and add_query.strip():
         with st.spinner("Searching…"):
@@ -1495,11 +1514,11 @@ if st.session_state.found_games:
 
     sa, ca, _ = st.columns([1.5, 1.5, 7])
     with sa:
-        if st.button("✓  Select All", use_container_width=True):
+        if st.button("Select All", use_container_width=True):
             for g in st.session_state.found_games:
                 st.session_state.selected_games[g["app_id"]] = True
     with ca:
-        if st.button("✕  Clear All", use_container_width=True):
+        if st.button("Clear All", use_container_width=True):
             for g in st.session_state.found_games:
                 st.session_state.selected_games[g["app_id"]] = False
 
@@ -1523,7 +1542,7 @@ if st.session_state.found_games:
         fb_col, _ = st.columns([1.4, 5])
         with fb_col:
             fetch_clicked = st.button(
-                f"▶  FETCH {len(selected_list)} GAMES",
+                f"FETCH {len(selected_list)} GAMES",
                 width='stretch',
             )
 
@@ -1580,16 +1599,18 @@ if st.session_state.found_games:
 
             status_box.markdown(
                 f'<div style="font-size:0.83rem;color:#20c65a;padding:0.25rem 0;">'
-                f'✓ Fetched <strong>{len(all_reviews):,}</strong> reviews across {len(selected_list)} games</div>',
+                f'Fetched <strong>{len(all_reviews):,}</strong> reviews across {len(selected_list)} games</div>',
                 unsafe_allow_html=True,
             )
             game_bar.empty()
 
             if all_reviews:
                 _rdf = pd.DataFrame(all_reviews)
+                _rdf = _normalise_timestamps(_rdf)
                 if VADER_AVAILABLE:
                     import io as _io2
-                _rdf = pd.read_json(_io2.StringIO(run_vader_on_df(_rdf.to_json(orient="records"))), orient="records", dtype={"timestamp_created": "Int64", "timestamp_updated": "Int64"})
+                _rdf = pd.read_json(_io2.StringIO(run_vader_on_df(_rdf.to_json(orient="records"))), orient="records")
+                _rdf = _normalise_timestamps(_rdf)
                 st.session_state.results_df = _rdf
                 st.session_state.summary_df = build_summary(st.session_state.results_df)
             else:
@@ -1608,7 +1629,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
     _max_hrs = max(_max_hrs, 1)
     _cap     = min(_max_hrs, 2000)   # slider cap — outliers above 2k hrs are rare
 
-    with st.expander("⏱  Filter by playtime at review", expanded=False):
+    with st.expander("Filter by playtime at review", expanded=False):
         st.markdown(
             '<div style="font-size:.78rem;color:var(--muted);margin-bottom:.75rem;">'
             'Only include reviews written by players whose playtime at the time of reviewing '
@@ -1655,18 +1676,8 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
     # Compute the actual min/max dates present in the data
     _ts_col = df["timestamp_created"].dropna()
     if len(_ts_col):
-        # Normalise: Timestamp objects → unix int, plain ints stay as-is
-        def _to_unix(v):
-            import pandas as _pd2
-            if isinstance(v, _pd2.Timestamp):
-                return int(v.timestamp())
-            try:
-                return int(v)
-            except Exception:
-                return None
-        _ts_vals = _ts_col.apply(_to_unix).dropna()
-        _ts_min = int(_ts_vals.min())
-        _ts_max = int(_ts_vals.max())
+        _ts_min = int(_ts_col.min())
+        _ts_max = int(_ts_col.max())
         _data_start = datetime.fromtimestamp(_ts_min, timezone.utc).date()
         _data_end   = datetime.fromtimestamp(_ts_max, timezone.utc).date()
     else:
@@ -1689,7 +1700,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
     if _stored_to < _data_start or _stored_to > _data_end:
         st.session_state.date_to = _data_end
 
-    with st.expander("📅  Filter by review date", expanded=False):
+    with st.expander("Filter by review date", expanded=False):
         st.markdown(
             '<div style="font-size:.78rem;color:var(--muted);margin-bottom:.9rem;">'
             'Only include reviews written within a specific date range. '
@@ -1790,14 +1801,9 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                                             tzinfo=timezone.utc).timestamp())
             _ts_to   = int(datetime.combine(_di_to,   datetime.max.time(),
                                             tzinfo=timezone.utc).timestamp())
-            # Normalise column to int for comparison (handles Timestamp or int)
-            import pandas as _pd3
-            _ts_norm = df["timestamp_created"].apply(
-                lambda v: int(v.timestamp()) if isinstance(v, _pd3.Timestamp) else (int(v) if v is not None else None)
-            )
             df = df[
-                (_ts_norm >= _ts_from) &
-                (_ts_norm <= _ts_to)
+                (df["timestamp_created"] >= _ts_from) &
+                (df["timestamp_created"] <= _ts_to)
             ].copy()
             _df_after = len(df)
             if _dt_active:
@@ -1908,9 +1914,9 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
 
     with tab1:
         # ── Methodology explainer ──
-        with st.expander("ℹ️  How sentiment is calculated", expanded=False):
+        with st.expander("How sentiment is calculated", expanded=False):
             st.markdown(
-                'Steam reviewers must click 👍 or 👎 before submitting. '
+                'Steam reviewers must click thumbs up or thumbs down before submitting. '
                 'This app reads that signal directly from the Steam API and computes '
                 '**% Positive = thumbs up ÷ total reviews × 100**. '
                 'No NLP or AI is involved in the score itself.\\n\\n'
@@ -1975,7 +1981,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         _df_ts = df.copy()
         _df_ts["month"] = pd.to_datetime(_df_ts["timestamp_created"].apply(
             lambda ts: datetime.fromtimestamp(int(ts), _UTC).strftime("%Y-%m")
-            if pd.notna(ts) and ts else None
+            if ts is not None and pd.notna(ts) else None
         ), errors="coerce")
 
         def _sparkline(game):
@@ -1996,8 +2002,8 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         display = display.rename(columns={
             "game_title":          "Game",
             "total_reviews":       "Reviews",
-            "positive_reviews":    "👍 Positive",
-            "negative_reviews":    "👎 Negative",
+            "positive_reviews":    "Positive",
+            "negative_reviews":    "Negative",
             "positive_pct":        "% Positive",
             "avg_playtime_hrs":    "Avg Hrs",
             "median_playtime_hrs": "Median Hrs",
@@ -2005,7 +2011,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         })
         # Reorder columns
         col_order = ["Game", "Reviews", "% Positive", "Trend",
-                     "👍 Positive", "👎 Negative", "Avg Hrs", "Median Hrs", "Avg Helpful"]
+                     "Positive", "Negative", "Avg Hrs", "Median Hrs", "Avg Helpful"]
         display = display[[c for c in col_order if c in display.columns]]
         st.dataframe(
             display,
@@ -2025,7 +2031,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             csv = df.to_csv(index=False, encoding="utf-8-sig").encode()
             genre_slug = st.session_state.last_genre.replace(" ", "_")
             st.download_button(
-                "⬇  EXPORT RAW CSV",
+                "EXPORT RAW CSV",
                 data=csv,
                 file_name=f"steam_reviews_{genre_slug}.csv",
                 mime="text/csv",
@@ -2119,7 +2125,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         for _, row in sample.iterrows():
             is_pos    = bool(row["voted_up"])
             sentiment = "positive" if is_pos else "negative"
-            icon      = "👍" if is_pos else "👎"
+            icon      = "+" if is_pos else "-"
             snippet   = row["review_text"][:400] + ("…" if len(row["review_text"]) > 400 else "")
             ts        = row.get("timestamp_created")
             date_str  = ""
@@ -2158,8 +2164,8 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             games_str    = f"{num_games:,} games owned" if num_games else ""
             reviews_str  = f"{num_reviews:,} reviews written" if num_reviews else ""
             total_str    = f"{total_hrs:,.0f} hrs total on record" if total_hrs else ""
-            helpful_str  = f"👍 {helpful} helpful" if helpful else ""
-            funny_str    = f"😄 {funny} funny" if funny else ""
+            helpful_str  = f"{helpful} helpful" if helpful else ""
+            funny_str    = f"{funny} funny" if funny else ""
 
             author_meta = " &nbsp;·&nbsp; ".join(filter(None, [games_str, reviews_str, total_str]))
             react_meta  = " &nbsp;·&nbsp; ".join(filter(None, [helpful_str, funny_str]))
@@ -2198,7 +2204,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 f'transition:border-color .15s,color .15s;white-space:nowrap;" '
                 f'onmouseover="this.style.borderColor=\'#4080ff\';this.style.color=\'#4080ff\';" '
                 f'onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\';">'
-                f'⎘ Copy</button>'
+                f'Copy</button>'
             )
 
             card_html = (
@@ -2223,7 +2229,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 f'{date_html}{react_html}'
                 f'</div>'
                 f'<div style="font-size:.71rem;color:var(--muted);">'
-                f'👤 {profile_html}{meta_html} {review_link_html}'
+                f'Profile: {profile_html}{meta_html} {review_link_html}'
                 f'</div></div></div>'
             )
             st.markdown(card_html, unsafe_allow_html=True)
@@ -2248,8 +2254,8 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                     font-size:.83rem;color:var(--muted);line-height:1.7;">
           Keywords are extracted by tokenising every review, removing common stopwords, and counting
           the most frequent single words and two-word phrases. Positive and negative clouds
-          are built from <strong style="color:#20c65a;">👍 positive</strong> and
-          <strong style="color:#ff3d52;">👎 negative</strong> reviews respectively.
+          are built from <strong style="color:#20c65a;">positive</strong> and
+          <strong style="color:#ff3d52;">negative</strong> reviews respectively.
           <strong style="color:var(--text);">Click any keyword</strong> to see the reviews that mention it.
         </div>
         """, unsafe_allow_html=True)
@@ -2341,7 +2347,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             is_pos   = sentiment == "pos"
             voted    = True if is_pos else False
             colour   = "#20c65a" if is_pos else "#ff3d52"
-            icon     = "👍" if is_pos else "👎"
+            icon     = "+" if is_pos else "-"
 
             pool = df_source[df_source["voted_up"] == voted].copy()
             if game_filter:
@@ -2407,7 +2413,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 )
                 meta_parts = list(filter(None, [
                     f"{at_hrs:.0f} hrs at review",
-                    f"👍 {helpful} helpful" if helpful else "",
+                    f"{helpful} helpful" if helpful else "",
                     profile_html,
                     review_link_html,
                 ]))
@@ -2473,7 +2479,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             with wc_l:
                 st.markdown(
                     '<div style="font-size:.7rem;font-weight:700;letter-spacing:.15em;'
-                    'text-transform:uppercase;color:#20c65a;margin-bottom:.4rem;">✅ Positive</div>',
+                    'text-transform:uppercase;color:#20c65a;margin-bottom:.4rem;">Positive</div>',
                     unsafe_allow_html=True,
                 )
                 if top_pos:
@@ -2487,7 +2493,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             with wc_r:
                 st.markdown(
                     '<div style="font-size:.7rem;font-weight:700;letter-spacing:.15em;'
-                    'text-transform:uppercase;color:#ff3d52;margin-bottom:.4rem;">❌ Negative</div>',
+                    'text-transform:uppercase;color:#ff3d52;margin-bottom:.4rem;">Negative</div>',
                     unsafe_allow_html=True,
                 )
                 if top_neg:
@@ -2510,7 +2516,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         with chip_l:
             st.markdown(
                 '<div class="section-header"><span class="dot"></span>'
-                f'✅ WHAT PEOPLE LIKED '
+                f'WHAT PEOPLE LIKED '
                 f'<span style="color:var(--muted);font-size:.7rem;font-weight:400;">'
                 f'— {len(pos_df):,} positive reviews</span></div>',
                 unsafe_allow_html=True,
@@ -2523,7 +2529,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         with chip_r:
             st.markdown(
                 '<div class="section-header"><span class="dot"></span>'
-                f'❌ WHAT PEOPLE DISLIKED '
+                f'WHAT PEOPLE DISLIKED '
                 f'<span style="color:var(--muted);font-size:.7rem;font-weight:400;">'
                 f'— {len(neg_df):,} negative reviews</span></div>',
                 unsafe_allow_html=True,
@@ -2633,13 +2639,13 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             with gen_col:
                 st.markdown("<br>", unsafe_allow_html=True)
                 generate_clicked = st.button(
-                    "✨  GENERATE REPORT",
+                    "GENERATE REPORT",
                     width='stretch',
                 )
             with test_col:
                 st.markdown("<br>", unsafe_allow_html=True)
                 test_clicked = st.button(
-                    "🔌  Test connection",
+                    "Test connection",
                     width='stretch',
                 )
 
@@ -2648,11 +2654,11 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 with st.spinner("Testing…"):
                     try:
                         r = _httpx.get("https://api.openai.com", timeout=10)
-                        st.success(f"✓ Reached api.openai.com (HTTP {r.status_code})")
+                        st.success(f"Reached api.openai.com (HTTP {r.status_code})")
                     except _httpx.ConnectError as e:
-                        st.error(f"✗ Cannot reach api.openai.com: {e}")
+                        st.error(f"Cannot reach api.openai.com: {e}")
                     except Exception as e:
-                        st.error(f"✗ {type(e).__name__}: {e}")
+                        st.error(f"{type(e).__name__}: {e}")
 
             # ── Prompt builder ─────────────────────────────────
             def build_analysis_prompt(df_, sdf_, focus, tone) -> str:
@@ -2882,7 +2888,7 @@ HARD RULES:
                 try:
                     client = _openai.OpenAI(api_key=st.secrets["OPEN_AI_KEY"])
                     status_placeholder.markdown(
-                        '<div style="font-size:.78rem;color:var(--muted);">⏳ Connecting to OpenAI…</div>',
+                        '<div style="font-size:.78rem;color:var(--muted);">Connecting to OpenAI…</div>',
                         unsafe_allow_html=True,
                     )
                     with client.chat.completions.create(
@@ -2926,7 +2932,7 @@ HARD RULES:
                 dl_col, _ = st.columns([1, 4])
                 with dl_col:
                     st.download_button(
-                        "⬇  Download report (.md)",
+                        "Download report (.md)",
                         data=st.session_state.ai_report,
                         file_name=f"steam_analysis_{st.session_state.get('last_genre', 'report').replace(' ', '_')}.md",
                         mime="text/markdown",
