@@ -2085,7 +2085,8 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
 
                 def _window_stats(wdf):
                     if not len(wdf):
-                        return {"reviews": 0, "pos_pct": 0.0, "avg_hrs": 0.0, "games": 0}
+                        # Use None to signal "empty window" — distinct from 0%
+                        return {"reviews": 0, "pos_pct": None, "avg_hrs": None, "games": 0}
                     return {
                         "reviews": len(wdf),
                         "pos_pct": wdf["voted_up"].mean() * 100,
@@ -2097,7 +2098,8 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 _as = _window_stats(_after)
 
                 def _delta(a, b, fmt=".1f", suffix=""):
-                    if b == 0:
+                    # Suppress arrow if either window is empty or values are None
+                    if a is None or b is None:
                         return ""
                     d = a - b
                     col = "#20c65a" if d > 0 else "#ff3d52" if d < 0 else "#5a5f82"
@@ -2142,6 +2144,18 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
 
                 def _render_window(col, label, stats, other_stats, border_col):
                     with col:
+                        _empty   = stats["reviews"] == 0
+                        _pct_val = stats["pos_pct"]
+                        _hrs_val = stats["avg_hrs"]
+                        # Sentiment colour — grey when empty
+                        _s_col   = (
+                            "var(--muted)" if _empty else
+                            "#20c65a" if _pct_val >= 70 else
+                            "#f0a500" if _pct_val >= 50 else
+                            "#ff3d52"
+                        )
+                        _s_txt   = "—" if _empty else f"{_pct_val:.1f}%"
+                        _h_txt   = "—" if _empty else f"{_hrs_val:.1f}h"
                         st.markdown(
                             f'<div style="background:var(--surface2);border:1px solid var(--border);'
                             f'border-top:2px solid {border_col};border-radius:8px;padding:1rem 1.2rem;">'
@@ -2152,27 +2166,26 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                             f'<div><div style="font-size:.55rem;font-weight:700;letter-spacing:.15em;'
                             f'text-transform:uppercase;color:var(--muted);margin-bottom:.15rem;">Reviews</div>'
                             f'<div style="font-family:Inter Tight,sans-serif;font-size:1.6rem;'
-                            f'font-weight:900;color:var(--text);line-height:1;">'
+                            f'font-weight:900;color:{"var(--muted)" if _empty else "var(--text)"};line-height:1;">'
                             f'{stats["reviews"]:,}</div></div>'
                             f'<div><div style="font-size:.55rem;font-weight:700;letter-spacing:.15em;'
                             f'text-transform:uppercase;color:var(--muted);margin-bottom:.15rem;">Sentiment</div>'
                             f'<div style="font-family:Inter Tight,sans-serif;font-size:1.6rem;'
-                            f'font-weight:900;line-height:1;'
-                            f'color:{"#20c65a" if stats["pos_pct"]>=70 else "#f0a500" if stats["pos_pct"]>=50 else "#ff3d52"};">'
-                            f'{stats["pos_pct"]:.1f}%'
-                            f'{_delta(stats["pos_pct"], other_stats["pos_pct"], ".1f", "%")}'
+                            f'font-weight:900;line-height:1;color:{_s_col};">'
+                            f'{_s_txt}'
+                            f'{_delta(_pct_val, other_stats["pos_pct"], ".1f", "%")}'
                             f'</div></div>'
                             f'<div><div style="font-size:.55rem;font-weight:700;letter-spacing:.15em;'
                             f'text-transform:uppercase;color:var(--muted);margin-bottom:.15rem;">Avg Playtime</div>'
                             f'<div style="font-family:Inter Tight,sans-serif;font-size:1.6rem;'
-                            f'font-weight:900;color:var(--text);line-height:1;">'
-                            f'{stats["avg_hrs"]:.1f}h'
-                            f'{_delta(stats["avg_hrs"], other_stats["avg_hrs"], ".1f", "h")}'
+                            f'font-weight:900;color:{"var(--muted)" if _empty else "var(--text)"};line-height:1;">'
+                            f'{_h_txt}'
+                            f'{_delta(_hrs_val, other_stats["avg_hrs"], ".1f", "h")}'
                             f'</div></div>'
                             f'<div><div style="font-size:.55rem;font-weight:700;letter-spacing:.15em;'
                             f'text-transform:uppercase;color:var(--muted);margin-bottom:.15rem;">Games</div>'
                             f'<div style="font-family:Inter Tight,sans-serif;font-size:1.6rem;'
-                            f'font-weight:900;color:var(--text);line-height:1;">'
+                            f'font-weight:900;color:{"var(--muted)" if _empty else "var(--text)"};line-height:1;">'
                             f'{stats["games"]}</div></div>'
                             f'</div></div>',
                             unsafe_allow_html=True,
@@ -2195,6 +2208,16 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                     f"After  ·  from {_fmt_edge_date(_after, 'after') if len(_after) else '—'}",
                     _as, _bs, _ecol,
                 )
+
+                # Warn if one window is empty (usually a fetch limit issue)
+                if _bs["reviews"] == 0 or _as["reviews"] == 0:
+                    _empty_side = "Before" if _bs["reviews"] == 0 else "After"
+                    st.info(
+                        f"The **{_empty_side}** window has no reviews. "
+                        "This is usually because the review fetch limit was set low and all "
+                        "collected reviews fall on one side of the event date. "
+                        "Try re-fetching with a higher review limit (500+) to capture a wider date range."
+                    )
 
                 # Per-game breakdown (when not filtered to a single game)
                 if _game_filter == "All games" and len(df["game_title"].unique()) > 1:
