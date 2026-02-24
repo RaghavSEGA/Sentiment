@@ -3,7 +3,7 @@ Steam Genre Review Analyzer — SEGA-branded Streamlit App
 =========================================================
 Run with:  streamlit run steam_review_app.py
 
-Required:  pip install streamlit requests pandas plotly openai matplotlib wordcloud httpx
+Required:  pip install streamlit requests pandas plotly anthropic matplotlib wordcloud httpx
 """
 
 import time
@@ -28,10 +28,10 @@ except ImportError:
     WORDCLOUD_AVAILABLE = False
 
 try:
-    import openai as _openai
-    OPENAI_AVAILABLE = True
+    import anthropic as _anthropic
+    ANTHROPIC_AVAILABLE = True
 except ImportError:
-    OPENAI_AVAILABLE = False
+    ANTHROPIC_AVAILABLE = False
 
 try:
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer as _VaderAnalyzer
@@ -1304,7 +1304,7 @@ for key, default in [
     ("summary_df",          None),
     ("last_genre",          ""),
     ("game_search_results", []),   # candidates from "add a game" lookup
-    ("openai_api_key",       os.environ.get("OPENAI_API_KEY", "")),
+    ("anthropic_api_key",    os.environ.get("ANTHROPIC_API_KEY", "")),
     ("ai_report",           ""),   # last generated report text
 ]:
     if key not in st.session_state:
@@ -2599,13 +2599,13 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             '<div class="section-header"><span class="dot"></span>AI-POWERED REPORT</div>',
             unsafe_allow_html=True,
         )
-        if not OPENAI_AVAILABLE:
-            st.error("openai SDK not installed. Run: `pip install openai`")
+        if not ANTHROPIC_AVAILABLE:
+            st.error("anthropic SDK not installed. Run: `pip install anthropic`")
         else:
             # Read key from environment variable
-            _env_key = os.environ.get("OPENAI_API_KEY", "")
+            _env_key = os.environ.get("ANTHROPIC_API_KEY", "")
             if _env_key:
-                st.session_state.openai_api_key = _env_key
+                st.session_state.anthropic_api_key = _env_key
 
             # ── Report options ─────────────────────────────────
             opt_left, opt_right = st.columns(2)
@@ -2632,7 +2632,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             with model_col:
                 ai_model = st.selectbox(
                     "Model",
-                    ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+                    ["claude-sonnet-4-5", "claude-haiku-4-5-20251001", "claude-opus-4-5"],
                     key="ai_model",
                     label_visibility="visible",
                 )
@@ -2653,10 +2653,10 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 import httpx as _httpx
                 with st.spinner("Testing…"):
                     try:
-                        r = _httpx.get("https://api.openai.com", timeout=10)
-                        st.success(f"Reached api.openai.com (HTTP {r.status_code})")
+                        r = _httpx.get("https://api.anthropic.com", timeout=10)
+                        st.success(f"Reached api.anthropic.com (HTTP {r.status_code})")
                     except _httpx.ConnectError as e:
-                        st.error(f"Cannot reach api.openai.com: {e}")
+                        st.error(f"Cannot reach api.anthropic.com: {e}")
                     except Exception as e:
                         st.error(f"{type(e).__name__}: {e}")
 
@@ -2886,41 +2886,37 @@ HARD RULES:
                 full_text = ""
 
                 try:
-                    client = _openai.OpenAI(api_key=st.secrets["OPEN_AI_KEY"])
+                    client = _anthropic.Anthropic(api_key=st.secrets["CLAUDE_KEY"])
                     status_placeholder.markdown(
-                        '<div style="font-size:.78rem;color:var(--muted);">Connecting to OpenAI…</div>',
+                        '<div style="font-size:.78rem;color:var(--muted);">Connecting to Claude…</div>',
                         unsafe_allow_html=True,
                     )
-                    with client.chat.completions.create(
+                    with client.messages.stream(
                         model=ai_model,
                         max_tokens=4096,
-                        stream=True,
-                        messages=[
-                            {"role": "system", "content":
-                                "You are a senior games market analyst. "
-                                "Respond only with your analysis report in well-structured markdown. "
-                                "Do not add preamble or sign-off."},
-                            {"role": "user", "content": prompt},
-                        ],
+                        system=(
+                            "You are a senior games market analyst. "
+                            "Respond only with your analysis report in well-structured markdown. "
+                            "Do not add preamble or sign-off."
+                        ),
+                        messages=[{"role": "user", "content": prompt}],
                     ) as stream:
                         status_placeholder.empty()
-                        for chunk in stream:
-                            delta = chunk.choices[0].delta.content
-                            if delta:
-                                full_text += delta
-                                report_placeholder.markdown(full_text + "▌")
+                        for delta in stream.text_stream:
+                            full_text += delta
+                            report_placeholder.markdown(full_text + "▌")
 
                     report_placeholder.markdown(full_text)
                     st.session_state.ai_report = full_text
 
-                except _openai.AuthenticationError:
-                    st.error("Invalid API key — check it at platform.openai.com/api-keys.")
-                except _openai.RateLimitError:
+                except _anthropic.AuthenticationError:
+                    st.error("Invalid API key — check it at console.anthropic.com/settings/keys.")
+                except _anthropic.RateLimitError:
                     st.error("Rate limit reached. Wait a moment and try again.")
-                except _openai.APIConnectionError as e:
-                    st.error(f"Could not reach the OpenAI API. Check your internet connection.\nDetail: {e}")
-                except _openai.APIStatusError as e:
-                    st.error(f"OpenAI API error: {e.status_code} — {e.message}")
+                except _anthropic.APIConnectionError as e:
+                    st.error(f"Could not reach the Anthropic API. Check your internet connection.\nDetail: {e}")
+                except _anthropic.APIStatusError as e:
+                    st.error(f"Anthropic API error: {e.status_code} — {e.message}")
                 except Exception as e:
                     st.error(f"Unexpected error: {type(e).__name__}: {e}")
 
