@@ -1069,8 +1069,68 @@ def lookup_game(query: str) -> list[dict]:
                     results.append({"app_id": int(aid), "name": name, "img": tiny})
     except Exception:
         pass
-    return results
 
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_game_events(app_id: int, game_name: str) -> list[dict]:
+    """Fetch patch/DLC/update events from Steam News API for a single game.
+    Returns list of {ts, date_str, title, event_type} sorted oldest→newest."""
+    UPDATE_KEYWORDS = [
+        "update", "patch", "hotfix", "fix", "dlc", "expansion",
+        "content", "season", "version", "release", "launch",
+        "major", "anniversary", "early access", "full release",
+    ]
+    results = []
+    try:
+        resp = requests.get(
+            "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/",
+            params={"appid": app_id, "count": 100, "maxlength": 150, "format": "json"},
+            headers=BROWSER_HEADERS,
+            timeout=12,
+        )
+        if not resp.ok:
+            return []
+        items = resp.json().get("appnews", {}).get("newsitems", [])
+        from datetime import datetime, timezone as _tz
+        for item in items:
+            title = item.get("title", "").strip()
+            ts    = item.get("date")
+            if not title or not ts:
+                continue
+            tl = title.lower()
+            # Only keep items whose title contains an update/DLC keyword
+            if not any(kw in tl for kw in UPDATE_KEYWORDS):
+                continue
+            # Skip if it looks like a sale or community announcement
+            skip_words = ["sale", "discount", "contest", "giveaway", "stream", "tournament", "esport"]
+            if any(sw in tl for sw in skip_words):
+                continue
+            dt  = datetime.fromtimestamp(int(ts), _tz.utc)
+            # Categorise
+            if any(k in tl for k in ["dlc", "expansion", "season pass", "content pack"]):
+                etype = "DLC"
+            elif any(k in tl for k in ["early access", "full release", "launch", "release"]):
+                etype = "Release"
+            else:
+                etype = "Update"
+            results.append({
+                "ts":       int(ts),
+                "date_str": dt.strftime("%b %d, %Y"),
+                "month":    dt.strftime("%Y-%m"),
+                "title":    title[:80],
+                "type":     etype,
+                "game":     game_name,
+                "app_id":   app_id,
+            })
+    except Exception:
+        pass
+    # Deduplicate by month+type to avoid noise, keep earliest per month
+    seen = {}
+    for ev in sorted(results, key=lambda x: x["ts"]):
+        key = (ev["app_id"], ev["month"], ev["type"])
+        if key not in seen:
+            seen[key] = ev
+    return sorted(seen.values(), key=lambda x: x["ts"])
 
 def chart_sentiment_bar(sdf: pd.DataFrame) -> go.Figure:
     df = sdf.sort_values("positive_pct", ascending=True).tail(15)
@@ -1232,8 +1292,8 @@ def chart_playtime_hist(df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def chart_sentiment_timeline(df: pd.DataFrame) -> go.Figure:
-    """Monthly rolling sentiment % over time, one line per game."""
+def chart_sentiment_timeline(df: pd.DataFrame, events: list | None = None) -> go.Figure:
+    """Monthly rolling sentiment % over time, one line per game. events = list of event dicts."""
     from datetime import datetime, UTC
     _df = df.copy()
     _df["month"] = pd.to_datetime(_df["timestamp_created"].apply(
@@ -1270,6 +1330,35 @@ def chart_sentiment_timeline(df: pd.DataFrame) -> go.Figure:
                         line=dict(color="#0a0c1a", width=1)),
             hovertemplate=f"<b>{game[:30]}</b><br>%{{x}}<br>%{{y:.1f}}% positive<extra></extra>",
         ))
+    # ── Event vertical lines ──────────────────────────────────
+    if events:
+        _type_colours = {"DLC": "#f0a500", "Update": "#a060ff", "Release": "#20c65a"}
+        _drawn_labels = set()
+        for ev in events:
+            _col   = _type_colours.get(ev["type"], "#6b7194")
+            # add_shape works on categorical x-axes without arithmetic
+            fig.add_shape(
+                type="line",
+                x0=ev["month"], x1=ev["month"],
+                y0=0, y1=1,
+                xref="x", yref="paper",
+                line=dict(color=_col, width=1.5, dash="dot"),
+            )
+            if ev["type"] not in _drawn_labels:
+                fig.add_annotation(
+                    x=ev["month"],
+                    y=0.98,
+                    xref="x", yref="paper",
+                    text=f"<b>{ev['type']}</b>",
+                    font=dict(color=_col, size=9),
+                    bgcolor="rgba(10,12,26,0.75)",
+                    bordercolor=_col,
+                    borderwidth=1,
+                    showarrow=False,
+                    yanchor="top",
+                    xanchor="left",
+                )
+                _drawn_labels.add(ev["type"])
     fig.add_hline(y=70, line=dict(color="rgba(64,128,255,0.18)", width=1, dash="dot"))
     fig.update_layout(
         **PLOTLY_BASE,
@@ -1306,6 +1395,7 @@ for key, default in [
     ("game_search_results", []),   # candidates from "add a game" lookup
     ("anthropic_api_key",    os.environ.get("ANTHROPIC_API_KEY", "")),
     ("ai_report",           ""),   # last generated report text
+    ("game_events",          {}),   # {app_id: [event dicts]} fetched from Steam News
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -1613,6 +1703,13 @@ if st.session_state.found_games:
                 _rdf = _normalise_timestamps(_rdf)
                 st.session_state.results_df = _rdf
                 st.session_state.summary_df = build_summary(st.session_state.results_df)
+                # Auto-fetch Steam News events for all selected games
+                _all_events = {}
+                for _g in selected_list:
+                    _evs = fetch_game_events(_g["app_id"], _g["name"])
+                    if _evs:
+                        _all_events[_g["app_id"]] = _evs
+                st.session_state.game_events = _all_events
             else:
                 st.error("No reviews collected. Try different games or a higher review limit.")
 
@@ -1924,6 +2021,253 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 '≥70% Mostly Positive · ≥40% Mixed · <40% Negative.'
             )
 
+        # ── Event split (shown first if events available) ────────────────────
+        _all_ev_flat = [
+            ev for evs in st.session_state.game_events.values() for ev in evs
+        ]
+        if _all_ev_flat and len(df):
+            _df_ts_min = int(df["timestamp_created"].min())
+            _df_ts_max = int(df["timestamp_created"].max())
+            _all_ev_flat = [
+                ev for ev in _all_ev_flat
+                if _df_ts_min <= ev["ts"] <= _df_ts_max
+            ]
+
+        if _all_ev_flat:
+            st.markdown(
+                '<div class="section-header"><span class="dot"></span>'
+                'SPLIT BY UPDATE / DLC EVENT</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                '<div style="font-size:.78rem;color:var(--muted);margin-bottom:.75rem;">'
+                'Select an event to split reviews into <strong style="color:var(--text);">Before</strong>'
+                ' and <strong style="color:var(--text);">After</strong> windows. '
+                'Optionally filter to a single game first.</div>',
+                unsafe_allow_html=True,
+            )
+
+            # ── Controls row: game filter + event selector ────────────────────
+            _all_games_in_events = sorted({ev["game"] for ev in _all_ev_flat})
+            _ctrl_left, _ctrl_right = st.columns([1, 2])
+            with _ctrl_left:
+                st.markdown('<div class="field-label">Filter by game</div>', unsafe_allow_html=True)
+                _game_filter = st.selectbox(
+                    "Game filter", ["All games"] + _all_games_in_events,
+                    key="event_game_filter",
+                    label_visibility="collapsed",
+                )
+            with _ctrl_right:
+                st.markdown('<div class="field-label">Event</div>', unsafe_allow_html=True)
+                _evs_for_sel = _all_ev_flat if _game_filter == "All games" else [
+                    ev for ev in _all_ev_flat if ev["game"] == _game_filter
+                ]
+                _ev_options = {
+                    f"{ev['date_str']}  —  [{ev['type']}]  {ev['game'][:28]}: {ev['title'][:50]}": ev
+                    for ev in sorted(_evs_for_sel, key=lambda x: x["ts"])
+                }
+                _ev_sel_label = st.selectbox(
+                    "Event", ["— none —"] + list(_ev_options.keys()),
+                    key="event_split_sel",
+                    label_visibility="collapsed",
+                )
+
+            if _ev_sel_label != "— none —":
+                _ev = _ev_options[_ev_sel_label]
+                _split_ts = _ev["ts"]
+                _split_date = _ev["date_str"]
+
+                # Apply game filter to the data if set
+                _df_split = df[df["game_title"] == _game_filter].copy() if _game_filter != "All games" else df.copy()
+
+                _before = _df_split[_df_split["timestamp_created"] <  _split_ts].copy()
+                _after  = _df_split[_df_split["timestamp_created"] >= _split_ts].copy()
+
+                def _window_stats(wdf):
+                    if not len(wdf):
+                        return {"reviews": 0, "pos_pct": 0.0, "avg_hrs": 0.0, "games": 0}
+                    return {
+                        "reviews": len(wdf),
+                        "pos_pct": wdf["voted_up"].mean() * 100,
+                        "avg_hrs": wdf["author_playtime_hrs"].mean(),
+                        "games":   wdf["game_title"].nunique(),
+                    }
+
+                _bs = _window_stats(_before)
+                _as = _window_stats(_after)
+
+                def _delta(a, b, fmt=".1f", suffix=""):
+                    if b == 0:
+                        return ""
+                    d = a - b
+                    col = "#20c65a" if d > 0 else "#ff3d52" if d < 0 else "#5a5f82"
+                    arrow = "▲" if d > 0 else "▼" if d < 0 else "—"
+                    return (f'<span style="font-size:.72rem;color:{col};'
+                            f'font-weight:700;margin-left:.4rem;">'
+                            f'{arrow} {abs(d):{fmt}}{suffix}</span>')
+
+                _type_col = {"DLC": "#f0a500", "Update": "#a060ff", "Release": "#20c65a"}
+                _ecol = _type_col.get(_ev["type"], "#6b7194")
+
+                # Event banner
+                st.markdown(
+                    f'<div style="background:var(--surface);border:1px solid var(--border);'
+                    f'border-left:3px solid {_ecol};border-radius:0 6px 6px 0;'
+                    f'padding:.65rem 1rem;margin:.75rem 0;'
+                    f'display:flex;align-items:center;gap:.75rem;">'
+                    f'<span style="background:{_ecol}22;color:{_ecol};border:1px solid {_ecol}44;'
+                    f'font-size:.66rem;font-weight:700;letter-spacing:.08em;'
+                    f'padding:.1rem .4rem;border-radius:3px;">{_ev["type"].upper()}</span>'
+                    f'<span style="font-size:.84rem;color:var(--text);font-weight:600;">'
+                    f'{_ev["title"]}</span>'
+                    f'<span style="font-size:.73rem;color:var(--muted);margin-left:auto;">'
+                    f'{_ev["game"]} &nbsp;·&nbsp; {_split_date}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+
+                # Before/After stat panels
+                def _fmt_edge_date(wdf, side):
+                    from datetime import datetime, timezone as _tz
+                    col = wdf["timestamp_created"]
+                    t = col.max() if side == "before" else col.min()
+                    if t is None or (hasattr(t, "__float__") and pd.isna(t)):
+                        return "—"
+                    try:
+                        return datetime.fromtimestamp(int(t), _tz.utc).strftime("%b %Y")
+                    except Exception:
+                        return "—"
+
+                _bc1, _divider, _ac1 = st.columns([5, 1, 5])
+
+                def _render_window(col, label, stats, other_stats, border_col):
+                    with col:
+                        st.markdown(
+                            f'<div style="background:var(--surface2);border:1px solid var(--border);'
+                            f'border-top:2px solid {border_col};border-radius:8px;padding:1rem 1.2rem;">'
+                            f'<div style="font-size:.6rem;font-weight:700;letter-spacing:.18em;'
+                            f'text-transform:uppercase;color:{border_col};margin-bottom:.75rem;">'
+                            f'{label}</div>'
+                            f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;">'
+                            f'<div><div style="font-size:.55rem;font-weight:700;letter-spacing:.15em;'
+                            f'text-transform:uppercase;color:var(--muted);margin-bottom:.15rem;">Reviews</div>'
+                            f'<div style="font-family:Inter Tight,sans-serif;font-size:1.6rem;'
+                            f'font-weight:900;color:var(--text);line-height:1;">'
+                            f'{stats["reviews"]:,}</div></div>'
+                            f'<div><div style="font-size:.55rem;font-weight:700;letter-spacing:.15em;'
+                            f'text-transform:uppercase;color:var(--muted);margin-bottom:.15rem;">Sentiment</div>'
+                            f'<div style="font-family:Inter Tight,sans-serif;font-size:1.6rem;'
+                            f'font-weight:900;line-height:1;'
+                            f'color:{"#20c65a" if stats["pos_pct"]>=70 else "#f0a500" if stats["pos_pct"]>=50 else "#ff3d52"};">'
+                            f'{stats["pos_pct"]:.1f}%'
+                            f'{_delta(stats["pos_pct"], other_stats["pos_pct"], ".1f", "%")}'
+                            f'</div></div>'
+                            f'<div><div style="font-size:.55rem;font-weight:700;letter-spacing:.15em;'
+                            f'text-transform:uppercase;color:var(--muted);margin-bottom:.15rem;">Avg Playtime</div>'
+                            f'<div style="font-family:Inter Tight,sans-serif;font-size:1.6rem;'
+                            f'font-weight:900;color:var(--text);line-height:1;">'
+                            f'{stats["avg_hrs"]:.1f}h'
+                            f'{_delta(stats["avg_hrs"], other_stats["avg_hrs"], ".1f", "h")}'
+                            f'</div></div>'
+                            f'<div><div style="font-size:.55rem;font-weight:700;letter-spacing:.15em;'
+                            f'text-transform:uppercase;color:var(--muted);margin-bottom:.15rem;">Games</div>'
+                            f'<div style="font-family:Inter Tight,sans-serif;font-size:1.6rem;'
+                            f'font-weight:900;color:var(--text);line-height:1;">'
+                            f'{stats["games"]}</div></div>'
+                            f'</div></div>',
+                            unsafe_allow_html=True,
+                        )
+
+                _render_window(
+                    _bc1,
+                    f"Before  ·  up to {_fmt_edge_date(_before, 'before') if len(_before) else '—'}",
+                    _bs, _as, "#4080ff",
+                )
+                with _divider:
+                    st.markdown(
+                        '<div style="display:flex;justify-content:center;align-items:center;'
+                        'height:100%;padding-top:2rem;">'
+                        '<div style="font-size:1.4rem;color:var(--muted);">→</div></div>',
+                        unsafe_allow_html=True,
+                    )
+                _render_window(
+                    _ac1,
+                    f"After  ·  from {_fmt_edge_date(_after, 'after') if len(_after) else '—'}",
+                    _as, _bs, _ecol,
+                )
+
+                # Per-game breakdown (when not filtered to a single game)
+                if _game_filter == "All games" and len(df["game_title"].unique()) > 1:
+                    st.markdown(
+                        '<div style="margin-top:1.25rem;">'
+                        '<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;'
+                        'text-transform:uppercase;color:var(--muted);margin-bottom:.6rem;">'
+                        'Per-game sentiment shift</div>',
+                        unsafe_allow_html=True,
+                    )
+                    _pg_rows = []
+                    for _gname in sorted(df["game_title"].unique()):
+                        _gb = _before[_before["game_title"] == _gname]
+                        _ga = _after[_after["game_title"] == _gname]
+                        _b_pct = _gb["voted_up"].mean() * 100 if len(_gb) else None
+                        _a_pct = _ga["voted_up"].mean() * 100 if len(_ga) else None
+                        _pg_rows.append({
+                            "Game":       _gname,
+                            "Before":     f"{_b_pct:.1f}%" if _b_pct is not None else "—",
+                            "After":      f"{_a_pct:.1f}%" if _a_pct is not None else "—",
+                            "Change":     round(_a_pct - _b_pct, 1) if (_b_pct is not None and _a_pct is not None) else None,
+                            "Before (#)": len(_gb),
+                            "After (#)":  len(_ga),
+                        })
+                    st.dataframe(
+                        pd.DataFrame(_pg_rows),
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config={"Change": st.column_config.NumberColumn("Change (pp)", format="%.1f")},
+                    )
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                # ── CSV export ────────────────────────────────────────────────
+                st.markdown(
+                    '<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;'
+                    'text-transform:uppercase;color:var(--muted);margin-top:1.25rem;margin-bottom:.5rem;">'
+                    'Export reviews</div>',
+                    unsafe_allow_html=True,
+                )
+                _csv_cols = st.columns(3)
+                _ev_slug  = _ev["title"][:24].strip().replace(" ", "_").lower()
+                _game_slug = _game_filter.replace(" ", "_").lower() if _game_filter != "All games" else "all"
+                for _ci, (_clabel, _cdf, _cfname) in enumerate([
+                    ("Before", _before, f"reviews_before_{_ev_slug}_{_game_slug}.csv"),
+                    ("After",  _after,  f"reviews_after_{_ev_slug}_{_game_slug}.csv"),
+                    ("Both",   _df_split, f"reviews_all_{_ev_slug}_{_game_slug}.csv"),
+                ]):
+                    with _csv_cols[_ci]:
+                        st.download_button(
+                            f"Download {_clabel} ({len(_cdf):,})",
+                            data=_cdf.to_csv(index=False).encode("utf-8"),
+                            file_name=_cfname,
+                            mime="text/csv",
+                            use_container_width=True,
+                            key=f"dl_csv_{_clabel.lower()}_{_ev['ts']}",
+                        )
+
+                # Timeline with all events marked
+                _tl2 = chart_sentiment_timeline(_df_split, events=_all_ev_flat)
+                if _tl2.data:
+                    st.markdown(
+                        '<div style="margin-top:1rem;font-size:.62rem;font-weight:700;'
+                        'letter-spacing:.18em;text-transform:uppercase;color:var(--muted);">'
+                        'Timeline with all events marked</div>',
+                        unsafe_allow_html=True,
+                    )
+                    st.plotly_chart(_tl2, use_container_width=True,
+                                    config={"displayModeBar": False})
+
+        elif st.session_state.results_df is not None and not _all_ev_flat:
+            st.caption("No patch/DLC/update events found in Steam News for the selected games.")
+
+        # ── Standard charts ───────────────────────────────────────────────────
         st.markdown(
             '<div class="section-header"><span class="dot"></span>POSITIVE SENTIMENT RANKING</div>',
             unsafe_allow_html=True,
@@ -1939,7 +2283,6 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         st.plotly_chart(chart_scatter(sdf), use_container_width=True,
                         config={"displayModeBar": False})
 
-        # ── Sentiment timeline ────────────────────────────────
         st.markdown(
             '<div class="section-header"><span class="dot"></span>SENTIMENT OVER TIME</div>',
             unsafe_allow_html=True,
@@ -2126,7 +2469,14 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             is_pos    = bool(row["voted_up"])
             sentiment = "positive" if is_pos else "negative"
             icon      = "+" if is_pos else "-"
-            snippet   = row["review_text"][:400] + ("…" if len(row["review_text"]) > 400 else "")
+            # Strip BBCode tags ([h1], [b], [url=...], etc.) and escape for HTML
+            _raw_text = row["review_text"] or ""
+            _clean_text = re.sub(r"\[/?[a-zA-Z0-9_]+(?:=[^\]]*)?]", "", _raw_text)
+            _clean_text = re.sub(r"\n{3,}", "\n\n", _clean_text.strip())
+            import html as _html_mod
+            _clean_html = _html_mod.escape(_clean_text).replace("\n", "<br>")
+            snippet = _clean_html[:700] + ("…" if len(_clean_html) > 700 else "")
+            _copy_plain = _clean_text[:700]  # plain text for clipboard
             ts        = row.get("timestamp_created")
             date_str  = ""
             if ts:
@@ -2193,10 +2543,11 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             else:
                 vader_badge = ""
 
-            # Copy button (uses inline JS clipboard API)
-            _copy_text = snippet.replace("\\", "\\\\").replace("`", "\\`").replace("$", "\\$")
+            # Copy button — JSON.dumps produces a safe JS string literal
+            import json as _json_mod
+            _copy_json = _json_mod.dumps(_copy_plain)
             copy_btn = (
-                f'<button onclick="navigator.clipboard.writeText(`{_copy_text}`).catch(()=>{{}})" '
+                f'<button onclick="navigator.clipboard.writeText({_copy_json}).catch(()={{}})" '
                 f'style="flex-shrink:0;background:transparent;border:1px solid var(--border);'
                 f'border-radius:4px;color:var(--muted);font-size:.62rem;font-weight:600;'
                 f'letter-spacing:.06em;padding:.18rem .44rem;cursor:pointer;'
@@ -2886,7 +3237,7 @@ HARD RULES:
                 full_text = ""
 
                 try:
-                    client = _anthropic.Anthropic(api_key=st.secrets["CLAUDE_KEY"])
+                    client = _anthropic.Anthropic(api_key=st.session_state.anthropic_api_key)
                     status_placeholder.markdown(
                         '<div style="font-size:.78rem;color:var(--muted);">Connecting to Claude…</div>',
                         unsafe_allow_html=True,
