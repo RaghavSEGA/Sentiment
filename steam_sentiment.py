@@ -1084,7 +1084,7 @@ def fetch_game_events(app_id: int, game_name: str) -> list[dict]:
     try:
         resp = requests.get(
             "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/",
-            params={"appid": app_id, "count": 100, "maxlength": 150, "format": "json"},
+            params={"appid": app_id, "count": 100, "maxlength": 1200, "format": "json"},
             headers=BROWSER_HEADERS,
             timeout=12,
         )
@@ -1113,6 +1113,11 @@ def fetch_game_events(app_id: int, game_name: str) -> list[dict]:
                 etype = "Release"
             else:
                 etype = "Update"
+            # Strip simple HTML tags from contents for clean display
+            import re as _re2
+            raw_contents = item.get("contents", "") or ""
+            clean_contents = _re2.sub(r"<[^>]+>", " ", raw_contents).strip()
+            clean_contents = _re2.sub(r" {2,}", " ", clean_contents)
             results.append({
                 "ts":       int(ts),
                 "date_str": dt.strftime("%b %d, %Y"),
@@ -1121,6 +1126,8 @@ def fetch_game_events(app_id: int, game_name: str) -> list[dict]:
                 "type":     etype,
                 "game":     game_name,
                 "app_id":   app_id,
+                "url":      item.get("url", ""),
+                "contents": clean_contents[:1000],
             })
     except Exception:
         pass
@@ -2111,22 +2118,39 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 _type_col = {"DLC": "#f0a500", "Update": "#a060ff", "Release": "#20c65a"}
                 _ecol = _type_col.get(_ev["type"], "#6b7194")
 
-                # Event banner
-                st.markdown(
-                    f'<div style="background:var(--surface);border:1px solid var(--border);'
-                    f'border-left:3px solid {_ecol};border-radius:0 6px 6px 0;'
-                    f'padding:.65rem 1rem;margin:.75rem 0;'
-                    f'display:flex;align-items:center;gap:.75rem;">'
-                    f'<span style="background:{_ecol}22;color:{_ecol};border:1px solid {_ecol}44;'
-                    f'font-size:.66rem;font-weight:700;letter-spacing:.08em;'
-                    f'padding:.1rem .4rem;border-radius:3px;">{_ev["type"].upper()}</span>'
-                    f'<span style="font-size:.84rem;color:var(--text);font-weight:600;">'
-                    f'{_ev["title"]}</span>'
-                    f'<span style="font-size:.73rem;color:var(--muted);margin-left:auto;">'
-                    f'{_ev["game"]} &nbsp;·&nbsp; {_split_date}</span>'
-                    f'</div>',
-                    unsafe_allow_html=True,
+                # Event expander — click to expand full update details
+                _ev_url      = _ev.get("url", "")
+                _ev_contents = _ev.get("contents", "")
+                _expander_label = (
+                    f"[{_ev['type']}]  {_ev['title']}  ·  {_ev['game']}  ·  {_split_date}"
                 )
+                with st.expander(_expander_label, expanded=False):
+                    st.markdown(
+                        f'<span style="background:{_ecol}22;color:{_ecol};'
+                        f'border:1px solid {_ecol}44;font-size:.66rem;font-weight:700;'
+                        f'letter-spacing:.08em;padding:.15rem .5rem;border-radius:3px;'
+                        f'text-transform:uppercase;">{_ev["type"]}</span>'
+                        f'&nbsp;&nbsp;<strong>{_ev["title"]}</strong>'
+                        f'<span style="color:var(--muted);font-size:.8rem;"> &nbsp;·&nbsp; '
+                        f'{_ev["game"]} &nbsp;·&nbsp; {_split_date}</span>',
+                        unsafe_allow_html=True,
+                    )
+                    if _ev_contents:
+                        st.markdown(
+                            f'<div style="font-size:.82rem;color:var(--text);line-height:1.65;'
+                            f'margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border);">'
+                            f'{_ev_contents}</div>',
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.caption("No description available for this event.")
+                    if _ev_url:
+                        st.markdown(
+                            f'<a href="{_ev_url}" target="_blank" rel="noopener" '
+                            f'style="font-size:.78rem;color:var(--blue);text-decoration:none;'
+                            f'font-weight:600;">View full announcement on Steam ↗</a>',
+                            unsafe_allow_html=True,
+                        )
 
                 # Before/After stat panels
                 def _fmt_edge_date(wdf, side):
@@ -3260,7 +3284,7 @@ HARD RULES:
                 full_text = ""
 
                 try:
-                    client = _anthropic.Anthropic(api_key=st.session_state.anthropic_api_key)
+                    client = _anthropic.Anthropic(api_key=st.secrets["CLAUDE_KEY"])
                     status_placeholder.markdown(
                         '<div style="font-size:.78rem;color:var(--muted);">Connecting to Claude…</div>',
                         unsafe_allow_html=True,
