@@ -1055,7 +1055,7 @@ if st.session_state.found_queries:
         # Twitter free/Basic tier: search window is always the last 7 days
         import datetime as _dt
         _now        = _dt.datetime.now(_dt.timezone.utc)
-        _start_time = _now - _dt.timedelta(days=7) + _dt.timedelta(minutes=1)
+        _start_time = None  # let Twitter default to its own 7-day window
         _end_time   = None
 
         if not st.session_state.twitter_key:
