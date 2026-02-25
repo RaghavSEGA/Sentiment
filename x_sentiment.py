@@ -654,16 +654,152 @@ def build_summary(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("positive_pct", ascending=False)
 
 # ─────────────────────────────────────────────────────────────
+# CURATED TOPIC LISTS
+# Each topic maps to a list of targeted search queries.
+# Mirrors the Steam app's CURATED_GENRES structure.
+# ─────────────────────────────────────────────────────────────
+
+CURATED_TOPICS: dict[str, list[str]] = {
+    "fighting games": [
+        "Street Fighter 6",
+        "Tekken 8",
+        "Mortal Kombat 1",
+        "Guilty Gear Strive",
+        "Dragon Ball FighterZ",
+        "King of Fighters XV",
+        "Granblue Fantasy Versus Rising",
+        "Under Night In-Birth II",
+        "Melty Blood Type Lumina",
+        "Skullgirls 2nd Encore",
+    ],
+    "soulslike": [
+        "Elden Ring",
+        "Elden Ring DLC",
+        "Sekiro Shadows Die Twice",
+        "Dark Souls",
+        "Lies of P",
+        "Remnant 2",
+        "Hollow Knight Silksong",
+        "Lords of the Fallen",
+        "Nine Sols",
+        "Steelrising",
+    ],
+    "roguelike": [
+        "Hades 2",
+        "Balatro",
+        "Slay the Spire",
+        "Vampire Survivors",
+        "Dead Cells",
+        "Risk of Rain 2",
+        "Binding of Isaac Repentance",
+        "Enter the Gungeon",
+        "Loop Hero",
+        "Cult of the Lamb",
+    ],
+    "rpg": [
+        "Baldurs Gate 3",
+        "Cyberpunk 2077",
+        "Elden Ring",
+        "Witcher 3",
+        "Divinity Original Sin 2",
+        "Disco Elysium",
+        "Starfield",
+        "Pathfinder Wrath of the Righteous",
+        "Final Fantasy VII Rebirth",
+        "Like a Dragon Infinite Wealth",
+    ],
+    "battle royale": [
+        "PUBG",
+        "Apex Legends",
+        "Warzone",
+        "Fortnite",
+        "Naraka Bladepoint",
+        "Fall Guys",
+        "BattleBit Remastered",
+        "Realm Royale",
+        "Spellbreak",
+        "Super People game",
+    ],
+    "metroidvania": [
+        "Hollow Knight Silksong",
+        "Blasphemous 2",
+        "Prince of Persia Lost Crown",
+        "Bloodstained Ritual of the Night",
+        "Ori Will of the Wisps",
+        "Aeterna Noctis",
+        "Deaths Gambit Afterlife",
+        "Islets game",
+        "Nine Sols",
+        "Ghost Song game",
+    ],
+    "platformer": [
+        "Hollow Knight",
+        "Celeste",
+        "Cuphead",
+        "Pizza Tower",
+        "Hi-Fi Rush",
+        "Sonic Mania",
+        "Baba Is You",
+        "Psychonauts 2",
+        "It Takes Two",
+        "GRIS game",
+    ],
+    "shooter": [
+        "Counter-Strike 2",
+        "Apex Legends",
+        "Rainbow Six Siege",
+        "Helldivers 2",
+        "Deep Rock Galactic",
+        "DOOM Eternal",
+        "Warhammer Space Marine 2",
+        "BattleBit Remastered",
+        "Turbo Overkill",
+        "Severed Steel",
+    ],
+}
+
+TOPIC_ALIASES: dict[str, str] = {
+    "fight":         "fighting games",
+    "fighter":       "fighting games",
+    "fighting":      "fighting games",
+    "souls":         "soulslike",
+    "souls-like":    "soulslike",
+    "soulsborne":    "soulslike",
+    "br":            "battle royale",
+    "royale":        "battle royale",
+    "rogue":         "roguelike",
+    "roguelite":     "roguelike",
+    "metroid":       "metroidvania",
+    "vania":         "metroidvania",
+    "action rpg":    "rpg",
+    "fps":           "shooter",
+    "platform":      "platformer",
+}
+
+QUICK_TOPICS = ["fighting games", "soulslike", "roguelike", "metroidvania", "battle royale", "rpg"]
+
+
+def resolve_topic(term: str) -> str | None:
+    """Return canonical topic key for a search term, or None if not found."""
+    key = term.lower().strip()
+    key = TOPIC_ALIASES.get(key, key)
+    return key if key in CURATED_TOPICS else None
+
+
+# ─────────────────────────────────────────────────────────────
 # SESSION STATE
 # ─────────────────────────────────────────────────────────────
 
 for key, default in [
-    ("results_df",    None),
-    ("summary_df",    None),
-    ("last_queries",  []),
-    ("ai_report",     ""),
-    ("twitter_key",   st.secrets.get("TWITTER_BEARER_TOKEN", os.environ.get("TWITTER_BEARER_TOKEN", ""))),
-    ("claude_key",    st.secrets.get("ANTHROPIC_API_KEY",    os.environ.get("ANTHROPIC_API_KEY",    ""))),
+    ("results_df",       None),
+    ("summary_df",       None),
+    ("last_queries",     []),
+    ("ai_report",        ""),
+    ("found_queries",    []),       # list of query strings from topic lookup
+    ("selected_queries", {}),      # {query: bool} toggle state
+    ("last_topic",       ""),
+    ("twitter_key",      st.secrets.get("TWITTER_BEARER_TOKEN", os.environ.get("TWITTER_BEARER_TOKEN", ""))),
+    ("claude_key",       st.secrets.get("ANTHROPIC_API_KEY",    os.environ.get("ANTHROPIC_API_KEY",    ""))),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -693,18 +829,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
-# QUICK-START CHIPS
+# QUICK-START TOPIC CHIPS
 # ─────────────────────────────────────────────────────────────
 
-QUICK_QUERIES = [
-    "Street Fighter 6", "Tekken 8", "#MortalKombat",
-    "Elden Ring", "Baldurs Gate 3", "#indiegame",
-]
-
 st.markdown('<div class="chip-row">', unsafe_allow_html=True)
-_chip_cols = st.columns(len(QUICK_QUERIES))
+_chip_cols = st.columns(len(QUICK_TOPICS))
 _chip_clicked = None
-for _ci, _label in enumerate(QUICK_QUERIES):
+for _ci, _label in enumerate(QUICK_TOPICS):
     with _chip_cols[_ci]:
         st.markdown('<div class="query-chip">', unsafe_allow_html=True)
         if st.button(_label, key=f"chip_{_ci}"):
@@ -751,15 +882,15 @@ else:
 st.markdown('<div class="search-block">', unsafe_allow_html=True)
 c1, c2, c3, c4 = st.columns([3, 1.2, 1.2, 1.2])
 with c1:
-    st.markdown('<div class="field-label">Query / Hashtag</div>', unsafe_allow_html=True)
-    query_input = st.text_input(
-        "query", label_visibility="collapsed",
-        placeholder='e.g.  "Street Fighter 6"  OR  #Tekken8  OR  Elden Ring DLC',
+    st.markdown('<div class="field-label">Topic / Search Term</div>', unsafe_allow_html=True)
+    topic_input = st.text_input(
+        "topic", label_visibility="collapsed",
+        placeholder="e.g.  fighting games,  soulslike,  rpg  — or any custom query",
         value=_chip_clicked or "",
-        key="query_text_input",
+        key="topic_text_input",
     )
 with c2:
-    st.markdown('<div class="field-label">Max Tweets</div>', unsafe_allow_html=True)
+    st.markdown('<div class="field-label">Max Tweets / Query</div>', unsafe_allow_html=True)
     max_tweets = st.selectbox("max tweets", [25, 50, 100], index=1, label_visibility="collapsed")
 with c3:
     st.markdown('<div class="field-label">Language</div>', unsafe_allow_html=True)
@@ -775,90 +906,167 @@ with _filter_col1:
 with _filter_col2:
     exclude_reply = st.checkbox("Exclude replies", value=True)
 with _btn_col:
-    fetch_clicked = st.button("FETCH & ANALYSE", width='stretch')
+    search_clicked = st.button("SEARCH TOPIC", width='stretch')
 st.markdown("</div>", unsafe_allow_html=True)
 
+# ── Chip auto-triggers search ─────────────────────────────────
 if _chip_clicked:
-    fetch_clicked = True
-    query_input   = _chip_clicked
+    search_clicked = True
+    topic_input    = _chip_clicked
 
 # ─────────────────────────────────────────────────────────────
-# FETCH + ANALYSE LOGIC
+# TOPIC SEARCH LOGIC — populate found_queries
 # ─────────────────────────────────────────────────────────────
 
-if fetch_clicked and query_input.strip():
-    if not st.session_state.twitter_key:
-        st.error("Please enter your Twitter Bearer Token above.")
-    elif not st.session_state.claude_key:
-        st.error("Please enter your Anthropic API key above.")
-    elif not TWEEPY_AVAILABLE:
-        st.error("tweepy not installed. Run: pip install tweepy")
-    elif not ANTHROPIC_AVAILABLE:
-        st.error("anthropic not installed. Run: pip install anthropic")
+if search_clicked and topic_input.strip():
+    resolved = resolve_topic(topic_input.strip())
+    if resolved:
+        # Curated topic hit — load predefined query list
+        queries = CURATED_TOPICS[resolved]
+        st.session_state.found_queries    = queries
+        st.session_state.selected_queries = {q: True for q in queries}
+        st.session_state.last_topic       = resolved
     else:
-        all_tweets = []
-        with st.status("Fetching tweets…", expanded=True) as status:
-            try:
-                tweets = fetch_tweets(
-                    st.session_state.twitter_key, query_input.strip(),
-                    max_tweets, exclude_rt, exclude_reply, lang,
-                )
-            except Exception as e:
-                st.error(f"Twitter API error: {e}")
-                tweets = []
+        # Free-text: treat the input as a single query
+        q = topic_input.strip()
+        st.session_state.found_queries    = [q]
+        st.session_state.selected_queries = {q: True}
+        st.session_state.last_topic       = q
+    st.session_state.results_df = None
+    st.session_state.summary_df = None
+    st.session_state.ai_report  = ""
 
-            if not tweets:
-                st.warning("No tweets found. Try a different query or loosen filters.")
-            else:
-                st.write(f"✅ Fetched **{len(tweets)}** tweets")
+# ─────────────────────────────────────────────────────────────
+# QUERY TOGGLE LIST (mirrors Steam's game checkbox list)
+# ─────────────────────────────────────────────────────────────
 
-                ac = _anthropic.Anthropic(api_key=st.session_state.claude_key)
-                batches = [tweets[i:i+batch_size] for i in range(0, len(tweets), batch_size)]
-                progress = st.progress(0, text="Analysing sentiment…")
+if st.session_state.found_queries:
+    st.markdown(
+        '<div class="section-header"><span class="dot"></span>QUERIES FOUND</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div style="font-size:.78rem;color:var(--muted);margin-bottom:.75rem;">' +
+        (f'Curated list for <strong style="color:var(--text);">{st.session_state.last_topic}</strong> — ' if resolve_topic(st.session_state.last_topic) else "") +
+        'Toggle queries on/off, then click <strong style="color:var(--blue);">Fetch &amp; Analyse</strong>.</div>',
+        unsafe_allow_html=True,
+    )
 
-                consecutive_failures = 0
-                for i, batch in enumerate(batches):
-                    status.update(label=f"🤖 Analysing batch {i+1}/{len(batches)}…")
+    # Select-all / deselect-all row
+    _sa_col, _sd_col, _ = st.columns([1, 1, 6])
+    with _sa_col:
+        if st.button("Select all", key="sel_all"):
+            for q in st.session_state.found_queries:
+                st.session_state.selected_queries[q] = True
+    with _sd_col:
+        if st.button("Deselect all", key="desel_all"):
+            for q in st.session_state.found_queries:
+                st.session_state.selected_queries[q] = False
+
+    # Checkbox grid — 2 columns like Steam's game list
+    _qcols = st.columns(2)
+    for _qi, _q in enumerate(st.session_state.found_queries):
+        with _qcols[_qi % 2]:
+            _checked = st.session_state.selected_queries.get(_q, True)
+            _new     = st.checkbox(_q, value=_checked, key=f"qcheck_{_qi}")
+            st.session_state.selected_queries[_q] = _new
+
+    # Fetch & Analyse button
+    _selected_list = [q for q, v in st.session_state.selected_queries.items() if v]
+    st.markdown("<br>", unsafe_allow_html=True)
+    _fa_col, _ = st.columns([1, 5])
+    with _fa_col:
+        fetch_clicked = st.button(
+            f"FETCH & ANALYSE ({len(_selected_list)} {'query' if len(_selected_list)==1 else 'queries'})",
+            width='stretch',
+            disabled=not _selected_list,
+        )
+
+    # ─────────────────────────────────────────────────────────────
+    # FETCH + ANALYSE LOGIC
+    # ─────────────────────────────────────────────────────────────
+
+    if fetch_clicked and _selected_list:
+        if not st.session_state.twitter_key:
+            st.error("Twitter Bearer Token missing — check your secrets.toml.")
+        elif not st.session_state.claude_key:
+            st.error("Anthropic API key missing — check your secrets.toml.")
+        elif not TWEEPY_AVAILABLE:
+            st.error("tweepy not installed. Run: pip install tweepy")
+        elif not ANTHROPIC_AVAILABLE:
+            st.error("anthropic not installed. Run: pip install anthropic")
+        else:
+            all_tweets = []
+            ac = _anthropic.Anthropic(api_key=st.session_state.claude_key)
+
+            with st.status(f"Processing {len(_selected_list)} queries…", expanded=True) as status:
+                for qi, query in enumerate(_selected_list):
+                    status.update(label=f"🔍 Fetching tweets for: {query} ({qi+1}/{len(_selected_list)})")
                     try:
-                        all_tweets.extend(analyze_sentiment_batch(ac, batch))
-                        consecutive_failures = 0
-                    except _anthropic.AuthenticationError:
-                        st.error("Invalid Anthropic API key — check it at console.anthropic.com/settings/keys.")
-                        break
-                    except _anthropic.APIConnectionError as e:
-                        consecutive_failures += 1
-                        st.warning(f"Batch {i+1} connection error: {e}")
-                        if consecutive_failures >= 2:
-                            st.error(
-                                "Multiple connection failures in a row. "
-                                "Check your network can reach api.anthropic.com and that your API key is valid."
-                            )
-                            break
+                        tweets = fetch_tweets(
+                            st.session_state.twitter_key, query,
+                            max_tweets, exclude_rt, exclude_reply, lang,
+                        )
                     except Exception as e:
-                        consecutive_failures += 1
-                        st.warning(f"Batch {i+1} failed ({type(e).__name__}): {e}")
-                        if consecutive_failures >= 2:
-                            st.error("Multiple batch failures in a row — stopping early.")
+                        st.warning(f"Twitter API error for '{query}': {e}")
+                        tweets = []
+
+                    if not tweets:
+                        st.warning(f"No tweets found for '{query}' — skipping.")
+                        continue
+
+                    st.write(f"✅ **{query}** — fetched {len(tweets)} tweets")
+
+                    batches = [tweets[i:i+batch_size] for i in range(0, len(tweets), batch_size)]
+                    progress = st.progress(0, text=f"Analysing {query}…")
+
+                    consecutive_failures = 0
+                    failed = False
+                    for i, batch in enumerate(batches):
+                        status.update(label=f"🤖 {query}: batch {i+1}/{len(batches)}")
+                        try:
+                            all_tweets.extend(analyze_sentiment_batch(ac, batch))
+                            consecutive_failures = 0
+                        except _anthropic.AuthenticationError:
+                            st.error("Invalid Anthropic API key — check console.anthropic.com/settings/keys.")
+                            failed = True
                             break
-                    progress.progress((i+1)/len(batches), text=f"Batch {i+1}/{len(batches)} complete")
+                        except _anthropic.APIConnectionError as e:
+                            consecutive_failures += 1
+                            st.warning(f"Batch {i+1} connection error: {e}")
+                            if consecutive_failures >= 2:
+                                st.error("Multiple connection failures — stopping. Check your network and API key.")
+                                failed = True
+                                break
+                        except Exception as e:
+                            consecutive_failures += 1
+                            st.warning(f"Batch {i+1} failed ({type(e).__name__}): {e}")
+                            if consecutive_failures >= 2:
+                                st.error("Multiple batch failures — stopping early.")
+                                failed = True
+                                break
+                        progress.progress((i+1)/len(batches))
 
-                status.update(label="✅ Analysis complete!", state="complete")
+                    if failed:
+                        break
 
-        if all_tweets:
-            new_df = pd.DataFrame(all_tweets)
-            # Merge with existing results if there are previous runs
-            if st.session_state.results_df is not None:
-                combined = pd.concat([st.session_state.results_df, new_df], ignore_index=True)
-                combined = combined.drop_duplicates(subset=["id"])
-                st.session_state.results_df = combined
-            else:
-                st.session_state.results_df = new_df
+                status.update(label="✅ All queries complete!", state="complete")
 
-            if query_input.strip() not in st.session_state.last_queries:
-                st.session_state.last_queries.append(query_input.strip())
+            if all_tweets:
+                new_df = pd.DataFrame(all_tweets)
+                if st.session_state.results_df is not None:
+                    combined = pd.concat([st.session_state.results_df, new_df], ignore_index=True)
+                    combined = combined.drop_duplicates(subset=["id"])
+                    st.session_state.results_df = combined
+                else:
+                    st.session_state.results_df = new_df
 
-            st.session_state.summary_df = build_summary(st.session_state.results_df)
-            st.session_state.ai_report = ""
+                for q in _selected_list:
+                    if q not in st.session_state.last_queries:
+                        st.session_state.last_queries.append(q)
+
+                st.session_state.summary_df = build_summary(st.session_state.results_df)
+                st.session_state.ai_report  = ""
 
 # ─────────────────────────────────────────────────────────────
 # RESULTS DASHBOARD
