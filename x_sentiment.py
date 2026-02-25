@@ -8,6 +8,7 @@ Required:  pip install streamlit tweepy pandas plotly anthropic matplotlib wordc
 
 import re
 import os
+import html as _html
 from collections import Counter
 import pandas as pd
 import plotly.graph_objects as go
@@ -550,7 +551,15 @@ def chart_engagement_scatter(df: pd.DataFrame) -> go.Figure:
 # ─────────────────────────────────────────────────────────────
 
 def fetch_tweets(bearer_token: str, query: str, max_results: int,
-                 exclude_rt: bool, exclude_reply: bool, lang: str) -> list[dict]:
+                 exclude_rt: bool, exclude_reply: bool, lang: str,
+                 start_time=None, end_time=None,
+                 sort_by_engagement: bool = False) -> list[dict]:
+    """
+    Fetch tweets for query.
+    If sort_by_engagement=True, over-fetches then returns the top
+    max_results sorted by likes + retweets*2 descending.
+    start_time / end_time: timezone-aware datetime objects (UTC).
+    """
     client = tweepy.Client(bearer_token=bearer_token, wait_on_rate_limit=True)
 
     filters = []
@@ -559,14 +568,16 @@ def fetch_tweets(bearer_token: str, query: str, max_results: int,
     if lang != "any": filters.append(f"lang:{lang}")
 
     full_query = f"{query} {' '.join(filters)}".strip()
-    per_page   = min(max(max_results, 10), 100)
+    fetch_count = min(100, max(max_results * 2 if sort_by_engagement else max_results, 10))
 
     response = client.search_recent_tweets(
         query=full_query,
-        max_results=per_page,
+        max_results=fetch_count,
         tweet_fields=["created_at", "public_metrics", "text", "author_id"],
         expansions=["author_id"],
         user_fields=["username"],
+        start_time=start_time,
+        end_time=end_time,
     )
 
     if not response.data:
@@ -585,6 +596,11 @@ def fetch_tweets(bearer_token: str, query: str, max_results: int,
             "replies":    t.public_metrics["reply_count"],
             "username":   users.get(t.author_id, "unknown"),
         })
+
+    if sort_by_engagement:
+        tweets.sort(key=lambda t: t["likes"] + t["retweets"] * 2, reverse=True)
+        tweets = tweets[:max_results]
+
     return tweets
 
 
@@ -900,6 +916,30 @@ with c4:
     batch_size = st.selectbox("batch", [5, 10, 20], index=1, label_visibility="collapsed",
                               help="Tweets analysed per Claude request")
 
+_sr1, _sr2, _sr3, _sr4 = st.columns([1.5, 1.5, 1.5, 1.5])
+with _sr1:
+    st.markdown('<div class="field-label">Sort Tweets By</div>', unsafe_allow_html=True)
+    sort_mode = st.selectbox("sort_mode", ["Most Recent", "Most Engagement"],
+                             label_visibility="collapsed",
+                             help="Most Engagement over-fetches then returns highest likes+retweets")
+with _sr2:
+    st.markdown('<div class="field-label">Time Window</div>', unsafe_allow_html=True)
+    time_window = st.selectbox("time_window",
+                               ["Last 24 hours", "Last 7 days", "Last 30 days", "Custom"],
+                               index=1, label_visibility="collapsed")
+with _sr3:
+    import datetime as _dt
+    _custom_disabled = time_window != "Custom"
+    st.markdown('<div class="field-label">From (UTC)</div>', unsafe_allow_html=True)
+    custom_start = st.date_input("custom_start", label_visibility="collapsed",
+                                 value=_dt.date.today() - _dt.timedelta(days=7),
+                                 disabled=_custom_disabled, key="date_start")
+with _sr4:
+    st.markdown('<div class="field-label">To (UTC)</div>', unsafe_allow_html=True)
+    custom_end = st.date_input("custom_end", label_visibility="collapsed",
+                               value=_dt.date.today(),
+                               disabled=_custom_disabled, key="date_end")
+
 _filter_col1, _filter_col2, _btn_col, _ = st.columns([1, 1, 1, 3])
 with _filter_col1:
     exclude_rt    = st.checkbox("Exclude retweets", value=True)
@@ -987,6 +1027,21 @@ if st.session_state.found_queries:
     # ─────────────────────────────────────────────────────────────
 
     if fetch_clicked and _selected_list:
+        # Resolve time window to UTC datetimes
+        import datetime as _dt
+        _now = _dt.datetime.now(_dt.timezone.utc)
+        _tw_map = {
+            "Last 24 hours": _dt.timedelta(hours=24),
+            "Last 7 days":   _dt.timedelta(days=7),
+            "Last 30 days":  _dt.timedelta(days=30),
+        }
+        if time_window in _tw_map:
+            _start_time = _now - _tw_map[time_window]
+            _end_time   = None
+        else:  # Custom
+            _start_time = _dt.datetime.combine(custom_start, _dt.time.min, tzinfo=_dt.timezone.utc)
+            _end_time   = _dt.datetime.combine(custom_end,   _dt.time.max, tzinfo=_dt.timezone.utc)
+
         if not st.session_state.twitter_key:
             st.error("Twitter Bearer Token missing — check your secrets.toml.")
         elif not st.session_state.claude_key:
@@ -1006,6 +1061,9 @@ if st.session_state.found_queries:
                         tweets = fetch_tweets(
                             st.session_state.twitter_key, query,
                             max_tweets, exclude_rt, exclude_reply, lang,
+                            start_time=_start_time,
+                            end_time=_end_time,
+                            sort_by_engagement=(sort_mode == "Most Engagement"),
                         )
                     except Exception as e:
                         st.warning(f"Twitter API error for '{query}': {e}")
@@ -1250,23 +1308,28 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             unsafe_allow_html=True,
         )
 
-        # Tweet cards
+        # Tweet cards — escape user content so tweet text can't break the card HTML
         badge_cls = {"Positive": "pos", "Negative": "neg", "Neutral": "neu"}
         for _, row in filtered.head(100).iterrows():
-            cls = badge_cls.get(row["sentiment"], "neu")
-            likes_str = f"♥ {row['likes']:,}" if row["likes"] else ""
-            rt_str    = f"🔁 {row['retweets']:,}" if row["retweets"] else ""
+            cls      = badge_cls.get(row["sentiment"], "neu")
+            username = _html.escape(str(row["username"]))
+            text     = _html.escape(str(row["text"]))
+            reason   = _html.escape(str(row["reason"]))
+            created  = _html.escape(str(row.get("created_at", "")))
+            score_str = f"{row['score']:+.2f}"
+            likes_html = f'<span>♥ {row["likes"]:,}</span>' if row["likes"] else ""
+            rt_html    = f'<span>🔁 {row["retweets"]:,}</span>' if row["retweets"] else ""
             st.markdown(f"""
 <div class="tweet-card {cls}">
   <div class="tweet-meta">
-    <span>@{row['username']}</span>
-    <span style="color:var(--muted);">{row.get('created_at','')}</span>
-    {f'<span>{likes_str}</span>' if likes_str else ''}
-    {f'<span>{rt_str}</span>'    if rt_str    else ''}
-    <span class="tweet-badge {cls}">{row['sentiment']}&nbsp;{row['score']:+.2f}</span>
+    <span>@{username}</span>
+    <span style="color:var(--muted);">{created}</span>
+    {likes_html}
+    {rt_html}
+    <span class="tweet-badge {cls}">{row["sentiment"]}&nbsp;{score_str}</span>
   </div>
-  <div class="tweet-text">{row['text']}</div>
-  <div style="font-size:.7rem;color:var(--muted);margin-top:.4rem;">{row['reason']}</div>
+  <div class="tweet-text">{text}</div>
+  <div style="font-size:.7rem;color:var(--muted);margin-top:.4rem;">{reason}</div>
 </div>
 """, unsafe_allow_html=True)
 
