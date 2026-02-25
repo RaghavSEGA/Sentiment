@@ -963,7 +963,6 @@ if search_clicked and topic_input.strip():
     # Clear results so dashboard reflects the new query set
     st.session_state.results_df = None
     st.session_state.summary_df = None
-    st.session_state.ai_report  = ""
 
 # ─────────────────────────────────────────────────────────────
 # QUERY TOGGLE LIST (mirrors Steam's game checkbox list)
@@ -1140,7 +1139,6 @@ if st.session_state.found_queries:
                         st.session_state.last_queries.append(q)
 
                 st.session_state.summary_df = build_summary(st.session_state.results_df)
-                st.session_state.ai_report  = ""
 
 # ─────────────────────────────────────────────────────────────
 # RESULTS DASHBOARD
@@ -1292,9 +1290,217 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             )
 
     # ════════════════════════════════════════════════════════
-    # TAB 4 — TWEETS (individual)
+    # TAB 4 — TWEETS + keyword insights
     # ════════════════════════════════════════════════════════
     with tab4:
+
+        # ── Keyword extraction ────────────────────────────────────────────────
+        import json as _j, re as _re
+        _pos_texts = df[df["sentiment"] == "Positive"]["text"].tolist()
+        _neg_texts = df[df["sentiment"] == "Negative"]["text"].tolist()
+        _pos_kw = extract_keywords(_pos_texts, 30)
+        _neg_kw = extract_keywords(_neg_texts, 30)
+        _pos_set = {w for w, _ in _pos_kw}
+        _neg_set = {w for w, _ in _neg_kw}
+
+        # ── Keyword chip CSS ──────────────────────────────────────────────────
+        st.markdown("""
+<style>
+.kw-btn-pos > button {
+    background: var(--pos-dim) !important; color: var(--pos) !important;
+    border: 1px solid rgba(32,198,90,.25) !important; border-radius: 4px !important;
+    font-size: .68rem !important; font-weight: 600 !important; letter-spacing: .04em !important;
+    padding: .22rem .6rem !important; min-height: unset !important; height: auto !important;
+    text-transform: none !important; box-shadow: none !important; width:100% !important;
+}
+.kw-btn-pos > button:hover { background: rgba(32,198,90,.22) !important; transform: none !important; }
+.kw-btn-active-pos > button {
+    background: var(--pos) !important; color: #000 !important;
+    border: 1px solid var(--pos) !important; border-radius: 4px !important;
+    font-size: .68rem !important; font-weight: 700 !important;
+    padding: .22rem .6rem !important; min-height: unset !important; height: auto !important;
+    text-transform: none !important; box-shadow: none !important; width:100% !important;
+}
+.kw-btn-neg > button {
+    background: var(--neg-dim) !important; color: var(--neg) !important;
+    border: 1px solid rgba(255,61,82,.25) !important; border-radius: 4px !important;
+    font-size: .68rem !important; font-weight: 600 !important; letter-spacing: .04em !important;
+    padding: .22rem .6rem !important; min-height: unset !important; height: auto !important;
+    text-transform: none !important; box-shadow: none !important; width:100% !important;
+}
+.kw-btn-neg > button:hover { background: rgba(255,61,82,.22) !important; transform: none !important; }
+.kw-btn-active-neg > button {
+    background: var(--neg) !important; color: #fff !important;
+    border: 1px solid var(--neg) !important; border-radius: 4px !important;
+    font-size: .68rem !important; font-weight: 700 !important;
+    padding: .22rem .6rem !important; min-height: unset !important; height: auto !important;
+    text-transform: none !important; box-shadow: none !important; width:100% !important;
+}
+.kw-chip-clear > button {
+    background: transparent !important; color: var(--muted) !important;
+    border: 1px solid var(--border) !important; border-radius: 20px !important;
+    font-size: .7rem !important; font-weight: 600 !important;
+    padding: .25rem .75rem !important; min-height: unset !important; height: auto !important;
+    text-transform: none !important; box-shadow: none !important;
+}
+.kw-chip-clear > button:hover { border-color: var(--muted) !important; transform: none !important; }
+</style>
+""", unsafe_allow_html=True)
+
+        # session state for selected keyword chip
+        if "kw_selected_term" not in st.session_state:
+            st.session_state.kw_selected_term      = None
+        if "kw_selected_sentiment" not in st.session_state:
+            st.session_state.kw_selected_sentiment = None
+        # legacy plain filter (still used by tweet browser below)
+        if "kw_filter" not in st.session_state:
+            st.session_state.kw_filter = ""
+
+        def _render_kw_buttons(kws, sentiment):
+            """5-column grid of keyword buttons; active chip is highlighted."""
+            if not kws:
+                st.markdown('<span style="font-size:.8rem;color:var(--muted);">No data</span>',
+                            unsafe_allow_html=True)
+                return
+            n_cols = 5
+            rows   = [kws[i:i+n_cols] for i in range(0, len(kws), n_cols)]
+            active = st.session_state.kw_selected_term
+            active_sent = st.session_state.kw_selected_sentiment
+            for row_kws in rows:
+                btn_cols = st.columns(n_cols)
+                for col, (word, count) in zip(btn_cols, row_kws):
+                    is_active = (active == word and active_sent == sentiment)
+                    css = (f"kw-btn-active-{sentiment}" if is_active else f"kw-btn-{sentiment}")
+                    with col:
+                        st.markdown(f'<div class="{css}">', unsafe_allow_html=True)
+                        if st.button(f"{word}  {count}",
+                                     key=f"kw_{sentiment}_{word.replace(' ','_')}"):
+                            if is_active:
+                                st.session_state.kw_selected_term      = None
+                                st.session_state.kw_selected_sentiment = None
+                                st.session_state.kw_filter             = ""
+                            else:
+                                st.session_state.kw_selected_term      = word
+                                st.session_state.kw_selected_sentiment = sentiment
+                                st.session_state.kw_filter             = word
+                        st.markdown('</div>', unsafe_allow_html=True)
+
+        # ── Word clouds ───────────────────────────────────────────────────────
+        st.markdown(
+            '<div class="section-header"><span class="dot"></span>KEYWORD INSIGHTS'
+            '<span style="color:var(--muted);font-size:.7rem;font-weight:400;"> '
+            '— click any keyword to filter tweets below</span></div>',
+            unsafe_allow_html=True,
+        )
+        _wc1, _wc2 = st.columns(2)
+        with _wc1:
+            st.markdown('<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--pos);margin-bottom:.5rem;">Positive</div>', unsafe_allow_html=True)
+            if WORDCLOUD_AVAILABLE and _pos_kw:
+                _wc_bytes = generate_wordcloud_img(_j.dumps(dict(_pos_kw)), True)
+                if _wc_bytes:
+                    st.image(_wc_bytes, use_container_width=True)
+            else:
+                st.caption(", ".join(f"{w} ({c})" for w, c in _pos_kw[:15]))
+        with _wc2:
+            st.markdown('<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--neg);margin-bottom:.5rem;">Negative</div>', unsafe_allow_html=True)
+            if WORDCLOUD_AVAILABLE and _neg_kw:
+                _wc_bytes = generate_wordcloud_img(_j.dumps(dict(_neg_kw)), False)
+                if _wc_bytes:
+                    st.image(_wc_bytes, use_container_width=True)
+            else:
+                st.caption(", ".join(f"{w} ({c})" for w, c in _neg_kw[:15]))
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── Two-panel keyword chip grid ───────────────────────────────────────
+        _kl, _kr = st.columns(2)
+        with _kl:
+            st.markdown(
+                f'<div class="section-header"><span class="dot"></span>'
+                f'WHAT PEOPLE LIKED '
+                f'<span style="color:var(--muted);font-size:.7rem;font-weight:400;">'
+                f'— {len(_pos_texts):,} positive tweets</span></div>',
+                unsafe_allow_html=True,
+            )
+            _render_kw_buttons(_pos_kw[:30], "pos")
+        with _kr:
+            st.markdown(
+                f'<div class="section-header"><span class="dot"></span>'
+                f'WHAT PEOPLE DISLIKED '
+                f'<span style="color:var(--muted);font-size:.7rem;font-weight:400;">'
+                f'— {len(_neg_texts):,} negative tweets</span></div>',
+                unsafe_allow_html=True,
+            )
+            _render_kw_buttons(_neg_kw[:30], "neg")
+
+        # ── Matching tweets panel (shown when a chip is active) ───────────────
+        if st.session_state.kw_selected_term:
+            _kw_term  = st.session_state.kw_selected_term
+            _kw_sent  = st.session_state.kw_selected_sentiment
+            _kw_color = "var(--pos)" if _kw_sent == "pos" else "var(--neg)"
+            _kw_hex   = "#20c65a"   if _kw_sent == "pos" else "#ff3d52"
+            _kw_label = "positive"  if _kw_sent == "pos" else "negative"
+
+            _kw_pool = df[df["sentiment"] == ("Positive" if _kw_sent == "pos" else "Negative")].copy()
+            _kw_mask  = _kw_pool["text"].str.contains(_re.escape(_kw_term), case=False, na=False)
+            _kw_matches = _kw_pool[_kw_mask].sort_values("likes", ascending=False).head(10)
+
+            st.markdown(
+                f'<div style="background:var(--surface);border:1px solid var(--border);'
+                f'border-left:3px solid {_kw_hex};border-radius:0 6px 6px 0;'
+                f'padding:.75rem 1.1rem;margin:1.2rem 0 .75rem;">'
+                f'<span style="font-size:.7rem;font-weight:700;letter-spacing:.15em;'
+                f'text-transform:uppercase;color:{_kw_hex};">TWEETS MENTIONING</span> '
+                f'<span style="font-family:Inter Tight,sans-serif;font-weight:800;'
+                f'font-size:1.05rem;color:var(--text);">"{_kw_term}"</span> '
+                f'<span style="font-size:.75rem;color:var(--muted);">'
+                f'— {len(_kw_pool[_kw_mask]):,} {_kw_label} tweets match</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+            if _kw_matches.empty:
+                st.info("No matching tweets.")
+            else:
+                for _, _row in _kw_matches.iterrows():
+                    _raw_text = str(_row["text"])
+                    _esc_text = _html.escape(_raw_text)
+                    _highlighted = _re.sub(
+                        _re.escape(_kw_term),
+                        lambda m: f'<strong style="color:{_kw_hex};font-weight:700;">'
+                                  + _html.escape(m.group(0)) + '</strong>',
+                        _esc_text,
+                        flags=_re.IGNORECASE,
+                    )
+                    _uname   = _html.escape(str(_row["username"]))
+                    _created = _html.escape(str(_row.get("created_at", "")))
+                    _likes_h = f'<span>♥ {_row["likes"]:,}</span>' if _row["likes"] else ""
+                    _rt_h    = f'<span>🔁 {_row["retweets"]:,}</span>' if _row["retweets"] else ""
+                    st.markdown(
+                        f'<div style="background:var(--surface2);border:1px solid var(--border);'
+                        f'border-left:3px solid {_kw_hex};border-radius:0 6px 6px 0;'
+                        f'padding:.8rem 1rem .85rem;margin-bottom:.7rem;">'
+                        f'<div style="font-size:.7rem;color:var(--muted);margin-bottom:.4rem;'
+                        f'display:flex;gap:.8rem;flex-wrap:wrap;">'
+                        f'<span>@{_uname}</span><span style="color:var(--muted);">{_created}</span>'
+                        f'{_likes_h}{_rt_h}</div>'
+                        f'<div style="font-size:.84rem;line-height:1.65;color:var(--text);">'
+                        f'{_highlighted}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+
+            _cl_a, _cl_b = st.columns([5, 1])
+            with _cl_b:
+                st.markdown('<div class="kw-chip-clear">', unsafe_allow_html=True)
+                if st.button("✕ Clear", key="kw_clear"):
+                    st.session_state.kw_selected_term      = None
+                    st.session_state.kw_selected_sentiment = None
+                    st.session_state.kw_filter             = ""
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        # ── Tweet browser ─────────────────────────────────────────────────────
         st.markdown('<div class="section-header"><span class="dot"></span>TWEET BROWSER</div>', unsafe_allow_html=True)
 
         _f1, _f2, _f3 = st.columns([2, 2, 2])
@@ -1308,6 +1514,12 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                                           default=df["query"].unique().tolist())
 
         filtered = df[df["sentiment"].isin(sent_filter) & df["query"].isin(query_filter)].copy()
+
+        if st.session_state.kw_filter:
+            filtered = filtered[filtered["text"].str.contains(
+                st.session_state.kw_filter, case=False, na=False
+            )]
+
         sort_map = {
             "Score (↓)":    ("score",    False),
             "Score (↑)":    ("score",    True),
@@ -1317,21 +1529,21 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         col, asc = sort_map[sort_by]
         filtered = filtered.sort_values(col, ascending=asc)
 
-        # Keyword INSIGHTS section (word clouds + top terms)
         st.markdown(
             f'<div style="font-size:.72rem;color:var(--muted);margin:.5rem 0 1rem;">'
-            f'Showing <strong style="color:var(--text);">{len(filtered):,}</strong> of {len(df):,} tweets</div>',
+            f'Showing <strong style="color:var(--text);">{len(filtered):,}</strong> of {len(df):,} tweets'
+            + (f' · keyword: <strong style="color:var(--blue);">{st.session_state.kw_filter}</strong>' if st.session_state.kw_filter else "")
+            + '</div>',
             unsafe_allow_html=True,
         )
 
-        # Tweet cards — escape user content so tweet text can't break the card HTML
         badge_cls = {"Positive": "pos", "Negative": "neg", "Neutral": "neu"}
         for _, row in filtered.head(100).iterrows():
-            cls      = badge_cls.get(row["sentiment"], "neu")
-            username = _html.escape(str(row["username"]))
-            text     = _html.escape(str(row["text"]))
-            reason   = _html.escape(str(row["reason"]))
-            created  = _html.escape(str(row.get("created_at", "")))
+            cls       = badge_cls.get(row["sentiment"], "neu")
+            username  = _html.escape(str(row["username"]))
+            text      = _html.escape(str(row["text"]))
+            reason    = _html.escape(str(row["reason"]))
+            created   = _html.escape(str(row.get("created_at", "")))
             score_str = f"{row['score']:+.2f}"
             likes_html = f'<span>♥ {row["likes"]:,}</span>' if row["likes"] else ""
             rt_html    = f'<span>🔁 {row["retweets"]:,}</span>' if row["retweets"] else ""
@@ -1364,43 +1576,11 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
     # TAB 5 — AI ANALYSIS
     # ════════════════════════════════════════════════════════
     with tab5:
-        st.markdown('<div class="section-header"><span class="dot"></span>KEYWORD INSIGHTS</div>', unsafe_allow_html=True)
-
-        pos_texts = df[df["sentiment"] == "Positive"]["text"].tolist()
-        neg_texts = df[df["sentiment"] == "Negative"]["text"].tolist()
-        pos_kw = extract_keywords(pos_texts, 30)
-        neg_kw = extract_keywords(neg_texts, 30)
-
-        pos_set = {w for w, _ in pos_kw}
-        neg_set = {w for w, _ in neg_kw}
-        only_pos = ", ".join(w for w, _ in pos_kw if w not in neg_set)[:120]
-        only_neg = ", ".join(w for w, _ in neg_kw if w not in pos_set)[:120]
-
-        kw1, kw2 = st.columns(2)
-        with kw1:
-            st.markdown(
-                '<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--pos);margin-bottom:.5rem;">Positive Keywords</div>',
-                unsafe_allow_html=True,
-            )
-            if WORDCLOUD_AVAILABLE and pos_kw:
-                import json as _j
-                wc_bytes = generate_wordcloud_img(_j.dumps(dict(pos_kw)), True)
-                if wc_bytes:
-                    st.image(wc_bytes, use_container_width=True)
-            else:
-                st.caption(", ".join(f"{w} ({c})" for w, c in pos_kw[:15]))
-
-        with kw2:
-            st.markdown(
-                '<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--neg);margin-bottom:.5rem;">Negative Keywords</div>',
-                unsafe_allow_html=True,
-            )
-            if WORDCLOUD_AVAILABLE and neg_kw:
-                wc_bytes = generate_wordcloud_img(_j.dumps(dict(neg_kw)), False)
-                if wc_bytes:
-                    st.image(wc_bytes, use_container_width=True)
-            else:
-                st.caption(", ".join(f"{w} ({c})" for w, c in neg_kw[:15]))
+        # Reuse keywords computed in tab4
+        pos_kw   = _pos_kw
+        neg_kw   = _neg_kw
+        only_pos = ", ".join(w for w, _ in pos_kw if w not in _neg_set)[:120]
+        only_neg = ", ".join(w for w, _ in neg_kw if w not in _pos_set)[:120]
 
         st.markdown('<div class="section-header"><span class="dot"></span>AI ANALYSIS</div>', unsafe_allow_html=True)
 
@@ -1426,7 +1606,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                     "Consumer research style",
                 ])
             with ai_col3:
-                ai_model = st.selectbox("Model", ["claude-opus-4-6", "claude-sonnet-4-6"])
+                ai_model = st.selectbox("Model", ["claude-sonnet-4-6", "claude-opus-4-6"])
 
             generate_clicked = st.button("GENERATE REPORT", width='stretch')
 
