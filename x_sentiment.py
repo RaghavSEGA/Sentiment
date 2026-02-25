@@ -916,29 +916,12 @@ with c4:
     batch_size = st.selectbox("batch", [5, 10, 20], index=1, label_visibility="collapsed",
                               help="Tweets analysed per Claude request")
 
-_sr1, _sr2, _sr3, _sr4 = st.columns([1.5, 1.5, 1.5, 1.5])
+_sr1, _ = st.columns([1.5, 4.5])
 with _sr1:
     st.markdown('<div class="field-label">Sort Tweets By</div>', unsafe_allow_html=True)
     sort_mode = st.selectbox("sort_mode", ["Most Recent", "Most Engagement"],
                              label_visibility="collapsed",
                              help="Most Engagement over-fetches then returns highest likes+retweets")
-with _sr2:
-    st.markdown('<div class="field-label">Time Window</div>', unsafe_allow_html=True)
-    time_window = st.selectbox("time_window",
-                               ["Last 24 hours", "Last 7 days", "Last 30 days", "Custom"],
-                               index=1, label_visibility="collapsed")
-with _sr3:
-    import datetime as _dt
-    _custom_disabled = time_window != "Custom"
-    st.markdown('<div class="field-label">From (UTC)</div>', unsafe_allow_html=True)
-    custom_start = st.date_input("custom_start", label_visibility="collapsed",
-                                 value=_dt.date.today() - _dt.timedelta(days=7),
-                                 disabled=_custom_disabled, key="date_start")
-with _sr4:
-    st.markdown('<div class="field-label">To (UTC)</div>', unsafe_allow_html=True)
-    custom_end = st.date_input("custom_end", label_visibility="collapsed",
-                               value=_dt.date.today(),
-                               disabled=_custom_disabled, key="date_end")
 
 _filter_col1, _filter_col2, _btn_col, _ = st.columns([1, 1, 1, 3])
 with _filter_col1:
@@ -1027,20 +1010,11 @@ if st.session_state.found_queries:
     # ─────────────────────────────────────────────────────────────
 
     if fetch_clicked and _selected_list:
-        # Resolve time window to UTC datetimes
+        # Twitter free/Basic tier: search window is always the last 7 days
         import datetime as _dt
-        _now = _dt.datetime.now(_dt.timezone.utc)
-        _tw_map = {
-            "Last 24 hours": _dt.timedelta(hours=24),
-            "Last 7 days":   _dt.timedelta(days=7),
-            "Last 30 days":  _dt.timedelta(days=30),
-        }
-        if time_window in _tw_map:
-            _start_time = _now - _tw_map[time_window]
-            _end_time   = None
-        else:  # Custom
-            _start_time = _dt.datetime.combine(custom_start, _dt.time.min, tzinfo=_dt.timezone.utc)
-            _end_time   = _dt.datetime.combine(custom_end,   _dt.time.max, tzinfo=_dt.timezone.utc)
+        _now        = _dt.datetime.now(_dt.timezone.utc)
+        _start_time = _now - _dt.timedelta(days=7) + _dt.timedelta(minutes=1)
+        _end_time   = None
 
         if not st.session_state.twitter_key:
             st.error("Twitter Bearer Token missing — check your secrets.toml.")
