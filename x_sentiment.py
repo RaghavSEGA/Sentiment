@@ -944,17 +944,23 @@ if _chip_clicked:
 if search_clicked and topic_input.strip():
     resolved = resolve_topic(topic_input.strip())
     if resolved:
-        # Curated topic hit — load predefined query list
-        queries = CURATED_TOPICS[resolved]
-        st.session_state.found_queries    = queries
-        st.session_state.selected_queries = {q: True for q in queries}
-        st.session_state.last_topic       = resolved
+        # Curated topic hit — merge into existing list, preserving any custom additions
+        new_queries = CURATED_TOPICS[resolved]
+        existing    = st.session_state.found_queries
+        merged      = existing + [q for q in new_queries if q not in existing]
+        st.session_state.found_queries = merged
+        for q in new_queries:
+            if q not in st.session_state.selected_queries:
+                st.session_state.selected_queries[q] = True
+        st.session_state.last_topic = resolved
     else:
-        # Free-text: treat the input as a single query
+        # Free-text: add as a single query if not already present
         q = topic_input.strip()
-        st.session_state.found_queries    = [q]
-        st.session_state.selected_queries = {q: True}
-        st.session_state.last_topic       = q
+        if q not in st.session_state.found_queries:
+            st.session_state.found_queries.append(q)
+            st.session_state.selected_queries[q] = True
+        st.session_state.last_topic = q
+    # Clear results so dashboard reflects the new query set
     st.session_state.results_df = None
     st.session_state.summary_df = None
     st.session_state.ai_report  = ""
@@ -971,28 +977,64 @@ if st.session_state.found_queries:
     st.markdown(
         '<div style="font-size:.78rem;color:var(--muted);margin-bottom:.75rem;">' +
         (f'Curated list for <strong style="color:var(--text);">{st.session_state.last_topic}</strong> — ' if resolve_topic(st.session_state.last_topic) else "") +
-        'Toggle queries on/off, then click <strong style="color:var(--blue);">Fetch &amp; Analyse</strong>.</div>',
+        'Toggle queries on/off, add custom ones below, then click <strong style="color:var(--blue);">Fetch &amp; Analyse</strong>.</div>',
         unsafe_allow_html=True,
     )
 
-    # Select-all / deselect-all row
-    _sa_col, _sd_col, _ = st.columns([1, 1, 6])
+    # Select-all / deselect-all / clear-all row
+    _sa_col, _sd_col, _cl_col, _ = st.columns([1, 1, 1, 5])
     with _sa_col:
         if st.button("Select all", key="sel_all"):
             for q in st.session_state.found_queries:
                 st.session_state.selected_queries[q] = True
+            st.rerun()
     with _sd_col:
         if st.button("Deselect all", key="desel_all"):
             for q in st.session_state.found_queries:
                 st.session_state.selected_queries[q] = False
+            st.rerun()
+    with _cl_col:
+        if st.button("Clear list", key="clear_all"):
+            st.session_state.found_queries    = []
+            st.session_state.selected_queries = {}
+            st.rerun()
 
-    # Checkbox grid — 2 columns like Steam's game list
-    _qcols = st.columns(2)
-    for _qi, _q in enumerate(st.session_state.found_queries):
-        with _qcols[_qi % 2]:
+    # Checkbox grid — 2 columns, with a ✕ remove button per query
+    for _qi, _q in enumerate(list(st.session_state.found_queries)):
+        _cb_col, _rm_col = st.columns([11, 1])
+        with _cb_col:
             _checked = st.session_state.selected_queries.get(_q, True)
             _new     = st.checkbox(_q, value=_checked, key=f"qcheck_{_qi}")
             st.session_state.selected_queries[_q] = _new
+        with _rm_col:
+            if st.button("✕", key=f"rm_{_qi}", help=f"Remove '{_q}'"):
+                st.session_state.found_queries.remove(_q)
+                st.session_state.selected_queries.pop(_q, None)
+                st.rerun()
+
+    # ── Add a custom query ────────────────────────────────────
+    st.markdown(
+        '<div style="margin-top:.9rem;font-size:.62rem;font-weight:700;letter-spacing:.18em;'
+        'text-transform:uppercase;color:var(--muted);margin-bottom:.4rem;">Add a query</div>',
+        unsafe_allow_html=True,
+    )
+    _add_col, _add_btn = st.columns([5, 1])
+    with _add_col:
+        _add_input = st.text_input(
+            "add_query", label_visibility="collapsed",
+            placeholder='e.g.  "Guilty Gear Strive"  or  #ArcSystemWorks',
+            key="add_query_input",
+        )
+    with _add_btn:
+        _add_clicked = st.button("ADD", key="btn_add_query", width='stretch')
+    if _add_clicked and _add_input.strip():
+        _aq = _add_input.strip()
+        if _aq not in st.session_state.found_queries:
+            st.session_state.found_queries.append(_aq)
+            st.session_state.selected_queries[_aq] = True
+            st.rerun()
+        else:
+            st.caption(f"'{_aq}' is already in the list.")
 
     # Fetch & Analyse button
     _selected_list = [q for q, v in st.session_state.selected_queries.items() if v]
