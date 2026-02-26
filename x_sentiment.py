@@ -25,12 +25,6 @@ except ImportError:
     MARKDOWN_AVAILABLE = False
 
 try:
-    import weasyprint as _weasyprint
-    WEASYPRINT_AVAILABLE = True
-except ImportError:
-    WEASYPRINT_AVAILABLE = False
-
-try:
     from streamlit_javascript import st_javascript
     SJS_AVAILABLE = True
 except ImportError:
@@ -812,12 +806,91 @@ def report_to_html(md_text: str) -> str:
 
 
 def report_to_pdf(md_text: str) -> bytes | None:
-    """Convert markdown report to PDF bytes via weasyprint, or None if unavailable."""
-    if not WEASYPRINT_AVAILABLE:
-        return None
+    """Convert markdown report to PDF bytes via reportlab (pure Python, no system deps)."""
     try:
-        html_src = report_to_html(md_text)
-        return _weasyprint.HTML(string=html_src).write_pdf()
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import cm
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+        from reportlab.platypus import Preformatted
+        import io as _io
+        import re as _re2
+
+        buf = _io.BytesIO()
+        doc = SimpleDocTemplate(
+            buf, pagesize=A4,
+            leftMargin=2.2*cm, rightMargin=2.2*cm,
+            topMargin=2*cm, bottomMargin=2*cm,
+        )
+        styles = getSampleStyleSheet()
+        # Custom styles
+        h1 = ParagraphStyle('H1', parent=styles['Heading1'],
+                            fontSize=16, textColor=colors.HexColor('#0a84ff'),
+                            spaceAfter=6, spaceBefore=14)
+        h2 = ParagraphStyle('H2', parent=styles['Heading2'],
+                            fontSize=13, textColor=colors.HexColor('#0a84ff'),
+                            spaceAfter=4, spaceBefore=10)
+        h3 = ParagraphStyle('H3', parent=styles['Heading3'],
+                            fontSize=11, textColor=colors.HexColor('#333333'),
+                            spaceAfter=3, spaceBefore=8)
+        body = ParagraphStyle('Body', parent=styles['Normal'],
+                              fontSize=9.5, leading=15, spaceAfter=6)
+        bullet_style = ParagraphStyle('Bullet', parent=body,
+                                      leftIndent=16, bulletIndent=4)
+        code_style = ParagraphStyle('Code', parent=styles['Code'],
+                                    fontSize=8, leading=12,
+                                    backColor=colors.HexColor('#f4f4f4'),
+                                    leftIndent=12, spaceAfter=6)
+
+        story = []
+        lines = md_text.split('\n')
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if line.startswith('### '):
+                story.append(Paragraph(line[4:].strip(), h3))
+            elif line.startswith('## '):
+                story.append(Paragraph(line[3:].strip(), h2))
+            elif line.startswith('# '):
+                story.append(Paragraph(line[2:].strip(), h1))
+            elif line.startswith('---') or line.startswith('==='):
+                story.append(HRFlowable(width='100%', thickness=0.5,
+                                        color=colors.HexColor('#cccccc'),
+                                        spaceAfter=4))
+            elif line.startswith('- ') or line.startswith('* '):
+                txt = line[2:].strip()
+                # inline bold/italic
+                txt = _re2.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', txt)
+                txt = _re2.sub(r'\*(.+?)\*', r'<i>\1</i>', txt)
+                txt = _re2.sub(r'`(.+?)`', r'<font name="Courier">\1</font>', txt)
+                story.append(Paragraph(f'• {txt}', bullet_style))
+            elif _re2.match(r'^\d+\.\s', line):
+                txt = _re2.sub(r'^\d+\.\s*', '', line)
+                txt = _re2.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', txt)
+                txt = _re2.sub(r'`(.+?)`', r'<font name="Courier">\1</font>', txt)
+                story.append(Paragraph(f'• {txt}', bullet_style))
+            elif line.startswith('```'):
+                # code block
+                code_lines = []
+                i += 1
+                while i < len(lines) and not lines[i].startswith('```'):
+                    code_lines.append(lines[i])
+                    i += 1
+                story.append(Preformatted('\n'.join(code_lines), code_style))
+            elif line.strip() == '':
+                story.append(Spacer(1, 4))
+            else:
+                txt = line.strip()
+                txt = _re2.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', txt)
+                txt = _re2.sub(r'\*(.+?)\*', r'<i>\1</i>', txt)
+                txt = _re2.sub(r'`(.+?)`', r'<font name="Courier">\1</font>', txt)
+                if txt:
+                    story.append(Paragraph(txt, body))
+            i += 1
+
+        doc.build(story)
+        return buf.getvalue()
     except Exception:
         return None
 
@@ -1979,7 +2052,7 @@ HARD RULES:
                             key="dl_pdf",
                         )
                     else:
-                        st.caption("PDF unavailable — install `weasyprint`")
+                        st.caption("PDF unavailable — install `reportlab`")
 
                 # ── Chat interface ────────────────────────────────
                 st.markdown("<br>", unsafe_allow_html=True)
