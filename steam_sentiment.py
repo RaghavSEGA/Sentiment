@@ -32,9 +32,16 @@ try:
 except ImportError:
     _markdown = None
 try:
-    import weasyprint as _weasyprint
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors as _rl_colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.platypus import Preformatted
+    import io as _rl_io
+    _REPORTLAB_AVAILABLE = True
 except ImportError:
-    _weasyprint = None
+    _REPORTLAB_AVAILABLE = False
 try:
     import anthropic as _anthropic
     ANTHROPIC_AVAILABLE = True
@@ -3384,9 +3391,93 @@ HARD RULES:
                     )
 
                 with _dl3:
-                    if _weasyprint:
+                    if _REPORTLAB_AVAILABLE:
                         try:
-                            _pdf_bytes = _weasyprint.HTML(string=_full_html).write_pdf()
+                            def _md_to_pdf(md_text: str) -> bytes:
+                                """Convert markdown text to PDF bytes via ReportLab."""
+                                _buf = _rl_io.BytesIO()
+                                doc = SimpleDocTemplate(
+                                    _buf, pagesize=A4,
+                                    leftMargin=2*cm, rightMargin=2*cm,
+                                    topMargin=2*cm, bottomMargin=2*cm,
+                                )
+                                styles = getSampleStyleSheet()
+                                # Custom styles
+                                _h1 = ParagraphStyle("h1", parent=styles["Heading1"],
+                                    fontSize=18, textColor=_rl_colors.HexColor("#0f3460"),
+                                    spaceAfter=8, spaceBefore=14)
+                                _h2 = ParagraphStyle("h2", parent=styles["Heading2"],
+                                    fontSize=14, textColor=_rl_colors.HexColor("#0f3460"),
+                                    spaceAfter=6, spaceBefore=10)
+                                _h3 = ParagraphStyle("h3", parent=styles["Heading3"],
+                                    fontSize=12, textColor=_rl_colors.HexColor("#1a1a2e"),
+                                    spaceAfter=4, spaceBefore=8)
+                                _body = ParagraphStyle("body", parent=styles["Normal"],
+                                    fontSize=10, leading=15, spaceAfter=6)
+                                _bullet = ParagraphStyle("bullet", parent=_body,
+                                    leftIndent=16, bulletIndent=6, spaceAfter=3)
+                                _code = ParagraphStyle("code", parent=styles["Code"],
+                                    fontSize=8, leading=12, backColor=_rl_colors.HexColor("#f0f0f8"),
+                                    leftIndent=12, rightIndent=12, spaceAfter=6)
+
+                                story = []
+                                in_code_block = False
+                                code_lines = []
+
+                                for line in md_text.split("\n"):
+                                    # Code fence
+                                    if line.startswith("```"):
+                                        if in_code_block:
+                                            story.append(Preformatted("\n".join(code_lines), _code))
+                                            story.append(Spacer(1, 4))
+                                            code_lines = []
+                                            in_code_block = False
+                                        else:
+                                            in_code_block = True
+                                        continue
+                                    if in_code_block:
+                                        code_lines.append(line)
+                                        continue
+
+                                    # Headings
+                                    if line.startswith("### "):
+                                        story.append(Paragraph(line[4:], _h3))
+                                    elif line.startswith("## "):
+                                        story.append(HRFlowable(width="100%", thickness=0.5,
+                                            color=_rl_colors.HexColor("#c0c0d8"), spaceAfter=2))
+                                        story.append(Paragraph(line[3:], _h2))
+                                    elif line.startswith("# "):
+                                        story.append(Paragraph(line[2:], _h1))
+                                    # Bullet points
+                                    elif line.startswith("- ") or line.startswith("* "):
+                                        _btext = line[2:].replace("**", "<b>", 1)
+                                        _btext = _btext.replace("**", "</b>", 1)
+                                        story.append(Paragraph(f"• {_btext}", _bullet))
+                                    elif line.startswith("  - ") or line.startswith("  * "):
+                                        _btext = line[4:].replace("**", "<b>", 1)
+                                        _btext = _btext.replace("**", "</b>", 1)
+                                        story.append(Paragraph(f"  ◦ {_btext}", _bullet))
+                                    # Horizontal rule
+                                    elif line.strip() in ("---", "***", "___"):
+                                        story.append(HRFlowable(width="100%", thickness=0.5,
+                                            color=_rl_colors.HexColor("#c0c0d8")))
+                                        story.append(Spacer(1, 4))
+                                    # Blank line
+                                    elif line.strip() == "":
+                                        story.append(Spacer(1, 6))
+                                    # Normal paragraph — handle inline bold/italic
+                                    else:
+                                        import re as _re3
+                                        _t = line
+                                        _t = _re3.sub(r"\*\*(.+?)\*\*", r"<b></b>", _t)
+                                        _t = _re3.sub(r"\*(.+?)\*",   r"<i></i>", _t)
+                                        _t = _re3.sub(r"`(.+?)`", r"<font name='Courier'></font>", _t)
+                                        story.append(Paragraph(_t, _body))
+
+                                doc.build(story)
+                                return _buf.getvalue()
+
+                            _pdf_bytes = _md_to_pdf(st.session_state.ai_report)
                             st.download_button(
                                 "PDF (.pdf)",
                                 data=_pdf_bytes,
@@ -3396,9 +3487,9 @@ HARD RULES:
                                 key="dl_pdf",
                             )
                         except Exception as _pdf_err:
-                            st.caption(f"PDF unavailable: {_pdf_err}")
+                            st.caption(f"PDF error: {_pdf_err}")
                     else:
-                        st.caption("PDF unavailable\n(pip install weasyprint)")
+                        st.caption("PDF unavailable\n(pip install reportlab)")
 
                 # ── Chat interface ────────────────────────────────────────
                 st.markdown(
