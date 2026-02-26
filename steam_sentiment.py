@@ -28,6 +28,14 @@ except ImportError:
     WORDCLOUD_AVAILABLE = False
 
 try:
+    import markdown as _markdown
+except ImportError:
+    _markdown = None
+try:
+    import weasyprint as _weasyprint
+except ImportError:
+    _weasyprint = None
+try:
     import anthropic as _anthropic
     ANTHROPIC_AVAILABLE = True
 except ImportError:
@@ -1400,8 +1408,8 @@ for key, default in [
     ("summary_df",          None),
     ("last_genre",          ""),
     ("game_search_results", []),   # candidates from "add a game" lookup
-    ("anthropic_api_key",    os.environ.get("ANTHROPIC_API_KEY", "")),
     ("ai_report",           ""),   # last generated report text
+    ("ai_chat_history",      []),   # [{role, content}] conversation after report
     ("game_events",          {}),   # {app_id: [event dicts]} fetched from Steam News
 ]:
     if key not in st.session_state:
@@ -2997,11 +3005,6 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         if not ANTHROPIC_AVAILABLE:
             st.error("anthropic SDK not installed. Run: `pip install anthropic`")
         else:
-            # Read key from environment variable
-            _env_key = os.environ.get("ANTHROPIC_API_KEY", "")
-            if _env_key:
-                st.session_state.anthropic_api_key = _env_key
-
             # ── Report options ─────────────────────────────────
             opt_left, opt_right = st.columns(2)
             with opt_left:
@@ -3319,16 +3322,156 @@ HARD RULES:
                 st.markdown(st.session_state.ai_report)
 
             if st.session_state.ai_report:
-                st.markdown("<br>", unsafe_allow_html=True)
-                dl_col, _ = st.columns([1, 4])
-                with dl_col:
+                _report_slug = st.session_state.get("last_genre", "report").replace(" ", "_")
+
+                # ── Download buttons ──────────────────────────────────────
+                st.markdown(
+                    '<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;'
+                    'text-transform:uppercase;color:var(--muted);margin-top:1.25rem;'
+                    'margin-bottom:.5rem;">Download report</div>',
+                    unsafe_allow_html=True,
+                )
+                _dl1, _dl2, _dl3, _ = st.columns([1, 1, 1, 3])
+
+                with _dl1:
                     st.download_button(
-                        "Download report (.md)",
+                        "Markdown (.md)",
                         data=st.session_state.ai_report,
-                        file_name=f"steam_analysis_{st.session_state.get('last_genre', 'report').replace(' ', '_')}.md",
+                        file_name=f"steam_analysis_{_report_slug}.md",
                         mime="text/markdown",
-                        width='stretch',
+                        width="stretch",
+                        key="dl_md",
                     )
+
+                # Build HTML string (used for both HTML and PDF exports)
+                _report_html_body = (
+                    _markdown.markdown(st.session_state.ai_report, extensions=["tables", "fenced_code"])
+                    if _markdown else
+                    "<pre>" + st.session_state.ai_report.replace("<", "&lt;") + "</pre>"
+                )
+                _full_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Steam Sentiment Analysis</title>
+<style>
+  body{{font-family:'Segoe UI',Arial,sans-serif;max-width:860px;margin:2rem auto;
+       padding:0 1.5rem;color:#1a1a2e;line-height:1.7;}}
+  h1,h2,h3{{color:#0f3460;border-bottom:1px solid #e0e0f0;padding-bottom:.3rem;}}
+  table{{border-collapse:collapse;width:100%;margin:1rem 0;}}
+  th,td{{border:1px solid #d0d0e8;padding:.5rem .75rem;text-align:left;}}
+  th{{background:#0f3460;color:#fff;}}
+  tr:nth-child(even){{background:#f5f5ff;}}
+  code{{background:#f0f0f8;padding:.1rem .35rem;border-radius:3px;font-size:.88em;}}
+  pre{{background:#f0f0f8;padding:1rem;border-radius:6px;overflow-x:auto;}}
+  blockquote{{border-left:4px solid #0f3460;margin:0;padding-left:1rem;color:#555;}}
+</style>
+</head>
+<body>
+{_report_html_body}
+</body>
+</html>"""
+
+                with _dl2:
+                    st.download_button(
+                        "HTML (.html)",
+                        data=_full_html.encode("utf-8"),
+                        file_name=f"steam_analysis_{_report_slug}.html",
+                        mime="text/html",
+                        width="stretch",
+                        key="dl_html",
+                    )
+
+                with _dl3:
+                    if _weasyprint:
+                        try:
+                            _pdf_bytes = _weasyprint.HTML(string=_full_html).write_pdf()
+                            st.download_button(
+                                "PDF (.pdf)",
+                                data=_pdf_bytes,
+                                file_name=f"steam_analysis_{_report_slug}.pdf",
+                                mime="application/pdf",
+                                width="stretch",
+                                key="dl_pdf",
+                            )
+                        except Exception as _pdf_err:
+                            st.caption(f"PDF unavailable: {_pdf_err}")
+                    else:
+                        st.caption("PDF unavailable\n(pip install weasyprint)")
+
+                # ── Chat interface ────────────────────────────────────────
+                st.markdown(
+                    '<div class="section-header"><span class="dot"></span>'
+                    'FOLLOW-UP QUESTIONS</div>',
+                    unsafe_allow_html=True,
+                )
+                st.caption(
+                    "Ask follow-up questions about the report or the review data. "
+                    "Claude has full context of your dataset and the report above."
+                )
+
+                # Render existing history
+                for _msg in st.session_state.ai_chat_history:
+                    with st.chat_message(_msg["role"]):
+                        st.markdown(_msg["content"])
+
+                # Chat input
+                _chat_input = st.chat_input(
+                    "Ask a follow-up question…",
+                    key="ai_chat_input",
+                )
+                if _chat_input and ANTHROPIC_AVAILABLE:
+                    # Append user message
+                    st.session_state.ai_chat_history.append(
+                        {"role": "user", "content": _chat_input}
+                    )
+                    with st.chat_message("user"):
+                        st.markdown(_chat_input)
+
+                    # Build messages list: system context + report + history
+                    _chat_system = (
+                        "You are a senior games market analyst. "
+                        "The user has just received the following sentiment analysis report "
+                        "about Steam game reviews. Answer follow-up questions concisely and "
+                        "accurately, referencing the report and data where relevant. "
+                        "Use markdown for formatting where helpful.\n\n"
+                        f"## Report\n\n{st.session_state.ai_report}"
+                    )
+                    _chat_messages = [
+                        {"role": m["role"], "content": m["content"]}
+                        for m in st.session_state.ai_chat_history
+                    ]
+                    with st.chat_message("assistant"):
+                        _reply_placeholder = st.empty()
+                        _reply_text = ""
+                        try:
+                            _chat_client = _anthropic.Anthropic(
+                                api_key=st.secrets["CLAUDE_KEY"]
+                            )
+                            with _chat_client.messages.stream(
+                                model=ai_model,
+                                max_tokens=2048,
+                                system=_chat_system,
+                                messages=_chat_messages,
+                            ) as _stream:
+                                for _delta in _stream.text_stream:
+                                    _reply_text += _delta
+                                    _reply_placeholder.markdown(_reply_text + "▌")
+                            _reply_placeholder.markdown(_reply_text)
+                            st.session_state.ai_chat_history.append(
+                                {"role": "assistant", "content": _reply_text}
+                            )
+                        except Exception as _ce:
+                            _reply_placeholder.error(f"Error: {_ce}")
+
+
+
+                # Clear chat button
+                if st.session_state.ai_chat_history:
+                    if st.button("Clear conversation", key="clear_chat"):
+                        st.session_state.ai_chat_history = []
+                        st.rerun()
 
 # ─────────────────────────────────────────────────────────────
 # EMPTY STATE

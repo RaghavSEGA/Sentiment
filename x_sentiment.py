@@ -17,7 +17,7 @@ from collections import Counter
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-
+import reportlab
 try:
     import markdown as _md_lib
     MARKDOWN_AVAILABLE = True
@@ -2063,7 +2063,11 @@ HARD RULES:
                     unsafe_allow_html=True,
                 )
 
-                # Build the persistent system prompt with full dataset context
+                # ── Chat session state ────────────────────────────
+                if "ai_chat_pending" not in st.session_state:
+                    st.session_state.ai_chat_pending = False
+
+                # Build system prompt with full dataset context
                 def _build_chat_system(df, sdf):
                     n_tweets  = len(df)
                     n_queries = sdf["query"].nunique()
@@ -2079,7 +2083,7 @@ HARD RULES:
                     neg_kw_str = ", ".join(f"{w}({c})" for w, c in _neg_kw[:20])
                     sample_pos = df[df["sentiment"]=="Positive"].nlargest(5,"likes")["text"].tolist()
                     sample_neg = df[df["sentiment"]=="Negative"].nlargest(5,"likes")["text"].tolist()
-                    return f"""You are a senior social media analyst. The user has already generated a report on this Twitter dataset and now wants to ask follow-up questions.
+                    return f"""You are a senior social media analyst having a conversation about a Twitter dataset. The user has already seen a generated report and now wants to explore the data further through dialogue.
 
 DATASET CONTEXT:
 - {n_tweets:,} tweets across {n_queries} queries, avg {avg_pos:.1f}% positive
@@ -2093,75 +2097,41 @@ DATASET CONTEXT:
 THE REPORT ALREADY GENERATED:
 {st.session_state.ai_report[:3000]}{"…[truncated]" if len(st.session_state.ai_report) > 3000 else ""}
 
-Answer the user's follow-up questions concisely and specifically. Reference actual data — query names, tweet quotes, numbers — don't speak in generalities. Use markdown where helpful."""
+You are in a back-and-forth conversation — keep the full chat history in mind when answering. Be concise and specific. Reference actual data points, query names, tweet quotes, and numbers. Build naturally on prior turns. Use markdown where it adds clarity."""
 
-                # Display existing chat messages
+                # ── Render all past messages ──────────────────────
                 for _msg in st.session_state.ai_chat_history:
-                    _role_label = "You" if _msg["role"] == "user" else "Claude"
-                    _bubble_bg  = "var(--surface2)" if _msg["role"] == "user" else "var(--surface)"
-                    _border     = "var(--blue)" if _msg["role"] == "user" else "var(--border)"
-                    if _msg["role"] == "user":
-                        st.markdown(
-                            f'<div style="background:{_bubble_bg};border:1px solid var(--border);'
-                            f'border-left:3px solid {_border};border-radius:0 6px 6px 0;'
-                            f'padding:.75rem 1rem;margin-bottom:.6rem;">'
-                            f'<div style="font-size:.6rem;font-weight:700;letter-spacing:.14em;'
-                            f'text-transform:uppercase;color:var(--muted);margin-bottom:.35rem;">'
-                            f'{_role_label}</div>'
-                            f'<div style="font-size:.85rem;line-height:1.65;">'
-                            f'{_html.escape(_msg["content"])}</div>'
-                            f'</div>',
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        st.markdown(
-                            f'<div style="background:{_bubble_bg};border:1px solid var(--border);'
-                            f'border-left:3px solid {_border};border-radius:0 6px 6px 0;'
-                            f'padding:.75rem 1rem;margin-bottom:.6rem;">'
-                            f'<div style="font-size:.6rem;font-weight:700;letter-spacing:.14em;'
-                            f'text-transform:uppercase;color:var(--muted);margin-bottom:.35rem;">'
-                            f'{_role_label}</div>'
-                            f'</div>',
-                            unsafe_allow_html=True,
-                        )
+                    with st.chat_message(_msg["role"]):
                         st.markdown(_msg["content"])
 
-                # Chat input
-                _user_msg = st.chat_input(
-                    "Ask a follow-up question about the data…",
-                    key="ai_chat_input",
-                )
-
-                if _user_msg:
-                    # Append user message
-                    st.session_state.ai_chat_history.append(
-                        {"role": "user", "content": _user_msg}
-                    )
-
-                    # Build messages list for API (inject system as first user turn if needed)
-                    _api_messages = []
-                    for _m in st.session_state.ai_chat_history:
-                        _api_messages.append({"role": _m["role"], "content": _m["content"]})
-
+                # ── If a message is pending, stream the reply now ──
+                # This runs on the rerun triggered after the user submits,
+                # so the user bubble is already visible above.
+                if st.session_state.ai_chat_pending:
+                    st.session_state.ai_chat_pending = False
+                    _api_messages = [
+                        {"role": m["role"], "content": m["content"]}
+                        for m in st.session_state.ai_chat_history
+                    ]
                     try:
                         _chat_client = _anthropic.Anthropic(api_key=st.session_state.claude_key)
-                        _reply_placeholder = st.empty()
-                        _reply_text = ""
-                        with _chat_client.messages.stream(
-                            model=ai_model,
-                            max_tokens=2048,
-                            system=_build_chat_system(df, sdf),
-                            messages=_api_messages,
-                        ) as _stream:
-                            for _delta in _stream.text_stream:
-                                _reply_text += _delta
-                                _reply_placeholder.markdown(_reply_text + "▌")
-                        _reply_placeholder.markdown(_reply_text)
-
+                        with st.chat_message("assistant"):
+                            _reply_text = ""
+                            _stream_ph = st.empty()
+                            with _chat_client.messages.stream(
+                                model=ai_model,
+                                max_tokens=2048,
+                                system=_build_chat_system(df, sdf),
+                                messages=_api_messages,
+                            ) as _stream:
+                                for _delta in _stream.text_stream:
+                                    _reply_text += _delta
+                                    _stream_ph.markdown(_reply_text + "▌")
+                            _stream_ph.markdown(_reply_text)
                         st.session_state.ai_chat_history.append(
                             {"role": "assistant", "content": _reply_text}
                         )
-                        _save_session()  # persist chat history
+                        _save_session()
                     except _anthropic.AuthenticationError:
                         st.error("Invalid API key.")
                     except _anthropic.RateLimitError:
@@ -2169,10 +2139,25 @@ Answer the user's follow-up questions concisely and specifically. Reference actu
                     except Exception as _e:
                         st.error(f"Chat error: {type(_e).__name__}: {_e}")
 
-                # Clear chat button
+                # ── Chat input box (always shown at bottom) ───────
+                _user_msg = st.chat_input(
+                    "Ask a follow-up question about the data…",
+                    key="ai_chat_input",
+                )
+                if _user_msg:
+                    # Save user message then rerun — the pending flag triggers
+                    # the streaming block above on the next pass.
+                    st.session_state.ai_chat_history.append(
+                        {"role": "user", "content": _user_msg}
+                    )
+                    st.session_state.ai_chat_pending = True
+                    st.rerun()
+
+                # ── Clear button ──────────────────────────────────
                 if st.session_state.ai_chat_history:
                     if st.button("Clear chat history", key="clear_chat"):
                         st.session_state.ai_chat_history = []
+                        st.session_state.ai_chat_pending = False
                         st.rerun()
 
 # ─────────────────────────────────────────────────────────────
