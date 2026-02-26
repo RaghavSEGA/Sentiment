@@ -324,14 +324,24 @@ def search_subreddits(game: str, limit=10) -> tuple[list[dict], str | None]:
     # Only surface an error if we got nothing back at all
     return results, (first_err if not results else None)
 
-def validate_subreddit(name: str) -> dict | None:
-    """Return metadata for a manually-entered subreddit name, or None if not found."""
+def validate_subreddit(name: str) -> tuple[dict | None, str | None]:
+    """
+    Return (metadata_dict, None) on success,
+           (None, error_str) on request failure,
+           (None, None) if the subreddit genuinely doesn't exist / is private.
+    """
     name = name.strip().lstrip("r/").lstrip("/")
-    if not name: return None
-    about, _ = _rget(f"https://www.reddit.com/r/{name}/about.json")
-    if not about: return None
+    if not name:
+        return None, None
+    about, err = _rget(f"https://www.reddit.com/r/{name}/about.json")
+    if err:
+        return None, err          # network / HTTP error — not the subreddit's fault
+    if not about:
+        return None, None         # 200 but empty — truly missing
     d = about.get("data", {})
-    return _sub_dict(d) if d.get("display_name") else None
+    if not d.get("display_name"):
+        return None, None
+    return _sub_dict(d), None
 
 def _mk_post(d: dict, sub: str) -> dict:
     title = (d.get("title") or "").strip()
@@ -673,13 +683,21 @@ with col_manual:
                 if name.lower() in existing:
                     continue
                 ph.caption(f"Checking r/{name}…")
-                info = validate_subreddit(name)
+                info, err = validate_subreddit(name)
                 if info:
                     st.session_state.manual_subs.append(info)
                     existing.add(info["name"].lower())
                     added += 1
+                elif err:
+                    # Request failed (e.g. rate-limit, network hiccup) — add optimistically
+                    # so the user isn't blocked; Reddit will simply return no posts if wrong
+                    fallback = {"name": name, "title": name, "description": "", "subscribers": 0}
+                    st.session_state.manual_subs.append(fallback)
+                    existing.add(name.lower())
+                    added += 1
+                    st.caption(f"⚠ Could not verify r/{name} ({err}) — added anyway.")
                 else:
-                    st.warning(f"r/{name} not found or is private — skipped.")
+                    st.warning(f"r/{name} doesn't appear to exist or is private — skipped.")
             ph.empty()
             if added:
                 st.success(f"Added {added} subreddit(s).")
