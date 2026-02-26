@@ -55,9 +55,11 @@ st.markdown("""
   color-scheme:dark!important;
   --bg:#0a0c1a;--surface:#0f1120;--surface2:#141728;--surface3:#1a1e30;
   --border:#232640;--border-hi:#323760;
-  --or:#ff6b35;--or-lo:#cc4400;--or-glow:rgba(255,107,53,.16);
+  --blue:#4080ff;--blue-lo:#1a3acc;
+  --blue-glow:rgba(64,128,255,.16);--blue-glow-hi:rgba(64,128,255,.32);
   --text:#eef0fa;--text-dim:#b8bcd4;--muted:#5a5f82;
-  --pos:#20c65a;--neg:#ff3d52;
+  --pos:#20c65a;--pos-dim:rgba(32,198,90,.14);
+  --neg:#ff3d52;--neg-dim:rgba(255,61,82,.14);
 }
 html,body{background:var(--bg)!important;color:var(--text)!important;color-scheme:dark!important;}
 .stApp,.stApp>div,section[data-testid="stAppViewContainer"],
@@ -72,7 +74,7 @@ p,span,div,li,td,th,label,h1,h2,h3,h4,h5,h6,
 [data-testid="stMarkdownContainer"] strong,[data-testid="stMarkdownContainer"] em,
 [class*="css"]{color:var(--text)!important;}
 .stCaption,[data-testid="stCaptionContainer"] p{color:var(--muted)!important;}
-code{background:var(--surface3)!important;color:var(--or)!important;padding:.1em .4em;border-radius:3px;}
+code{background:var(--surface3)!important;color:var(--blue)!important;padding:.1em .4em;border-radius:3px;}
 #MainMenu,footer,header{visibility:hidden;}
 .block-container{padding:0 2.5rem 4rem!important;max-width:1440px!important;}
 ::-webkit-scrollbar{width:5px;height:5px;}
@@ -81,37 +83,37 @@ code{background:var(--surface3)!important;color:var(--or)!important;padding:.1em
 .topbar{background:var(--surface);border-bottom:1px solid var(--border);
   padding:.8rem 2.5rem;margin:0 -2.5rem 1.75rem;display:flex;align-items:center;gap:1.25rem;position:relative;}
 .topbar::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;
-  background:linear-gradient(90deg,var(--or) 0%,rgba(255,107,53,0) 55%);}
+  background:linear-gradient(90deg,var(--blue) 0%,rgba(64,128,255,0) 55%);}
 .topbar-logo{font-family:'Inter Tight',sans-serif;font-size:.95rem;font-weight:900;
   color:var(--text)!important;letter-spacing:.12em;text-transform:uppercase;}
-.topbar-logo .seg{color:var(--or);}
+.topbar-logo .seg{color:var(--blue);}
 .topbar-div{width:1px;height:18px;background:var(--border-hi);flex-shrink:0;}
 .topbar-label{font-size:.6rem;font-weight:600;color:var(--muted)!important;letter-spacing:.2em;text-transform:uppercase;}
-.topbar-pill{margin-left:auto;background:var(--or-glow);border:1px solid rgba(255,107,53,.28);
+.topbar-pill{margin-left:auto;background:var(--blue-glow);border:1px solid rgba(64,128,255,.28);
   border-radius:20px;padding:.18rem .7rem;font-size:.58rem;font-weight:700;
-  letter-spacing:.14em;text-transform:uppercase;color:var(--or)!important;}
+  letter-spacing:.14em;text-transform:uppercase;color:var(--blue)!important;}
 
 .hero{padding:1.5rem 0 .75rem;}
 .hero-title{font-family:'Inter Tight',sans-serif;font-size:2.4rem;font-weight:900;
   line-height:1.05;color:var(--text)!important;letter-spacing:-.03em;margin-bottom:.5rem;}
-.hero-title .accent{color:var(--or);}
+.hero-title .accent{color:var(--blue);}
 .hero-sub{font-size:.87rem;font-weight:300;color:var(--muted)!important;max-width:560px;line-height:1.65;}
 
 .search-block{background:var(--surface);border:1px solid var(--border);
-  border-top:2px solid var(--or);border-radius:0 0 10px 10px;padding:1.4rem 1.75rem 1.25rem;margin:.75rem 0 0;}
+  border-top:2px solid var(--blue);border-radius:0 0 10px 10px;padding:1.4rem 1.75rem 1.25rem;margin:.75rem 0 0;}
 .field-label{font-size:.58rem;font-weight:700;letter-spacing:.22em;text-transform:uppercase;
   color:var(--muted)!important;margin-bottom:.3rem;}
 
 .stTextInput>div>div>input,.stNumberInput>div>div>input{
   background:var(--bg)!important;border:1px solid var(--border)!important;border-radius:6px!important;
-  color:var(--text)!important;font-family:'Poppins',sans-serif!important;font-size:.88rem!important;caret-color:var(--or)!important;}
+  color:var(--text)!important;font-family:'Poppins',sans-serif!important;font-size:.88rem!important;caret-color:var(--blue)!important;}
 .stTextInput>div>div>input:focus,.stNumberInput>div>div>input:focus{
-  border-color:var(--or)!important;box-shadow:0 0 0 3px var(--or-glow)!important;}
+  border-color:var(--blue)!important;box-shadow:0 0 0 3px var(--blue-glow)!important;}
 input::placeholder{color:var(--muted)!important;opacity:.6!important;}
 .stNumberInput button{background:var(--surface2)!important;color:var(--text)!important;border-color:var(--border)!important;}
 textarea{background:var(--bg)!important;border:1px solid var(--border)!important;border-radius:6px!important;
   color:var(--text)!important;font-family:'Poppins',sans-serif!important;font-size:.85rem!important;}
-textarea:focus{border-color:var(--or)!important;box-shadow:0 0 0 3px var(--or-glow)!important;}
+textarea:focus{border-color:var(--blue)!important;box-shadow:0 0 0 3px var(--blue-glow)!important;}
 
 div[data-baseweb="select"]>div{background:var(--bg)!important;border-color:var(--border)!important;color:var(--text)!important;}
 div[data-baseweb="select"] svg{fill:var(--muted)!important;}
@@ -122,22 +124,22 @@ div[data-baseweb="menu"] li{color:var(--text)!important;background:transparent!i
 div[data-baseweb="menu"] li:hover,[aria-selected="true"]{background:var(--surface3)!important;}
 .stCheckbox>label,.stCheckbox>label>span,[data-testid="stCheckbox"] span{color:var(--text)!important;font-size:.84rem!important;}
 
-.stButton>button{background:var(--or)!important;color:#fff!important;border:none!important;
+.stButton>button{background:var(--blue)!important;color:#fff!important;border:none!important;
   border-radius:6px!important;font-family:'Inter Tight',sans-serif!important;
   font-size:.78rem!important;font-weight:800!important;letter-spacing:.12em!important;
   text-transform:uppercase!important;padding:.5rem 1.5rem!important;
-  box-shadow:0 2px 10px rgba(255,107,53,.3)!important;transition:all .15s!important;}
-.stButton>button:hover{background:#e05520!important;box-shadow:0 4px 18px rgba(255,107,53,.45)!important;transform:translateY(-1px)!important;}
+  box-shadow:0 2px 10px rgba(64,128,255,.3)!important;transition:all .15s!important;}
+.stButton>button:hover{background:var(--blue-lo)!important;box-shadow:0 4px 18px rgba(64,128,255,.45)!important;transform:translateY(-1px)!important;}
 .stButton>button:disabled{background:var(--surface3)!important;color:var(--muted)!important;box-shadow:none!important;}
-.stDownloadButton>button{background:transparent!important;color:var(--or)!important;
-  border:1px solid rgba(255,107,53,.35)!important;border-radius:6px!important;
+.stDownloadButton>button{background:transparent!important;color:var(--blue)!important;
+  border:1px solid rgba(64,128,255,.35)!important;border-radius:6px!important;
   font-family:'Inter Tight',sans-serif!important;font-size:.72rem!important;font-weight:700!important;
   letter-spacing:.1em!important;text-transform:uppercase!important;transition:all .15s!important;}
-.stDownloadButton>button:hover{background:var(--or-glow)!important;border-color:var(--or)!important;}
+.stDownloadButton>button:hover{background:var(--blue-glow)!important;border-color:var(--blue)!important;}
 
 .metric-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;
   padding:1.2rem 1.4rem;overflow:hidden;transition:border-color .2s,box-shadow .2s;height:100%;}
-.metric-card.ot{border-top:2px solid var(--or);}
+.metric-card.bt{border-top:2px solid var(--blue);}
 .metric-card.pt{border-top:2px solid var(--pos);}
 .metric-card.nt{border-top:2px solid var(--neg);}
 .metric-card:hover{border-color:var(--border-hi);box-shadow:0 4px 24px rgba(0,0,0,.3);}
@@ -148,16 +150,16 @@ div[data-baseweb="menu"] li:hover,[aria-selected="true"]{background:var(--surfac
 .sh{font-family:'Inter Tight',sans-serif;font-size:.68rem;font-weight:800;letter-spacing:.24em;
   text-transform:uppercase;color:var(--text-dim)!important;margin:1.75rem 0 .9rem;
   padding-bottom:.55rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.55rem;}
-.sh .dot{width:5px;height:5px;background:var(--or);border-radius:1px;display:inline-block;box-shadow:0 0 5px var(--or);}
+.sh .dot{width:5px;height:5px;background:var(--blue);border-radius:1px;display:inline-block;box-shadow:0 0 6px var(--blue);}
 
-.stProgress>div>div>div>div{background:linear-gradient(90deg,var(--or) 0%,#ffaa80 100%)!important;border-radius:4px!important;}
+.stProgress>div>div>div>div{background:linear-gradient(90deg,var(--blue) 0%,#80aaff 100%)!important;border-radius:4px!important;}
 
 .stTabs [data-baseweb="tab-list"]{gap:0!important;border-bottom:1px solid var(--border)!important;background:transparent!important;}
 .stTabs [data-baseweb="tab"]{background:transparent!important;color:var(--muted)!important;
   font-family:'Inter Tight',sans-serif!important;font-weight:700!important;font-size:.68rem!important;
   letter-spacing:.16em!important;text-transform:uppercase!important;padding:.6rem 1.1rem!important;
   border-bottom:2px solid transparent!important;transition:color .15s!important;}
-.stTabs [aria-selected="true"]{color:var(--text)!important;border-bottom-color:var(--or)!important;}
+.stTabs [aria-selected="true"]{color:var(--text)!important;border-bottom-color:var(--blue)!important;}
 
 [data-testid="stExpander"]{background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:8px!important;}
 [data-testid="stExpander"] summary,[data-testid="stExpander"] summary span{color:var(--text)!important;background:var(--surface)!important;}
@@ -168,19 +170,32 @@ div[data-baseweb="menu"] li:hover,[aria-selected="true"]{background:var(--surfac
 [data-testid="stSpinner"] p{color:var(--text)!important;}
 
 .post-card{background:var(--surface2);border:1px solid var(--border);
-  border-left:3px solid var(--or);border-radius:0 6px 6px 0;
+  border-left:3px solid var(--blue);border-radius:0 6px 6px 0;
   padding:.9rem 1.1rem;margin-bottom:.75rem;font-size:.84rem;line-height:1.65;}
 .post-card.pos{border-left-color:var(--pos);}
 .post-card.neg{border-left-color:var(--neg);}
 .post-meta{font-size:.67rem;color:var(--muted);margin-top:.4rem;}
 
-.sub-tag{display:inline-block;background:var(--or-glow);border:1px solid rgba(255,107,53,.35);
+.sub-tag{display:inline-block;background:var(--blue-glow);border:1px solid rgba(64,128,255,.35);
   border-radius:4px;padding:.1rem .5rem;font-size:.68rem;font-weight:600;
-  color:var(--or)!important;margin:.15rem .2rem;}
+  color:var(--blue)!important;margin:.15rem .2rem;}
+
+.chip-row{display:flex;gap:.65rem;margin:.4rem 0 1.1rem;flex-wrap:wrap;}
+.genre-chip>button{
+  background:var(--surface)!important;color:var(--text-dim)!important;
+  border:1px solid var(--border)!important;border-radius:6px!important;
+  font-family:'Inter Tight',sans-serif!important;font-size:.78rem!important;
+  font-weight:700!important;letter-spacing:.1em!important;text-transform:uppercase!important;
+  padding:.4rem 1.1rem!important;min-height:unset!important;height:auto!important;
+  line-height:1.5!important;transition:border-color .15s,color .15s,background .15s!important;
+  box-shadow:none!important;width:100%!important;}
+.genre-chip>button:hover{
+  background:var(--surface2)!important;border-color:var(--blue)!important;
+  color:var(--text)!important;transform:none!important;box-shadow:none!important;}
 
 .empty-state{margin-top:3.5rem;text-align:center;padding:4rem 2rem;
   border:1px dashed var(--border-hi);border-radius:12px;
-  background:radial-gradient(ellipse at 50% 0%,rgba(255,107,53,.05) 0%,transparent 65%);}
+  background:radial-gradient(ellipse at 50% 0%,rgba(64,128,255,.05) 0%,transparent 65%);}
 .empty-title{font-family:'Inter Tight',sans-serif;font-size:2rem;font-weight:900;
   color:var(--border-hi)!important;letter-spacing:-.02em;margin-bottom:.7rem;}
 .empty-sub{font-size:.86rem;color:var(--muted)!important;max-width:420px;margin:0 auto;line-height:1.75;}
@@ -196,16 +211,6 @@ div[data-baseweb="menu"] li:hover,[aria-selected="true"]{background:var(--surfac
 # ─────────────────────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────
-RH = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
 PB = dict(
     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
     font=dict(family="Poppins, sans-serif", color="#eef0fa"),
@@ -226,99 +231,68 @@ SW = {
 
 MODELS = ["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5-20251001"]
 
+# ── Curated genre → subreddit map ────────────────────────────
+GENRE_SUBS: dict[str, list[str]] = {
+    "fighting":       ["Tekken", "StreetFighter", "MortalKombat", "Kappa", "SF6"],
+    "soulslike":      ["Eldenring", "darksouls3", "bloodborne", "sekiro", "DarkSouls2"],
+    "rpg":            ["JRPG", "Persona5", "dragonquest", "finalfantasy", "tales"],
+    "battle royale":  ["FortNiteBR", "apexlegends", "PUBGConsole", "CODWarzone"],
+    "fps":            ["halo", "Overwatch", "Rainbow6", "battlefield", "valorant"],
+    "open world":     ["GTA", "thewitcher3", "skyrim", "reddeadredemption", "cyberpunkgame"],
+    "mmo":            ["ffxiv", "wow", "lostarkgame", "Guildwars2", "newworldgame"],
+    "strategy":       ["totalwar", "civ", "CompanyOfHeroes", "aoe2", "Stellaris"],
+    "roguelike":      ["HadesTheGame", "deadcells", "slay_the_spire", "EnterTheGungeon"],
+    "platformer":     ["Mario", "SonicTheHedgehog", "Celeste", "metroidvania"],
+    "racing":         ["granturismo", "forza", "F1Game", "iRacing", "NeedForSpeed"],
+    "horror":         ["residentevil", "silenthill", "deadbydaylight", "outlast"],
+}
+
+QUICK_GENRES = list(GENRE_SUBS.keys())
+
 # ─────────────────────────────────────────────────────────────
 # SESSION STATE
 # ─────────────────────────────────────────────────────────────
-# Load Anthropic key from st.secrets (set CLAUDE_KEY in .streamlit/secrets.toml)
+# ── Secrets (set in .streamlit/secrets.toml) ──────────────────────────────
 _SECRET_KEY: str = st.secrets.get("CLAUDE_KEY", "")
 
 for _k, _v in {
-    "found_subreddits": [],   # list[dict] — from auto-search
-    "manual_subs": [],        # list[dict] — from manual entry
-    "posts_df": None,
-    "sub_stats": None,
-    "fetch_done": False,
-    "ai_report": "",
-    "chat_history": [],
-    "chat_pending": False,
+    "genre_subs":    [],      # subreddits loaded from genre chip
+    "active_genre":  "",      # currently selected genre label
+    "manual_subs":   [],      # list[dict] — manually added
+    "posts_df":      None,
+    "sub_stats":     None,
+    "fetch_done":    False,
+    "ai_report":     "",
+    "chat_history":  [],
+    "chat_pending":  False,
 }.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
 # ─────────────────────────────────────────────────────────────
-# REDDIT HELPERS
+# REDDIT HELPERS  — plain requests, no custom headers
+# (Reddit allows the default python-requests UA from residential IPs)
 # ─────────────────────────────────────────────────────────────
 
-@st.cache_resource
-def _reddit_session() -> requests.Session:
+def _rget(url: str, params=None, retries=3, backoff=1.5):
     """
-    Persistent requests.Session that mimics a real browser visiting Reddit.
-    - Uses old.reddit.com which is far less aggressive about blocking than www.reddit.com
-    - Primes the session by visiting the homepage first to pick up real cookies
-    - Cached so the warm-up only happens once per Streamlit process lifetime
-    """
-    s = requests.Session()
-    s.headers.update({
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "DNT": "1",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-    })
-    try:
-        # Warm-up: visit old.reddit.com to get a real session cookie
-        s.get("https://old.reddit.com/", timeout=10)
-        time.sleep(0.5)
-        # Swap Accept header for subsequent JSON calls
-        s.headers.update({"Accept": "application/json, text/plain, */*"})
-    except Exception:
-        pass
-    return s
-
-
-def _rget(path: str, params=None, retries=3, backoff=1.5):
-    """
-    GET a Reddit JSON endpoint. Always uses old.reddit.com.
+    Bare GET — no custom User-Agent or headers.
+    Reddit permits the default python-requests UA on normal connections.
     Returns (data_dict, None) on success, (None, error_str) on failure.
     """
-    # Normalise: strip any host prefix so we can force old.reddit.com
-    path = path.replace("https://www.reddit.com", "").replace("https://old.reddit.com", "")
-    url = f"https://old.reddit.com{path}"
-
-    s = _reddit_session()
     last_err = None
     for attempt in range(retries):
         try:
-            r = s.get(url, params=params, timeout=14, allow_redirects=True)
+            r = requests.get(url, params=params, timeout=14)
             if r.status_code == 429:
-                wait = backoff * 2 ** attempt
-                time.sleep(wait)
+                time.sleep(backoff * 2 ** attempt)
                 continue
-            if r.status_code == 403:
-                # Re-warm the session once then retry
-                if attempt == 0:
-                    try:
-                        s.get("https://old.reddit.com/", timeout=8)
-                        time.sleep(1.0)
-                    except Exception:
-                        pass
-                    continue
-                last_err = "HTTP 403 — Reddit is blocking this request"
-                return None, last_err
             if r.status_code == 200:
-                ct = r.headers.get("content-type", "")
-                if "json" in ct or r.text.lstrip().startswith("{"):
-                    return r.json(), None
-                # Reddit sometimes returns HTML (redirect to login) — treat as soft block
-                last_err = "Got HTML instead of JSON — Reddit may be rate-limiting"
-                return None, last_err
+                return r.json(), None
             last_err = f"HTTP {r.status_code}"
+            if r.status_code >= 500:
+                time.sleep(backoff)
+                continue
             return None, last_err
         except requests.exceptions.ConnectionError as e:
             last_err = f"Connection error: {e}"
@@ -349,7 +323,7 @@ def search_subreddits(game: str, limit=10) -> tuple[list[dict], str | None]:
     first_err = None
 
     # Strategy 1 — /subreddits/search
-    data, err = _rget("/subreddits/search.json",
+    data, err = _rget("https://www.reddit.com/subreddits/search.json",
                       params={"q": game, "limit": 20, "include_over_18": "false"})
     if err and not first_err:
         first_err = err
@@ -360,7 +334,7 @@ def search_subreddits(game: str, limit=10) -> tuple[list[dict], str | None]:
     time.sleep(0.6)
 
     # Strategy 2 — post search, harvest subreddit names not yet seen
-    data2, err2 = _rget("/search.json",
+    data2, err2 = _rget("https://www.reddit.com/search.json",
                         params={"q": game, "sort": "relevance", "limit": 25, "type": "link"})
     if err2 and not first_err:
         first_err = err2
@@ -373,7 +347,7 @@ def search_subreddits(game: str, limit=10) -> tuple[list[dict], str | None]:
     time.sleep(0.4)
 
     for sub in new_names[:10]:
-        about, _ = _rget(f"/r/{sub}/about.json")
+        about, _ = _rget(f"https://www.reddit.com/r/{sub}/about.json")
         if about:
             d = about.get("data", {})
             seen[sub.lower()] = _sub_dict(d)
@@ -392,7 +366,7 @@ def validate_subreddit(name: str) -> tuple[dict | None, str | None]:
     name = name.strip().lstrip("r/").lstrip("/")
     if not name:
         return None, None
-    about, err = _rget(f"/r/{name}/about.json")
+    about, err = _rget(f"https://www.reddit.com/r/{name}/about.json")
     if err:
         return None, err          # network / HTTP error — not the subreddit's fault
     if not about:
@@ -421,7 +395,7 @@ def fetch_posts(sub: str, query: str, limit=100, sort="relevance") -> list[dict]
         params = {"q": query, "sort": sort, "limit": min(100, limit-fetched),
                   "restrict_sr": "true", "t": "all"}
         if after: params["after"] = after
-        data, _ = _rget(f"/r/{sub}/search.json", params=params)
+        data, _ = _rget(f"https://www.reddit.com/r/{sub}/search.json", params=params)
         if not data: break
         children = data.get("data",{}).get("children",[])
         if not children: break
@@ -433,7 +407,7 @@ def fetch_posts(sub: str, query: str, limit=100, sort="relevance") -> list[dict]
     return posts
 
 def fetch_top(sub: str, limit=50) -> list[dict]:
-    data, _ = _rget(f"/r/{sub}/top.json", params={"limit": limit, "t": "all"})
+    data, _ = _rget(f"https://www.reddit.com/r/{sub}/top.json", params={"limit": limit, "t": "all"})
     if not data: return []
     return [_mk_post(c.get("data",{}), sub) for c in data.get("data",{}).get("children",[])]
 
@@ -483,7 +457,7 @@ def donut(pos, neu, neg, title=""):
     return fig
 
 def histogram(scores):
-    fig = go.Figure(go.Histogram(x=scores, nbinsx=30, marker_color="#ff6b35", opacity=0.85))
+    fig = go.Figure(go.Histogram(x=scores, nbinsx=30, marker_color="#4080ff", opacity=0.85))
     fig.update_layout(**PB, title=dict(text="Score Distribution",font_size=12),
                       xaxis_title="Compound Score", yaxis_title="Posts", height=260)
     return fig
@@ -550,7 +524,7 @@ def to_html(md):
         '<title>SEGA Reddit Lens</title><style>'
         'body{font-family:Segoe UI,Arial,sans-serif;max-width:860px;margin:40px auto;'
         'background:#0a0c1a;color:#eef0fa;padding:0 1.5rem;}'
-        'h1,h2,h3{color:#ff6b35;}a{color:#ff6b35;}'
+        'h1,h2,h3{color:#4080ff;}a{color:#4080ff;}'
         'pre,code{background:#141728;padding:.3em .5em;border-radius:4px;font-size:.87em;}'
         'table{border-collapse:collapse;width:100%;}td,th{border:1px solid #232640;padding:.4em .7em;}'
         'th{background:#1a1e30;}'
@@ -562,8 +536,8 @@ def to_pdf(md):
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf,pagesize=A4,leftMargin=2*cm,rightMargin=2*cm,topMargin=2*cm,bottomMargin=2*cm)
     styles = getSampleStyleSheet()
-    H1 = ParagraphStyle("H1",parent=styles["Heading1"],fontSize=18,textColor=_rlc.HexColor("#ff6b35"),spaceAfter=8,spaceBefore=14)
-    H2 = ParagraphStyle("H2",parent=styles["Heading2"],fontSize=14,textColor=_rlc.HexColor("#cc4400"),spaceAfter=6,spaceBefore=10)
+    H1 = ParagraphStyle("H1",parent=styles["Heading1"],fontSize=18,textColor=_rlc.HexColor("#4080ff"),spaceAfter=8,spaceBefore=14)
+    H2 = ParagraphStyle("H2",parent=styles["Heading2"],fontSize=14,textColor=_rlc.HexColor("#1a3acc"),spaceAfter=6,spaceBefore=10)
     H3 = ParagraphStyle("H3",parent=styles["Heading3"],fontSize=12,spaceAfter=4,spaceBefore=8)
     BD = ParagraphStyle("BD",parent=styles["Normal"],fontSize=10,leading=15,spaceAfter=6)
     BU = ParagraphStyle("BU",parent=BD,leftIndent=16,bulletIndent=6,spaceAfter=3)
@@ -624,13 +598,13 @@ st.markdown("""
   <div class="topbar-logo"><span class="seg">SEGA</span> REDDIT LENS</div>
   <div class="topbar-div"></div>
   <div class="topbar-label">Community Sentiment Intelligence</div>
-  <div class="topbar-pill">NO API KEY REQUIRED</div>
+  <div class="topbar-pill">Beta</div>
 </div>
 <div class="hero">
   <div class="hero-title">Reddit <span class="accent">Community</span><br>Sentiment Analyzer</div>
   <div class="hero-sub">
-    Auto-discover subreddits for any game, add more manually, then run deep
-    sentiment analysis across all selected communities — no Reddit API key needed.
+    Pick a genre to load its key subreddits, add your own manually,
+    then run deep sentiment analysis — no Reddit API key needed.
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -639,101 +613,93 @@ st.markdown("""
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
     if _SECRET_KEY:
-        st.success("✓ Anthropic API key loaded from secrets")
+        st.success("✓ Anthropic API key loaded")
     else:
-        st.warning("⚠ CLAUDE_KEY not found in st.secrets — AI reports disabled")
+        st.warning("⚠ CLAUDE_KEY not set — AI reports disabled")
         st.caption("Add `CLAUDE_KEY = 'sk-ant-…'` to `.streamlit/secrets.toml`")
     ai_model = st.selectbox("Claude Model", MODELS, index=1)
     st.markdown("---")
-    st.caption("""Uses Reddit's public unauthenticated JSON endpoints — no OAuth needed.
-Requests include automatic rate-limit back-off.""")
+    st.caption("Uses Reddit public JSON endpoints. No API key required.")
 
 # ─────────────────────────────────────────────────────────────
-# SECTION 1 — GAME SEARCH  (auto-discover subreddits)
+# SECTION 1 — GENRE CHIPS
 # ─────────────────────────────────────────────────────────────
 st.markdown('<div class="search-block">', unsafe_allow_html=True)
-st.markdown('<div class="field-label">Step 1 — Auto-discover subreddits by game name</div>', unsafe_allow_html=True)
+st.markdown('<div class="field-label">Step 1 — Select a genre to load its subreddits</div>',
+            unsafe_allow_html=True)
 
-ci, cb = st.columns([5, 1])
-with ci:
-    # KEY-only pattern: Streamlit owns the value; we read st.session_state["_gsq"]
-    st.text_input("_gsq_label", key="_gsq",
-                  placeholder="e.g. Sonic Frontiers, Persona 5, Like a Dragon…",
-                  label_visibility="collapsed")
-with cb:
-    find_btn = st.button("🔍 Find Subreddits", use_container_width=True)
+# Render chips in rows of 6
+_chip_clicked = None
+CHIPS_PER_ROW = 6
+_genre_rows = [QUICK_GENRES[i:i+CHIPS_PER_ROW] for i in range(0, len(QUICK_GENRES), CHIPS_PER_ROW)]
+for _row in _genre_rows:
+    st.markdown('<div class="chip-row">', unsafe_allow_html=True)
+    _cols = st.columns(len(_row))
+    for _ci, _label in enumerate(_row):
+        with _cols[_ci]:
+            st.markdown('<div class="genre-chip">', unsafe_allow_html=True)
+            if st.button(_label.upper(), key=f"chip_{_label}"):
+                _chip_clicked = _label
+            st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-if find_btn:
-    q = st.session_state.get("_gsq", "").strip()
-    if not q:
-        st.warning("Please enter a game name first.")
-    else:
-        st.session_state.found_subreddits = []
-        st.session_state.posts_df = None
-        st.session_state.sub_stats = None
-        st.session_state.fetch_done = False
-        st.session_state.ai_report = ""
-        st.session_state.chat_history = []
-        with st.spinner(f"Searching Reddit for subreddits related to **{q}**…"):
-            found, err = search_subreddits(q, limit=10)
-        if err:
-            st.error(
-                f"Reddit request failed: **{err}**\n\n"
-                "This usually means Reddit is temporarily blocking requests. "
-                "Try again in a few seconds, or add subreddits manually using the box on the right."
-            )
-        elif found:
-            st.session_state.found_subreddits = found
-        else:
-            st.warning("No matching subreddits found — try a shorter or different game name, "
-                       "or add subreddits manually.")
+# When a chip is clicked, load its curated subreddits into session state
+if _chip_clicked:
+    subs = GENRE_SUBS.get(_chip_clicked, [])
+    st.session_state.genre_subs   = subs
+    st.session_state.active_genre = _chip_clicked
+    st.session_state.posts_df     = None
+    st.session_state.sub_stats    = None
+    st.session_state.fetch_done   = False
+    st.session_state.ai_report    = ""
+    st.session_state.chat_history = []
 
 # ─────────────────────────────────────────────────────────────
-# SECTION 2 — SUBREDDIT SELECTION  (auto + manual)
+# SECTION 2 — SUBREDDIT SELECTION  (genre chips + manual)
 # ─────────────────────────────────────────────────────────────
 sh("SUBREDDIT SELECTION")
 
-col_auto, col_manual = st.columns([3, 2])
+col_genre, col_manual = st.columns([3, 2])
 
-# ── Auto-discovered ───────────────────────────────────────────
-with col_auto:
-    st.markdown('<div class="field-label">Auto-discovered subreddits</div>', unsafe_allow_html=True)
-
-    if st.session_state.found_subreddits:
-        # Build option list — index-based default avoids stale-label errors
-        opts = [
-            f"r/{s['name']}  ({s['subscribers']:,} members)"
-            + (f"  —  {s['description'][:55]}" if s["description"] else "")
-            for s in st.session_state.found_subreddits
-        ]
-        names = [s["name"] for s in st.session_state.found_subreddits]
-
-        chosen = st.multiselect(
-            "_auto_ms_label",
-            options=opts,
-            # Safe default: first 3 items by index, not by stale string value
-            default=opts[:min(3, len(opts))],
-            label_visibility="collapsed",
-            key="_auto_ms",
-        )
-        auto_subs = [names[opts.index(o)] for o in chosen if o in opts]
+# ── Genre subreddits (multiselect) ────────────────────────────
+with col_genre:
+    active = st.session_state.get("active_genre", "")
+    genre_subs = st.session_state.get("genre_subs", [])
+    if active:
+        st.markdown(f'<div class="field-label">{active.upper()} subreddits</div>',
+                    unsafe_allow_html=True)
     else:
-        st.caption("Search above to discover subreddits automatically.")
-        auto_subs = []
+        st.markdown('<div class="field-label">Genre subreddits — pick a genre above</div>',
+                    unsafe_allow_html=True)
+
+    if genre_subs:
+        chosen = st.multiselect(
+            "_genre_ms_label",
+            options=genre_subs,
+            default=genre_subs,
+            format_func=lambda x: f"r/{x}",
+            label_visibility="collapsed",
+            key="_genre_ms",
+        )
+        genre_selected = list(chosen)
+    else:
+        st.caption("Click a genre chip above to populate this list.")
+        genre_selected = []
 
 # ── Manual entry ──────────────────────────────────────────────
 with col_manual:
-    st.markdown('<div class="field-label">Add subreddits manually (one per line)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="field-label">Add subreddits manually (one per line)</div>',
+                unsafe_allow_html=True)
     st.text_area("_manual_area_label", key="_manual_area",
                  placeholder="gaming\nPS5\nJRPG\nnintendoswitch",
-                 height=105, label_visibility="collapsed")
-    validate_btn = st.button("✔ Validate & Add", use_container_width=True)
+                 height=118, label_visibility="collapsed")
+    validate_btn = st.button("✔ Add to List", use_container_width=True)
 
     if validate_btn:
         lines = [l.strip().lstrip("r/").lstrip("/")
-                 for l in st.session_state.get("_manual_area","").splitlines() if l.strip()]
+                 for l in st.session_state.get("_manual_area", "").splitlines() if l.strip()]
         if lines:
             existing = {s["name"].lower() for s in st.session_state.manual_subs}
             ph = st.empty()
@@ -748,41 +714,39 @@ with col_manual:
                     existing.add(info["name"].lower())
                     added += 1
                 elif err:
-                    # Request failed (e.g. rate-limit, network hiccup) — add optimistically
-                    # so the user isn't blocked; Reddit will simply return no posts if wrong
                     fallback = {"name": name, "title": name, "description": "", "subscribers": 0}
                     st.session_state.manual_subs.append(fallback)
                     existing.add(name.lower())
                     added += 1
-                    st.caption(f"⚠ Could not verify r/{name} ({err}) — added anyway.")
+                    st.caption(f"⚠ Could not verify r/{name} — added anyway.")
                 else:
-                    st.warning(f"r/{name} doesn't appear to exist or is private — skipped.")
+                    st.warning(f"r/{name} not found or private — skipped.")
             ph.empty()
             if added:
                 st.success(f"Added {added} subreddit(s).")
 
     if st.session_state.manual_subs:
-        st.markdown("**Currently added:**")
+        st.markdown('<div class="field-label" style="margin-top:.6rem">Added manually</div>',
+                    unsafe_allow_html=True)
         for idx, s in enumerate(list(st.session_state.manual_subs)):
-            mc1, mc2 = st.columns([6, 1])
+            mc1, mc2 = st.columns([7, 1])
             with mc1:
                 st.markdown(
-                    f'<span class="sub-tag">r/{s["name"]}</span>'
-                    f'<span style="font-size:.7rem;color:var(--muted);"> {s["subscribers"]:,} members</span>',
+                    f'<span class="sub-tag">r/{s["name"]}</span>',
                     unsafe_allow_html=True)
             with mc2:
                 if st.button("✕", key=f"rm_{idx}_{s['name']}"):
                     st.session_state.manual_subs.pop(idx)
                     st.rerun()
 
-# ── Combined list ─────────────────────────────────────────────
+# ── Combined deduplicated list ────────────────────────────────
 all_subs: list[str] = list(dict.fromkeys(
-    auto_subs + [s["name"] for s in st.session_state.manual_subs]
+    genre_selected + [s["name"] for s in st.session_state.manual_subs]
 ))
 
 if all_subs:
     st.markdown(
-        "**Selected for analysis:** " + " ".join(f'<span class="sub-tag">r/{s}</span>' for s in all_subs),
+        "**Selected:** " + " ".join(f'<span class="sub-tag">r/{s}</span>' for s in all_subs),
         unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
@@ -803,7 +767,7 @@ with fc4:
 st.markdown('</div>', unsafe_allow_html=True)
 
 if fetch_btn and all_subs:
-    query = st.session_state.get("_gsq", "").strip() or "game"
+    query = st.session_state.get("active_genre", "").strip() or "game"
     all_posts: list[dict] = []
     prog = st.progress(0.0, text="Starting…")
     for i, sub in enumerate(all_subs):
@@ -887,7 +851,7 @@ if st.session_state.fetch_done and st.session_state.posts_df is not None:
                 +(f'<br>{exc}' if exc else '')+
                 f'<div class="post-meta">r/{row["subreddit"]} · ▲{row["score"]:,} · '
                 f'💬{row["num_comments"]} · {row["sentiment"]} ({row["sent_score"]:+.3f}) · '
-                f'<a href="{row["permalink"]}" target="_blank" style="color:var(--or);">view</a>'
+                f'<a href="{row["permalink"]}" target="_blank" style="color:var(--blue);">view</a>'
                 f'</div></div>', unsafe_allow_html=True)
 
     # ── WORD CLOUD ────────────────────────────────────────────
@@ -935,10 +899,10 @@ if st.session_state.fetch_done and st.session_state.posts_df is not None:
                 f'<div class="post-card {cls}"><strong>{row["title"]}</strong><br>{exc}'
                 f'<div class="post-meta">r/{row["subreddit"]} · ▲{row["score"]:,} · '
                 f'💬{row["num_comments"]} · {row["sentiment"]} ({row["sent_score"]:+.3f}) · '
-                f'<a href="{row["permalink"]}" target="_blank" style="color:var(--or);">view on Reddit</a>'
+                f'<a href="{row["permalink"]}" target="_blank" style="color:var(--blue);">view on Reddit</a>'
                 f'</div></div>', unsafe_allow_html=True)
         st.caption(f"Showing 30 of {len(vdf):,} filtered posts.")
-        slug = st.session_state.get("_gsq","export").replace(" ","_")
+        slug = st.session_state.get("active_genre","export").replace(" ","_")
         st.download_button("⬇ Download CSV", data=vdf.to_csv(index=False).encode(),
                            file_name=f"reddit_{slug}_posts.csv", mime="text/csv")
 
@@ -951,7 +915,7 @@ if st.session_state.fetch_done and st.session_state.posts_df is not None:
         else:
             if not st.session_state.ai_report:
                 if st.button("✨ Generate AI Report", key="gen_rpt"):
-                    gname = st.session_state.get("_gsq","the game").strip()
+                    gname = st.session_state.get("active_genre","the genre").strip()
                     pk_s = ", ".join(f"{w}({c})" for w,c in keywords(df[df["sentiment"]=="Positive"]["full_text"].tolist())[:20])
                     nk_s = ", ".join(f"{w}({c})" for w,c in keywords(df[df["sentiment"]=="Negative"]["full_text"].tolist())[:20])
                     sub_s = "\n".join(f"  - r/{r['subreddit']}: {r['post_count']} posts, {r['positive_pct']:.1f}% positive, avg {r['avg_score']:+.4f}" for _,r in sdf.iterrows())
@@ -1005,7 +969,7 @@ Use markdown. Be specific with numbers. Prioritise strategic insights."""
                 st.markdown(st.session_state.ai_report)
 
             if st.session_state.ai_report:
-                slug = st.session_state.get("_gsq","report").replace(" ","_")
+                slug = st.session_state.get("active_genre","report").replace(" ","_")
                 st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown('<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">DOWNLOAD REPORT</div>', unsafe_allow_html=True)
                 d1,d2,d3 = st.columns(3)
@@ -1063,7 +1027,7 @@ elif not st.session_state.fetch_done:
   <div class="empty-title">NO DATA YET</div>
   <div class="empty-sub">
     Search for a game above to auto-discover subreddits, or add them manually below,
-    then click <strong style="color:var(--or);">Fetch &amp; Analyse</strong>.
+    then click <strong style="color:var(--blue);">Fetch &amp; Analyse</strong>.
   </div>
 </div>
 """, unsafe_allow_html=True)
