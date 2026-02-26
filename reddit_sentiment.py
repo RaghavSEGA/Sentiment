@@ -196,7 +196,15 @@ div[data-baseweb="menu"] li:hover,[aria-selected="true"]{background:var(--surfac
 # ─────────────────────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────────────────────
-RH = {"User-Agent": "SEGA-Reddit-Lens/1.0 (internal analytics)"}
+RH = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 PB = dict(
     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -221,6 +229,9 @@ MODELS = ["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5-20251001"]
 # ─────────────────────────────────────────────────────────────
 # SESSION STATE
 # ─────────────────────────────────────────────────────────────
+# Load Anthropic key from st.secrets (set CLAUDE_KEY in .streamlit/secrets.toml)
+_SECRET_KEY: str = st.secrets.get("CLAUDE_KEY", "")
+
 for _k, _v in {
     "found_subreddits": [],   # list[dict] — from auto-search
     "manual_subs": [],        # list[dict] — from manual entry
@@ -230,7 +241,6 @@ for _k, _v in {
     "ai_report": "",
     "chat_history": [],
     "chat_pending": False,
-    "claude_key": "",
 }.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
@@ -240,17 +250,27 @@ for _k, _v in {
 # ─────────────────────────────────────────────────────────────
 
 def _rget(url, params=None, retries=3, backoff=2.0):
+    """GET with retry. Returns (data_dict, None) on success, (None, error_str) on failure."""
+    last_err = None
     for attempt in range(retries):
         try:
             r = requests.get(url, headers=RH, params=params, timeout=14)
             if r.status_code == 429:
                 time.sleep(backoff * (attempt + 1)); continue
             if r.status_code == 200:
-                return r.json()
-            return None
-        except Exception:
+                return r.json(), None
+            last_err = f"HTTP {r.status_code}"
+            return None, last_err
+        except requests.exceptions.ConnectionError as e:
+            last_err = f"Connection error — {e}"
             time.sleep(backoff)
-    return None
+        except requests.exceptions.Timeout:
+            last_err = "Request timed out"
+            time.sleep(backoff)
+        except Exception as e:
+            last_err = f"{type(e).__name__}: {e}"
+            time.sleep(backoff)
+    return None, last_err
 
 def _sub_dict(d: dict) -> dict:
     name = d.get("display_name", "")
@@ -261,13 +281,19 @@ def _sub_dict(d: dict) -> dict:
         "subscribers": d.get("subscribers", 0),
     }
 
-def search_subreddits(game: str, limit=10) -> list[dict]:
-    """Two-strategy subreddit discovery via public JSON — no API key needed."""
+def search_subreddits(game: str, limit=10) -> tuple[list[dict], str | None]:
+    """
+    Two-strategy subreddit discovery via public JSON — no API key needed.
+    Returns (results, error_message). error_message is None on success.
+    """
     seen: dict[str, dict] = {}
+    first_err = None
 
     # Strategy 1 — /subreddits/search
-    data = _rget("https://www.reddit.com/subreddits/search.json",
-                 params={"q": game, "limit": 20, "include_over_18": "false"})
+    data, err = _rget("https://www.reddit.com/subreddits/search.json",
+                      params={"q": game, "limit": 20, "include_over_18": "false"})
+    if err and not first_err:
+        first_err = err
     if data:
         for c in data.get("data", {}).get("children", []):
             d = c.get("data", {}); name = d.get("display_name", "")
@@ -275,8 +301,10 @@ def search_subreddits(game: str, limit=10) -> list[dict]:
     time.sleep(0.6)
 
     # Strategy 2 — post search, harvest subreddit names not yet seen
-    data2 = _rget("https://www.reddit.com/search.json",
-                  params={"q": game, "sort": "relevance", "limit": 25, "type": "link"})
+    data2, err2 = _rget("https://www.reddit.com/search.json",
+                        params={"q": game, "sort": "relevance", "limit": 25, "type": "link"})
+    if err2 and not first_err:
+        first_err = err2
     new_names = []
     if data2:
         for c in data2.get("data", {}).get("children", []):
@@ -286,19 +314,21 @@ def search_subreddits(game: str, limit=10) -> list[dict]:
     time.sleep(0.4)
 
     for sub in new_names[:10]:
-        about = _rget(f"https://www.reddit.com/r/{sub}/about.json")
+        about, _ = _rget(f"https://www.reddit.com/r/{sub}/about.json")
         if about:
             d = about.get("data", {})
             seen[sub.lower()] = _sub_dict(d)
         time.sleep(0.3)
 
-    return sorted(seen.values(), key=lambda x: x["subscribers"], reverse=True)[:limit]
+    results = sorted(seen.values(), key=lambda x: x["subscribers"], reverse=True)[:limit]
+    # Only surface an error if we got nothing back at all
+    return results, (first_err if not results else None)
 
 def validate_subreddit(name: str) -> dict | None:
     """Return metadata for a manually-entered subreddit name, or None if not found."""
     name = name.strip().lstrip("r/").lstrip("/")
     if not name: return None
-    about = _rget(f"https://www.reddit.com/r/{name}/about.json")
+    about, _ = _rget(f"https://www.reddit.com/r/{name}/about.json")
     if not about: return None
     d = about.get("data", {})
     return _sub_dict(d) if d.get("display_name") else None
@@ -322,7 +352,7 @@ def fetch_posts(sub: str, query: str, limit=100, sort="relevance") -> list[dict]
         params = {"q": query, "sort": sort, "limit": min(100, limit-fetched),
                   "restrict_sr": "true", "t": "all"}
         if after: params["after"] = after
-        data = _rget(f"https://www.reddit.com/r/{sub}/search.json", params=params)
+        data, _ = _rget(f"https://www.reddit.com/r/{sub}/search.json", params=params)
         if not data: break
         children = data.get("data",{}).get("children",[])
         if not children: break
@@ -334,7 +364,7 @@ def fetch_posts(sub: str, query: str, limit=100, sort="relevance") -> list[dict]
     return posts
 
 def fetch_top(sub: str, limit=50) -> list[dict]:
-    data = _rget(f"https://www.reddit.com/r/{sub}/top.json", params={"limit": limit, "t": "all"})
+    data, _ = _rget(f"https://www.reddit.com/r/{sub}/top.json", params={"limit": limit, "t": "all"})
     if not data: return []
     return [_mk_post(c.get("data",{}), sub) for c in data.get("data",{}).get("children",[])]
 
@@ -539,10 +569,11 @@ st.markdown("""
 # ── SIDEBAR ───────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
-    _ki = st.text_input("Anthropic API Key (optional)", value=st.session_state.claude_key,
-                        type="password", placeholder="sk-ant-…")
-    if _ki != st.session_state.claude_key:
-        st.session_state.claude_key = _ki
+    if _SECRET_KEY:
+        st.success("✓ Anthropic API key loaded from secrets")
+    else:
+        st.warning("⚠ CLAUDE_KEY not found in st.secrets — AI reports disabled")
+        st.caption("Add `CLAUDE_KEY = 'sk-ant-…'` to `.streamlit/secrets.toml`")
     ai_model = st.selectbox("Claude Model", MODELS, index=1)
     st.markdown("---")
     st.caption("""Uses Reddit's public unauthenticated JSON endpoints — no OAuth needed.
@@ -577,11 +608,18 @@ if find_btn:
         st.session_state.ai_report = ""
         st.session_state.chat_history = []
         with st.spinner(f"Searching Reddit for subreddits related to **{q}**…"):
-            found = search_subreddits(q, limit=10)
-        if found:
+            found, err = search_subreddits(q, limit=10)
+        if err:
+            st.error(
+                f"Reddit request failed: **{err}**\n\n"
+                "This usually means Reddit is temporarily blocking requests. "
+                "Try again in a few seconds, or add subreddits manually using the box on the right."
+            )
+        elif found:
             st.session_state.found_subreddits = found
         else:
-            st.warning("No subreddits found — try a shorter or different game name.")
+            st.warning("No matching subreddits found — try a shorter or different game name, "
+                       "or add subreddits manually.")
 
 # ─────────────────────────────────────────────────────────────
 # SECTION 2 — SUBREDDIT SELECTION  (auto + manual)
@@ -831,7 +869,7 @@ if st.session_state.fetch_done and st.session_state.posts_df is not None:
     with tab_ai:
         if not ANTHROPIC_OK:
             st.warning("Install `anthropic` to enable AI reports.")
-        elif not st.session_state.claude_key:
+        elif not _SECRET_KEY:
             st.info("Enter your Anthropic API key in the sidebar to generate a report.")
         else:
             if not st.session_state.ai_report:
@@ -874,7 +912,7 @@ Write a comprehensive report with sections:
 
 Use markdown. Be specific with numbers. Prioritise strategic insights."""
 
-                    client = _anthropic.Anthropic(api_key=st.session_state.claude_key)
+                    client = _anthropic.Anthropic(api_key=_SECRET_KEY)
                     ph = st.empty(); txt = ""
                     try:
                         with client.messages.stream(model=ai_model, max_tokens=4096,
@@ -920,7 +958,7 @@ Use markdown. Be specific with numbers. Prioritise strategic insights."""
                             f"Answer concisely, referencing real data.\n\n"
                             f"## Report\n{st.session_state.ai_report[:4000]}")
                     try:
-                        cc = _anthropic.Anthropic(api_key=st.session_state.claude_key)
+                        cc = _anthropic.Anthropic(api_key=_SECRET_KEY)
                         with st.chat_message("assistant"):
                             rep=""; rph=st.empty()
                             with cc.messages.stream(model=ai_model,max_tokens=2048,system=sys_,
