@@ -249,20 +249,79 @@ for _k, _v in {
 # REDDIT HELPERS
 # ─────────────────────────────────────────────────────────────
 
-def _rget(url, params=None, retries=3, backoff=2.0):
-    """GET with retry. Returns (data_dict, None) on success, (None, error_str) on failure."""
+@st.cache_resource
+def _reddit_session() -> requests.Session:
+    """
+    Persistent requests.Session that mimics a real browser visiting Reddit.
+    - Uses old.reddit.com which is far less aggressive about blocking than www.reddit.com
+    - Primes the session by visiting the homepage first to pick up real cookies
+    - Cached so the warm-up only happens once per Streamlit process lifetime
+    """
+    s = requests.Session()
+    s.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+    })
+    try:
+        # Warm-up: visit old.reddit.com to get a real session cookie
+        s.get("https://old.reddit.com/", timeout=10)
+        time.sleep(0.5)
+        # Swap Accept header for subsequent JSON calls
+        s.headers.update({"Accept": "application/json, text/plain, */*"})
+    except Exception:
+        pass
+    return s
+
+
+def _rget(path: str, params=None, retries=3, backoff=1.5):
+    """
+    GET a Reddit JSON endpoint. Always uses old.reddit.com.
+    Returns (data_dict, None) on success, (None, error_str) on failure.
+    """
+    # Normalise: strip any host prefix so we can force old.reddit.com
+    path = path.replace("https://www.reddit.com", "").replace("https://old.reddit.com", "")
+    url = f"https://old.reddit.com{path}"
+
+    s = _reddit_session()
     last_err = None
     for attempt in range(retries):
         try:
-            r = requests.get(url, headers=RH, params=params, timeout=14)
+            r = s.get(url, params=params, timeout=14, allow_redirects=True)
             if r.status_code == 429:
-                time.sleep(backoff * (attempt + 1)); continue
+                wait = backoff * 2 ** attempt
+                time.sleep(wait)
+                continue
+            if r.status_code == 403:
+                # Re-warm the session once then retry
+                if attempt == 0:
+                    try:
+                        s.get("https://old.reddit.com/", timeout=8)
+                        time.sleep(1.0)
+                    except Exception:
+                        pass
+                    continue
+                last_err = "HTTP 403 — Reddit is blocking this request"
+                return None, last_err
             if r.status_code == 200:
-                return r.json(), None
+                ct = r.headers.get("content-type", "")
+                if "json" in ct or r.text.lstrip().startswith("{"):
+                    return r.json(), None
+                # Reddit sometimes returns HTML (redirect to login) — treat as soft block
+                last_err = "Got HTML instead of JSON — Reddit may be rate-limiting"
+                return None, last_err
             last_err = f"HTTP {r.status_code}"
             return None, last_err
         except requests.exceptions.ConnectionError as e:
-            last_err = f"Connection error — {e}"
+            last_err = f"Connection error: {e}"
             time.sleep(backoff)
         except requests.exceptions.Timeout:
             last_err = "Request timed out"
@@ -290,7 +349,7 @@ def search_subreddits(game: str, limit=10) -> tuple[list[dict], str | None]:
     first_err = None
 
     # Strategy 1 — /subreddits/search
-    data, err = _rget("https://www.reddit.com/subreddits/search.json",
+    data, err = _rget("/subreddits/search.json",
                       params={"q": game, "limit": 20, "include_over_18": "false"})
     if err and not first_err:
         first_err = err
@@ -301,7 +360,7 @@ def search_subreddits(game: str, limit=10) -> tuple[list[dict], str | None]:
     time.sleep(0.6)
 
     # Strategy 2 — post search, harvest subreddit names not yet seen
-    data2, err2 = _rget("https://www.reddit.com/search.json",
+    data2, err2 = _rget("/search.json",
                         params={"q": game, "sort": "relevance", "limit": 25, "type": "link"})
     if err2 and not first_err:
         first_err = err2
@@ -314,7 +373,7 @@ def search_subreddits(game: str, limit=10) -> tuple[list[dict], str | None]:
     time.sleep(0.4)
 
     for sub in new_names[:10]:
-        about, _ = _rget(f"https://www.reddit.com/r/{sub}/about.json")
+        about, _ = _rget(f"/r/{sub}/about.json")
         if about:
             d = about.get("data", {})
             seen[sub.lower()] = _sub_dict(d)
@@ -333,7 +392,7 @@ def validate_subreddit(name: str) -> tuple[dict | None, str | None]:
     name = name.strip().lstrip("r/").lstrip("/")
     if not name:
         return None, None
-    about, err = _rget(f"https://www.reddit.com/r/{name}/about.json")
+    about, err = _rget(f"/r/{name}/about.json")
     if err:
         return None, err          # network / HTTP error — not the subreddit's fault
     if not about:
@@ -362,7 +421,7 @@ def fetch_posts(sub: str, query: str, limit=100, sort="relevance") -> list[dict]
         params = {"q": query, "sort": sort, "limit": min(100, limit-fetched),
                   "restrict_sr": "true", "t": "all"}
         if after: params["after"] = after
-        data, _ = _rget(f"https://www.reddit.com/r/{sub}/search.json", params=params)
+        data, _ = _rget(f"/r/{sub}/search.json", params=params)
         if not data: break
         children = data.get("data",{}).get("children",[])
         if not children: break
@@ -374,7 +433,7 @@ def fetch_posts(sub: str, query: str, limit=100, sort="relevance") -> list[dict]
     return posts
 
 def fetch_top(sub: str, limit=50) -> list[dict]:
-    data, _ = _rget(f"https://www.reddit.com/r/{sub}/top.json", params={"limit": limit, "t": "all"})
+    data, _ = _rget(f"/r/{sub}/top.json", params={"limit": limit, "t": "all"})
     if not data: return []
     return [_mk_post(c.get("data",{}), sub) for c in data.get("data",{}).get("children",[])]
 
