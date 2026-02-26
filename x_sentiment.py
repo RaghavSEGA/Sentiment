@@ -626,7 +626,8 @@ def fetch_tweets(bearer_token: str, query: str, max_results: int,
     return tweets
 
 
-def analyze_sentiment_batch(ac, tweets: list[dict]) -> list[dict]:
+def analyze_sentiment_batch(ac, tweets: list[dict], _max_retries: int = 4) -> list[dict]:
+    import time as _time
     numbered = "\n".join(
         f"{i+1}. [{t['username']}]: {t['text']}"
         for i, t in enumerate(tweets)
@@ -644,11 +645,21 @@ Where:
 Tweets:
 {numbered}"""
 
-    message = ac.messages.create(
-        model="claude-opus-4-6",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    for _attempt in range(_max_retries):
+        try:
+            message = ac.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1024,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            break  # success
+        except _anthropic.RateLimitError:
+            if _attempt < _max_retries - 1:
+                _wait = 2 ** _attempt * 15  # 15s, 30s, 60s, 120s
+                st.toast(f"Rate limit — waiting {_wait}s (retry {_attempt + 2}/{_max_retries})…", icon="⏳")
+                _time.sleep(_wait)
+            else:
+                raise
 
     results = []
     for line in message.content[0].text.strip().splitlines():
@@ -690,6 +701,60 @@ def build_summary(df: pd.DataFrame) -> pd.DataFrame:
             "avg_retweets":   round(grp["retweets"].mean(), 1),
         })
     return pd.DataFrame(rows).sort_values("positive_pct", ascending=False)
+
+# ─────────────────────────────────────────────────────────────
+# SESSION PERSISTENCE  (local JSON file — survives refreshes)
+# ─────────────────────────────────────────────────────────────
+
+_SESSION_FILE = Path.home() / ".twitter_lens_session.json"
+
+_PERSIST_KEYS = [
+    "found_queries", "selected_queries", "last_topic", "last_queries",
+    "ai_report", "ai_chat_history",
+]
+
+
+def _save_session() -> None:
+    """Persist key session state values to a local JSON file."""
+    data: dict = {}
+    for k in _PERSIST_KEYS:
+        val = st.session_state.get(k)
+        if val is None:
+            continue
+        data[k] = val
+    # Serialize DataFrames as JSON records
+    for df_key in ("results_df", "summary_df"):
+        _df = st.session_state.get(df_key)
+        if _df is not None and not _df.empty:
+            data[df_key] = _df.to_json(orient="records", date_format="iso")
+    data["_saved_at"] = datetime.now().isoformat()
+    try:
+        _SESSION_FILE.write_text(_json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass  # non-fatal — just skip if filesystem is read-only
+
+
+def _load_session() -> None:
+    """Restore persisted session state from the local JSON file (only on first run)."""
+    if st.session_state.get("_session_loaded"):
+        return
+    st.session_state["_session_loaded"] = True
+    if not _SESSION_FILE.exists():
+        return
+    try:
+        data = _json.loads(_SESSION_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    for k in _PERSIST_KEYS:
+        if k in data and k not in st.session_state:
+            st.session_state[k] = data[k]
+    for df_key in ("results_df", "summary_df"):
+        if df_key in data and st.session_state.get(df_key) is None:
+            try:
+                st.session_state[df_key] = pd.read_json(io.StringIO(data[df_key]), orient="records")
+            except Exception:
+                pass
+
 
 # ─────────────────────────────────────────────────────────────
 # REPORT EXPORT HELPERS
@@ -747,15 +812,14 @@ def report_to_html(md_text: str) -> str:
 
 
 def report_to_pdf(md_text: str) -> bytes | None:
-    """Convert markdown report to PDF bytes via xhtml2pdf, or None if unavailable."""
-    if not PDF_AVAILABLE:
+    """Convert markdown report to PDF bytes via weasyprint, or None if unavailable."""
+    if not WEASYPRINT_AVAILABLE:
         return None
-    html_src = report_to_html(md_text)
-    buf = io.BytesIO()
-    pisa_status = _pisa.CreatePDF(html_src, dest=buf)
-    if pisa_status.err:
+    try:
+        html_src = report_to_html(md_text)
+        return _weasyprint.HTML(string=html_src).write_pdf()
+    except Exception:
         return None
-    return buf.getvalue()
 
 
 # ─────────────────────────────────────────────────────────────
@@ -910,6 +974,9 @@ for key, default in [
     if key not in st.session_state:
         st.session_state[key] = default
 
+# Restore any previously saved session (no-op after the first rerun)
+_load_session()
+
 # ─────────────────────────────────────────────────────────────
 # TOP NAV
 # ─────────────────────────────────────────────────────────────
@@ -972,14 +1039,43 @@ Then restart the app.
 </div>
 """, unsafe_allow_html=True)
 else:
-    st.markdown(f"""
-<div style="display:flex;gap:1rem;margin-bottom:1rem;">
+    # Show API status + session persistence info
+    _saved_at_str = ""
+    if _SESSION_FILE.exists():
+        try:
+            _sd = _json.loads(_SESSION_FILE.read_text(encoding="utf-8"))
+            _ts = _sd.get("_saved_at", "")
+            if _ts:
+                _saved_at_str = datetime.fromisoformat(_ts).strftime("%-d %b %Y, %-I:%M %p")
+        except Exception:
+            pass
+
+    _s1, _s2 = st.columns([4, 1])
+    with _s1:
+        st.markdown(f"""
+<div style="display:flex;gap:1rem;margin-bottom:.5rem;flex-wrap:wrap;">
   <div style="background:var(--pos-dim);border:1px solid rgba(32,198,90,.25);border-radius:6px;
   padding:.4rem 1rem;font-size:.68rem;font-weight:600;color:var(--pos);">✓ Twitter API connected</div>
   <div style="background:var(--pos-dim);border:1px solid rgba(32,198,90,.25);border-radius:6px;
   padding:.4rem 1rem;font-size:.68rem;font-weight:600;color:var(--pos);">✓ Anthropic API connected</div>
+  {f'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:.4rem 1rem;font-size:.68rem;color:var(--muted);">💾 Session saved · {_saved_at_str}</div>' if _saved_at_str else ""}
 </div>
 """, unsafe_allow_html=True)
+    with _s2:
+        if _SESSION_FILE.exists():
+            if st.button("🗑 Clear saved session", key="clear_saved_session",
+                         help="Delete the local session file — next refresh starts fresh"):
+                try:
+                    _SESSION_FILE.unlink()
+                except Exception:
+                    pass
+                for _k in ("results_df","summary_df","ai_report","ai_chat_history",
+                           "found_queries","selected_queries","last_queries","last_topic"):
+                    st.session_state[_k] = None if _k.endswith("_df") else (
+                        [] if isinstance(st.session_state.get(_k), list) else
+                        {} if isinstance(st.session_state.get(_k), dict) else ""
+                    )
+                st.rerun()
 
 # ─────────────────────────────────────────────────────────────
 # SEARCH FORM
@@ -1194,6 +1290,10 @@ if st.session_state.found_queries:
                             st.error("Invalid Anthropic API key — check console.anthropic.com/settings/keys.")
                             failed = True
                             break
+                        except _anthropic.RateLimitError:
+                            st.error("Rate limit still exceeded after all retries. Wait a minute and try again, or reduce batch size.")
+                            failed = True
+                            break
                         except _anthropic.APIConnectionError as e:
                             consecutive_failures += 1
                             st.warning(f"Batch {i+1} connection error: {e}")
@@ -1209,6 +1309,9 @@ if st.session_state.found_queries:
                                 failed = True
                                 break
                         progress.progress((i+1)/len(batches))
+                        # Small inter-batch pause to stay under RPM limits
+                        if i < len(batches) - 1:
+                            import time as _t; _t.sleep(3)
 
                     if failed:
                         break
@@ -1229,6 +1332,7 @@ if st.session_state.found_queries:
                         st.session_state.last_queries.append(q)
 
                 st.session_state.summary_df = build_summary(st.session_state.results_df)
+                _save_session()  # persist after each successful fetch
 
 # ─────────────────────────────────────────────────────────────
 # RESULTS DASHBOARD
@@ -1812,6 +1916,7 @@ HARD RULES:
 
                     report_placeholder.markdown(full_text)
                     st.session_state.ai_report = full_text
+                    _save_session()  # persist report
 
                 except _anthropic.AuthenticationError:
                     st.error("Invalid API key — check it at console.anthropic.com/settings/keys.")
@@ -1828,16 +1933,174 @@ HARD RULES:
                 st.markdown(st.session_state.ai_report)
 
             if st.session_state.ai_report:
+
+                # ── Download helpers (use module-level report_to_html / report_to_pdf) ──
+
+                _fname_base = "twitter_analysis_" + "_".join(
+                    st.session_state.last_queries[:2]
+                ).replace(" ", "_")[:60]
+
                 st.markdown("<br>", unsafe_allow_html=True)
-                dl_col3, _ = st.columns([1, 4])
-                with dl_col3:
+                st.markdown(
+                    '<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;'
+                    'text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">'
+                    'DOWNLOAD REPORT</div>',
+                    unsafe_allow_html=True,
+                )
+                _dl1, _dl2, _dl3 = st.columns(3)
+                with _dl1:
                     st.download_button(
-                        "Download report (.md)",
+                        "⬇ Markdown (.md)",
                         data=st.session_state.ai_report,
-                        file_name=f"twitter_analysis_{'_'.join(st.session_state.last_queries[:2]).replace(' ','_')}.md",
+                        file_name=f"{_fname_base}.md",
                         mime="text/markdown",
-                        width='stretch',
+                        width="stretch",
+                        key="dl_md",
                     )
+                with _dl2:
+                    _html_bytes = report_to_html(st.session_state.ai_report).encode("utf-8")
+                    st.download_button(
+                        "⬇ HTML page (.html)",
+                        data=_html_bytes,
+                        file_name=f"{_fname_base}.html",
+                        mime="text/html",
+                        width="stretch",
+                        key="dl_html",
+                    )
+                with _dl3:
+                    _pdf_bytes = report_to_pdf(st.session_state.ai_report)
+                    if _pdf_bytes:
+                        st.download_button(
+                            "⬇ PDF (.pdf)",
+                            data=_pdf_bytes,
+                            file_name=f"{_fname_base}.pdf",
+                            mime="application/pdf",
+                            width="stretch",
+                            key="dl_pdf",
+                        )
+                    else:
+                        st.caption("PDF unavailable — install `weasyprint`")
+
+                # ── Chat interface ────────────────────────────────
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown(
+                    '<div class="section-header"><span class="dot"></span>FOLLOW-UP CHAT'
+                    '<span style="color:var(--muted);font-size:.7rem;font-weight:400;"> '
+                    '— ask Claude follow-up questions about this dataset</span></div>',
+                    unsafe_allow_html=True,
+                )
+
+                # Build the persistent system prompt with full dataset context
+                def _build_chat_system(df, sdf):
+                    n_tweets  = len(df)
+                    n_queries = sdf["query"].nunique()
+                    avg_pos   = sdf["positive_pct"].mean()
+                    query_lines = []
+                    for _, row in sdf.iterrows():
+                        query_lines.append(
+                            f"  • {row['query']}: {row['tweet_count']} tweets, "
+                            f"{row['positive_pct']:.1f}% positive, avg score {row['avg_score']:+.3f}, "
+                            f"avg likes {row['avg_likes']:.1f}, avg RTs {row['avg_retweets']:.1f}"
+                        )
+                    pos_kw_str = ", ".join(f"{w}({c})" for w, c in _pos_kw[:20])
+                    neg_kw_str = ", ".join(f"{w}({c})" for w, c in _neg_kw[:20])
+                    sample_pos = df[df["sentiment"]=="Positive"].nlargest(5,"likes")["text"].tolist()
+                    sample_neg = df[df["sentiment"]=="Negative"].nlargest(5,"likes")["text"].tolist()
+                    return f"""You are a senior social media analyst. The user has already generated a report on this Twitter dataset and now wants to ask follow-up questions.
+
+DATASET CONTEXT:
+- {n_tweets:,} tweets across {n_queries} queries, avg {avg_pos:.1f}% positive
+- Queries:
+{"".join(chr(10) + l for l in query_lines)}
+- Top positive keywords: {pos_kw_str}
+- Top negative keywords: {neg_kw_str}
+- Sample high-engagement positive tweets: {sample_pos}
+- Sample high-engagement negative tweets: {sample_neg}
+
+THE REPORT ALREADY GENERATED:
+{st.session_state.ai_report[:3000]}{"…[truncated]" if len(st.session_state.ai_report) > 3000 else ""}
+
+Answer the user's follow-up questions concisely and specifically. Reference actual data — query names, tweet quotes, numbers — don't speak in generalities. Use markdown where helpful."""
+
+                # Display existing chat messages
+                for _msg in st.session_state.ai_chat_history:
+                    _role_label = "You" if _msg["role"] == "user" else "Claude"
+                    _bubble_bg  = "var(--surface2)" if _msg["role"] == "user" else "var(--surface)"
+                    _border     = "var(--blue)" if _msg["role"] == "user" else "var(--border)"
+                    if _msg["role"] == "user":
+                        st.markdown(
+                            f'<div style="background:{_bubble_bg};border:1px solid var(--border);'
+                            f'border-left:3px solid {_border};border-radius:0 6px 6px 0;'
+                            f'padding:.75rem 1rem;margin-bottom:.6rem;">'
+                            f'<div style="font-size:.6rem;font-weight:700;letter-spacing:.14em;'
+                            f'text-transform:uppercase;color:var(--muted);margin-bottom:.35rem;">'
+                            f'{_role_label}</div>'
+                            f'<div style="font-size:.85rem;line-height:1.65;">'
+                            f'{_html.escape(_msg["content"])}</div>'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown(
+                            f'<div style="background:{_bubble_bg};border:1px solid var(--border);'
+                            f'border-left:3px solid {_border};border-radius:0 6px 6px 0;'
+                            f'padding:.75rem 1rem;margin-bottom:.6rem;">'
+                            f'<div style="font-size:.6rem;font-weight:700;letter-spacing:.14em;'
+                            f'text-transform:uppercase;color:var(--muted);margin-bottom:.35rem;">'
+                            f'{_role_label}</div>'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+                        st.markdown(_msg["content"])
+
+                # Chat input
+                _user_msg = st.chat_input(
+                    "Ask a follow-up question about the data…",
+                    key="ai_chat_input",
+                )
+
+                if _user_msg:
+                    # Append user message
+                    st.session_state.ai_chat_history.append(
+                        {"role": "user", "content": _user_msg}
+                    )
+
+                    # Build messages list for API (inject system as first user turn if needed)
+                    _api_messages = []
+                    for _m in st.session_state.ai_chat_history:
+                        _api_messages.append({"role": _m["role"], "content": _m["content"]})
+
+                    try:
+                        _chat_client = _anthropic.Anthropic(api_key=st.session_state.claude_key)
+                        _reply_placeholder = st.empty()
+                        _reply_text = ""
+                        with _chat_client.messages.stream(
+                            model=ai_model,
+                            max_tokens=2048,
+                            system=_build_chat_system(df, sdf),
+                            messages=_api_messages,
+                        ) as _stream:
+                            for _delta in _stream.text_stream:
+                                _reply_text += _delta
+                                _reply_placeholder.markdown(_reply_text + "▌")
+                        _reply_placeholder.markdown(_reply_text)
+
+                        st.session_state.ai_chat_history.append(
+                            {"role": "assistant", "content": _reply_text}
+                        )
+                        _save_session()  # persist chat history
+                    except _anthropic.AuthenticationError:
+                        st.error("Invalid API key.")
+                    except _anthropic.RateLimitError:
+                        st.error("Rate limit reached. Wait a moment and try again.")
+                    except Exception as _e:
+                        st.error(f"Chat error: {type(_e).__name__}: {_e}")
+
+                # Clear chat button
+                if st.session_state.ai_chat_history:
+                    if st.button("Clear chat history", key="clear_chat"):
+                        st.session_state.ai_chat_history = []
+                        st.rerun()
 
 # ─────────────────────────────────────────────────────────────
 # EMPTY STATE
