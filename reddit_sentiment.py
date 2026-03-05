@@ -270,23 +270,66 @@ for _k, _v in {
         st.session_state[_k] = _v
 
 # ─────────────────────────────────────────────────────────────
-# REDDIT HELPERS  — plain requests, no custom headers
-# (Reddit allows the default python-requests UA from residential IPs)
+# REDDIT HELPERS
+# Uses OAuth2 client-credentials when REDDIT_CLIENT_ID is set
+# (required on cloud hosts — Reddit blocks AWS/GCP IPs otherwise),
+# falls back to bare requests for local use without credentials.
 # ─────────────────────────────────────────────────────────────
+
+_REDDIT_ID     = st.secrets.get("REDDIT_CLIENT_ID", "")
+_REDDIT_SECRET = st.secrets.get("REDDIT_CLIENT_SECRET", "")
+_REDDIT_UA     = st.secrets.get("REDDIT_USER_AGENT",
+                                "SEGA-Reddit-Lens/2.0 (by /u/sega_analytics)")
+
+@st.cache_resource
+def _get_oauth_token() -> tuple[str | None, str | None]:
+    """Fetch a client-credentials bearer token. Cached per process."""
+    if not _REDDIT_ID or not _REDDIT_SECRET:
+        return None, None   # no creds — caller will try unauthenticated
+    try:
+        r = requests.post(
+            "https://www.reddit.com/api/v1/access_token",
+            auth=(_REDDIT_ID, _REDDIT_SECRET),
+            data={"grant_type": "client_credentials"},
+            headers={"User-Agent": _REDDIT_UA},
+            timeout=12,
+        )
+        if r.status_code == 200:
+            return r.json().get("access_token"), None
+        return None, f"Token request failed: HTTP {r.status_code} — {r.text[:120]}"
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
+
 
 def _rget(url: str, params=None, retries=3, backoff=1.5):
     """
-    Bare GET — no custom User-Agent or headers.
-    Reddit permits the default python-requests UA on normal connections.
+    GET a Reddit endpoint, preferring OAuth when credentials are available.
+    - With credentials : hits oauth.reddit.com with a bearer token (works on cloud)
+    - Without credentials : bare request to www.reddit.com (works locally only)
     Returns (data_dict, None) on success, (None, error_str) on failure.
     """
+    token, token_err = _get_oauth_token()
+
+    if token:
+        # Authenticated path — rewrite URL to oauth.reddit.com
+        url = url.replace("https://www.reddit.com", "https://oauth.reddit.com")
+        headers = {"Authorization": f"bearer {token}", "User-Agent": _REDDIT_UA}
+    elif token_err:
+        return None, token_err
+    else:
+        # No creds configured — bare request (local only)
+        headers = {}
+
     last_err = None
     for attempt in range(retries):
         try:
-            r = requests.get(url, params=params, timeout=14)
+            r = requests.get(url, params=params, headers=headers, timeout=14)
             if r.status_code == 429:
                 time.sleep(backoff * 2 ** attempt)
                 continue
+            if r.status_code == 401:
+                st.cache_resource.clear()
+                return None, "OAuth token expired — please reload the page"
             if r.status_code == 200:
                 return r.json(), None
             last_err = f"HTTP {r.status_code}"
@@ -389,27 +432,87 @@ def _mk_post(d: dict, sub: str) -> dict:
         "flair": d.get("link_flair_text") or "",
     }
 
-def fetch_posts(sub: str, query: str, limit=100, sort="relevance") -> list[dict]:
+# Reddit's API returns max 100 items per page.
+# We paginate using the `after` cursor and sleep between pages to stay
+# well within the 60-req/min OAuth rate limit (or ~10 req/min unauthenticated).
+_PAGE_SLEEP   = 2.0   # seconds between paginated requests (same endpoint)
+_SUB_SLEEP    = 3.0   # seconds between subreddits
+_COMMENT_SLEEP = 1.5  # seconds between comment fetches
+
+
+def fetch_top(sub: str, limit=100, time_filter="all") -> list[dict]:
+    """Paginate /top until we have `limit` posts or run out."""
     posts, after, fetched = [], None, 0
     while fetched < limit:
-        params = {"q": query, "sort": sort, "limit": min(100, limit-fetched),
-                  "restrict_sr": "true", "t": "all"}
-        if after: params["after"] = after
-        data, _ = _rget(f"https://www.reddit.com/r/{sub}/search.json", params=params)
-        if not data: break
-        children = data.get("data",{}).get("children",[])
-        if not children: break
-        posts += [_mk_post(c.get("data",{}), sub) for c in children]
+        params = {"limit": min(100, limit - fetched), "t": time_filter}
+        if after:
+            params["after"] = after
+        data, err = _rget(f"https://www.reddit.com/r/{sub}/top.json", params=params)
+        if err or not data:
+            break
+        children = data.get("data", {}).get("children", [])
+        if not children:
+            break
+        posts  += [_mk_post(c.get("data", {}), sub) for c in children]
         fetched += len(children)
-        after = data.get("data",{}).get("after")
-        if not after: break
-        time.sleep(0.4)
+        after   = data.get("data", {}).get("after")
+        if not after:
+            break
+        time.sleep(_PAGE_SLEEP)
     return posts
 
-def fetch_top(sub: str, limit=50) -> list[dict]:
-    data, _ = _rget(f"https://www.reddit.com/r/{sub}/top.json", params={"limit": limit, "t": "all"})
-    if not data: return []
-    return [_mk_post(c.get("data",{}), sub) for c in data.get("data",{}).get("children",[])]
+
+def fetch_posts(sub: str, query: str, limit=100, sort="relevance") -> list[dict]:
+    """Search within a subreddit, paginating until `limit` posts."""
+    posts, after, fetched = [], None, 0
+    while fetched < limit:
+        params = {"q": query, "sort": sort, "limit": min(100, limit - fetched),
+                  "restrict_sr": "true", "t": "all"}
+        if after:
+            params["after"] = after
+        data, err = _rget(f"https://www.reddit.com/r/{sub}/search.json", params=params)
+        if err or not data:
+            break
+        children = data.get("data", {}).get("children", [])
+        if not children:
+            break
+        posts  += [_mk_post(c.get("data", {}), sub) for c in children]
+        fetched += len(children)
+        after   = data.get("data", {}).get("after")
+        if not after:
+            break
+        time.sleep(_PAGE_SLEEP)
+    return posts
+
+
+def fetch_comments(post_id: str, sub: str, limit=50) -> list[dict]:
+    """Fetch top-level comments for a post."""
+    data, _ = _rget(f"https://www.reddit.com/r/{sub}/comments/{post_id}.json",
+                    params={"limit": limit, "depth": 1, "sort": "top"})
+    if not data or not isinstance(data, list) or len(data) < 2:
+        return []
+    comments = []
+    for c in data[1].get("data", {}).get("children", []):
+        d = c.get("data", {})
+        body = (d.get("body") or "").strip()
+        if not body or body in ("[deleted]", "[removed]"):
+            continue
+        comments.append({
+            "id":           d.get("id", ""),
+            "post_id":      post_id,
+            "subreddit":    sub,
+            "text":         body,
+            "full_text":    body,
+            "score":        d.get("score", 0),
+            "author":       d.get("author", "[deleted]"),
+            "created_utc":  d.get("created_utc", 0),
+            "permalink":    "https://www.reddit.com" + d.get("permalink", ""),
+            "title":        "",
+            "num_comments": 0,
+            "upvote_ratio": 0.5,
+            "flair":        "",
+        })
+    return comments[:limit]
 
 # ─────────────────────────────────────────────────────────────
 # SENTIMENT
@@ -569,7 +672,7 @@ def to_pdf(md):
 # UI HELPERS
 # ─────────────────────────────────────────────────────────────
 
-def kpi(col, label, val, sub, cls="ot"):
+def kpi(col, label, val, sub, cls="bt"):
     col.markdown(
         f'<div class="metric-card {cls}"><div class="metric-label">{label}</div>'
         f'<div class="metric-value">{val}</div><div class="metric-sub">{sub}</div></div>',
@@ -604,7 +707,7 @@ st.markdown("""
   <div class="hero-title">Reddit <span class="accent">Community</span><br>Sentiment Analyzer</div>
   <div class="hero-sub">
     Pick a genre to load its key subreddits, add your own manually,
-    then run deep sentiment analysis — no Reddit API key needed.
+    then run deep sentiment analysis.
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -612,14 +715,47 @@ st.markdown("""
 # ── SIDEBAR ───────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
+
+    # ── Reddit credentials ────────────────────────────────────
+    st.markdown("**Reddit API**")
+    if _REDDIT_ID and _REDDIT_SECRET:
+        st.success("✓ Reddit credentials loaded — cloud mode active")
+    else:
+        st.warning("⚠ No Reddit credentials — local mode only")
+        with st.expander("Setup instructions (required for Streamlit Cloud)"):
+            st.markdown("""
+**2-minute setup — no approval needed:**
+
+1. Go to [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps)
+2. Click **"create another app"**
+3. Choose **script**, give it any name
+4. Set redirect URI to `http://localhost`
+5. Hit **create app**
+
+Copy the two values and add to your Streamlit Cloud secrets
+(or `.streamlit/secrets.toml` locally):
+
+```toml
+REDDIT_CLIENT_ID     = "the short ID under your app name"
+REDDIT_CLIENT_SECRET = "the secret field"
+REDDIT_USER_AGENT    = "MyApp/1.0 by /u/your_username"
+```
+
+> A **script** app never needs Reddit's approval.
+> Client-credentials grants are read-only and free.
+""")
+
+    st.markdown("---")
+
+    # ── Anthropic key ─────────────────────────────────────────
+    st.markdown("**Anthropic API** *(optional)*")
     if _SECRET_KEY:
-        st.success("✓ Anthropic API key loaded")
+        st.success("✓ Anthropic key loaded")
     else:
         st.warning("⚠ CLAUDE_KEY not set — AI reports disabled")
-        st.caption("Add `CLAUDE_KEY = 'sk-ant-…'` to `.streamlit/secrets.toml`")
+        st.caption("Add `CLAUDE_KEY = 'sk-ant-…'` to secrets.toml")
+
     ai_model = st.selectbox("Claude Model", MODELS, index=1)
-    st.markdown("---")
-    st.caption("Uses Reddit public JSON endpoints. No API key required.")
 
 # ─────────────────────────────────────────────────────────────
 # SECTION 1 — GENRE CHIPS
@@ -753,45 +889,84 @@ if all_subs:
 # SECTION 3 — FETCH SETTINGS
 # ─────────────────────────────────────────────────────────────
 st.markdown('<div class="search-block">', unsafe_allow_html=True)
-st.markdown('<div class="field-label">Step 2 — Fetch & analysis settings</div>', unsafe_allow_html=True)
+st.markdown('<div class="field-label">Step 2 — Fetch & analysis settings</div>',
+            unsafe_allow_html=True)
 
-fc1, fc2, fc3, fc4 = st.columns([2, 2, 2, 1])
-with fc1: posts_per = st.number_input("Posts per subreddit", 25, 500, 100, 25)
-with fc2: sort_mode = st.selectbox("Post sort", ["relevance","top","new","comments"])
-with fc3: incl_top  = st.checkbox("Also fetch top posts (unfiltered)", value=True)
-with fc4:
+fc1, fc2, fc3, fc4, fc5 = st.columns([2, 2, 2, 2, 1])
+with fc1: posts_per  = st.number_input("Posts per subreddit", 25, 500, 100, 25)
+with fc2: sort_mode  = st.selectbox("Post sort", ["top","relevance","new","comments"])
+with fc3: time_filter = st.selectbox("Time period", ["all","year","month","week","day"],
+                                     format_func=lambda x: {"all":"All time","year":"Past year",
+                                         "month":"Past month","week":"Past week","day":"Past 24h"}[x])
+with fc4: fetch_comments_opt = st.checkbox("Fetch top 50 comments per post", value=True)
+with fc5:
     st.markdown("<br>", unsafe_allow_html=True)
-    fetch_btn = st.button("📥 Fetch & Analyse", use_container_width=True,
-                          disabled=(len(all_subs) == 0))
+    fetch_btn = st.button("📥 Fetch", use_container_width=True, disabled=(len(all_subs) == 0))
 
 st.markdown('</div>', unsafe_allow_html=True)
 
 if fetch_btn and all_subs:
     query = st.session_state.get("active_genre", "").strip() or "game"
     all_posts: list[dict] = []
+    all_comments: list[dict] = []
     prog = st.progress(0.0, text="Starting…")
+    status = st.empty()
+    n = len(all_subs)
+
     for i, sub in enumerate(all_subs):
-        prog.progress(i / len(all_subs), text=f"Fetching r/{sub}…")
-        all_posts += fetch_posts(sub, query=query, limit=posts_per, sort=sort_mode)
-        if incl_top:
-            all_posts += fetch_top(sub, limit=50)
-        time.sleep(0.5)
+        base = i / n
+        # ── Posts ───────────────────────────────────────────
+        prog.progress(base, text=f"[{i+1}/{n}] Fetching posts from r/{sub}…")
+        status.caption(f"r/{sub} — requesting top posts ({time_filter})…")
+        posts = fetch_top(sub, limit=posts_per, time_filter=time_filter)
+        if not posts:
+            status.caption(f"r/{sub} — no top posts found, trying search…")
+            posts = fetch_posts(sub, query=query, limit=posts_per, sort=sort_mode)
+        all_posts += posts
+        status.caption(f"r/{sub} — got {len(posts)} posts.")
+
+        # ── Comments ────────────────────────────────────────
+        if fetch_comments_opt and posts:
+            posts_for_comments = posts[:30]
+            for j, p in enumerate(posts_for_comments):
+                prog.progress(base + (0.5/n) * (j / len(posts_for_comments)),
+                              text=f"[{i+1}/{n}] Fetching comments from r/{sub} ({j+1}/{len(posts_for_comments)})…")
+                all_comments += fetch_comments(p["id"], sub, limit=50)
+                time.sleep(_COMMENT_SLEEP)
+
+        # ── Sleep between subreddits ─────────────────────────
+        if i < n - 1:
+            prog.progress((i + 1) / n, text=f"[{i+1}/{n}] r/{sub} done — pausing before next…")
+            time.sleep(_SUB_SLEEP)
+
+    status.empty()
     prog.progress(0.95, text="Running sentiment analysis…")
+
     if all_posts:
-        df = pd.DataFrame(all_posts).drop_duplicates(subset="id").reset_index(drop=True)
+        df_posts = pd.DataFrame(all_posts).drop_duplicates(subset="id").reset_index(drop=True)
+        df_posts["source"] = "post"
+        if all_comments:
+            df_cmts = pd.DataFrame(all_comments).drop_duplicates(subset="id").reset_index(drop=True)
+            df_cmts["source"] = "comment"
+            df = pd.concat([df_posts, df_cmts], ignore_index=True)
+        else:
+            df = df_posts.copy()
+            df["source"] = "post"
         sents = run_sentiment(df["full_text"].tolist())
         df["sentiment"]  = [s[0] for s in sents]
         df["sent_score"] = [s[1] for s in sents]
         df["date"] = pd.to_datetime(df["created_utc"], unit="s")
-        sdf = pd.DataFrame([stats_row(s, df[df["subreddit"]==s]) for s in df["subreddit"].unique()])
-        st.session_state.posts_df   = df
-        st.session_state.sub_stats  = sdf
-        st.session_state.fetch_done = True
-        st.session_state.ai_report  = ""
+        posts_only = df[df["source"] == "post"]
+        sdf = pd.DataFrame([stats_row(s, posts_only[posts_only["subreddit"] == s])
+                            for s in posts_only["subreddit"].unique()])
+        st.session_state.posts_df     = df
+        st.session_state.sub_stats    = sdf
+        st.session_state.fetch_done   = True
+        st.session_state.ai_report    = ""
         st.session_state.chat_history = []
-        prog.progress(1.0, text="Done!")
+        prog.progress(1.0, text=f"Done — {len(df_posts):,} posts, {len(df_cmts) if all_comments else 0:,} comments.")
     else:
-        st.warning("No posts retrieved — try adjusting your subreddit selection or search term.")
+        st.warning("No posts retrieved — try different settings or fewer subreddits at once.")
     prog.empty()
 
 # ─────────────────────────────────────────────────────────────
@@ -800,76 +975,214 @@ if fetch_btn and all_subs:
 if st.session_state.fetch_done and st.session_state.posts_df is not None:
     df  = st.session_state.posts_df
     sdf = st.session_state.sub_stats
+    df_posts = df[df["source"] == "post"]
+    df_cmts  = df[df["source"] == "comment"]
 
-    total = len(df)
-    pos_n = (df["sentiment"]=="Positive").sum()
-    neu_n = (df["sentiment"]=="Neutral").sum()
-    neg_n = (df["sentiment"]=="Negative").sum()
-    avg_s = df["sent_score"].mean()
+    total  = len(df_posts)
+    pos_n  = (df_posts["sentiment"]=="Positive").sum()
+    neu_n  = (df_posts["sentiment"]=="Neutral").sum()
+    neg_n  = (df_posts["sentiment"]=="Negative").sum()
+    avg_s  = df_posts["sent_score"].mean()
+    n_cmts = len(df_cmts)
 
     sh("OVERVIEW")
     k1,k2,k3,k4,k5 = st.columns(5)
-    kpi(k1,"Total Posts",f"{total:,}",f"across {df['subreddit'].nunique()} subreddits")
-    kpi(k2,"Positive",f"{100*pos_n/total:.1f}%",f"{pos_n:,} posts","pt")
-    kpi(k3,"Negative",f"{100*neg_n/total:.1f}%",f"{neg_n:,} posts","nt")
-    kpi(k4,"Avg Sentiment",f"{avg_s:+.3f}","VADER compound score")
-    kpi(k5,"Avg Upvotes",f"{df['score'].mean():.0f}",f"max {df['score'].max():,.0f}")
+    kpi(k1,"Posts",f"{total:,}",f"across {df_posts['subreddit'].nunique()} subreddits")
+    kpi(k2,"Comments",f"{n_cmts:,}","fetched & analysed")
+    kpi(k3,"Positive",f"{100*pos_n/max(total,1):.1f}%",f"{pos_n:,} posts","pt")
+    kpi(k4,"Negative",f"{100*neg_n/max(total,1):.1f}%",f"{neg_n:,} posts","nt")
+    kpi(k5,"Avg Score",f"{avg_s:+.3f}","VADER compound")
 
     sh("SENTIMENT BREAKDOWN")
     c1,c2 = st.columns(2)
-    with c1: st.plotly_chart(donut(pos_n,neu_n,neg_n,"Overall Sentiment"), use_container_width=True)
-    with c2: st.plotly_chart(histogram(df["sent_score"].tolist()), use_container_width=True)
+    with c1: st.plotly_chart(donut(pos_n,neu_n,neg_n,"Posts — Overall Sentiment"), use_container_width=True)
+    with c2: st.plotly_chart(histogram(df_posts["sent_score"].tolist()), use_container_width=True)
 
     if len(sdf) > 1:
         st.plotly_chart(sub_comparison(sdf), use_container_width=True)
-    st.plotly_chart(timeline(df), use_container_width=True)
+    st.plotly_chart(timeline(df_posts), use_container_width=True)
 
     sh("DETAILED ANALYSIS")
-    tab_kw, tab_wc, tab_sub, tab_posts, tab_ai = st.tabs([
-        "📊 Keywords","☁ Word Cloud","📋 Per-Subreddit","📝 Posts","🤖 AI Report"])
+    tab_ki, tab_wc, tab_sub, tab_posts_br, tab_cmts, tab_ai = st.tabs([
+        "🔍 Keywords","☁ Word Cloud","📋 Per-Subreddit","📝 Posts","💬 Comments","🤖 AI Report"])
 
-    # ── KEYWORDS ─────────────────────────────────────────────
-    with tab_kw:
-        ck1,ck2 = st.columns(2)
-        with ck1:
-            pk = keywords(df[df["sentiment"]=="Positive"]["full_text"].tolist())
-            if pk:
-                lb,vl = zip(*pk)
-                st.plotly_chart(hbar(list(lb[:20]),list(vl[:20]),"Top Positive Keywords","#20c65a"), use_container_width=True)
-        with ck2:
-            nk = keywords(df[df["sentiment"]=="Negative"]["full_text"].tolist())
-            if nk:
-                lb,vl = zip(*nk)
-                st.plotly_chart(hbar(list(lb[:20]),list(vl[:20]),"Top Negative Keywords","#ff3d52"), use_container_width=True)
+    # ══════════════════════════════════════════════════════════
+    # KEYWORD INSIGHTS TAB
+    # ══════════════════════════════════════════════════════════
+    with tab_ki:
+        st.markdown("""
+<style>
+.kw-btn-pos>button{background:rgba(32,198,90,.12)!important;border:1px solid rgba(32,198,90,.35)!important;
+  color:#20c65a!important;border-radius:3px!important;font-size:.78rem!important;font-weight:500!important;
+  padding:.18rem .6rem!important;margin:.15rem!important;min-height:unset!important;height:auto!important;line-height:1.4!important;}
+.kw-btn-pos>button:hover{background:rgba(32,198,90,.22)!important;}
+.kw-btn-neg>button{background:rgba(255,61,82,.12)!important;border:1px solid rgba(255,61,82,.35)!important;
+  color:#ff3d52!important;border-radius:3px!important;font-size:.78rem!important;font-weight:500!important;
+  padding:.18rem .6rem!important;margin:.15rem!important;min-height:unset!important;height:auto!important;line-height:1.4!important;}
+.kw-btn-neg>button:hover{background:rgba(255,61,82,.22)!important;}
+.kw-btn-active-pos>button{background:rgba(32,198,90,.3)!important;border:1px solid #20c65a!important;color:#fff!important;font-weight:700!important;}
+.kw-btn-active-neg>button{background:rgba(255,61,82,.3)!important;border:1px solid #ff3d52!important;color:#fff!important;font-weight:700!important;}
+</style>
+""", unsafe_allow_html=True)
 
-        sh("HIGH-ENGAGEMENT POSTS")
-        for _, row in df.nlargest(5,"score").iterrows():
-            cls = "pos" if row["sentiment"]=="Positive" else "neg" if row["sentiment"]=="Negative" else ""
-            exc = (row["text"][:280]+"…") if len(row["text"])>280 else row["text"]
+        # ── Source + subreddit filter ──────────────────────────
+        ki_c1, ki_c2, ki_c3 = st.columns([2, 2, 3])
+        with ki_c1:
+            ki_source = st.selectbox("Source", ["Posts + Comments","Posts only","Comments only"],
+                                     key="ki_source")
+        with ki_c2:
+            ki_sub_opts = ["All subreddits"] + sorted(df["subreddit"].unique().tolist())
+            ki_sub = st.selectbox("Subreddit", ki_sub_opts, key="ki_sub",
+                                  label_visibility="visible")
+        with ki_c3:
+            ki_pct = (df_posts["sentiment"]=="Positive").sum() / max(len(df_posts),1) * 100
             st.markdown(
-                f'<div class="post-card {cls}"><strong>{row["title"]}</strong>'
-                +(f'<br>{exc}' if exc else '')+
-                f'<div class="post-meta">r/{row["subreddit"]} · ▲{row["score"]:,} · '
-                f'💬{row["num_comments"]} · {row["sentiment"]} ({row["sent_score"]:+.3f}) · '
-                f'<a href="{row["permalink"]}" target="_blank" style="color:var(--blue);">view</a>'
-                f'</div></div>', unsafe_allow_html=True)
+                f'<div style="font-size:.78rem;color:var(--muted);padding-top:.55rem;">'
+                f'{total:,} posts · {n_cmts:,} comments · '
+                f'<span style="color:#20c65a;">{ki_pct:.0f}% positive posts</span></div>',
+                unsafe_allow_html=True)
 
-    # ── WORD CLOUD ────────────────────────────────────────────
+        # Reset keyword selection when filters change
+        _ki_state = (ki_source, ki_sub)
+        if st.session_state.get("_ki_last_state") != _ki_state:
+            st.session_state._ki_last_state    = _ki_state
+            st.session_state.kw_selected_term  = None
+            st.session_state.kw_selected_sent  = None
+
+        # Build filtered df
+        if ki_source == "Posts only":       ki_df = df[df["source"]=="post"]
+        elif ki_source == "Comments only":  ki_df = df[df["source"]=="comment"]
+        else:                               ki_df = df.copy()
+        if ki_sub != "All subreddits":
+            ki_df = ki_df[ki_df["subreddit"]==ki_sub]
+
+        ki_pos = ki_df[ki_df["sentiment"]=="Positive"]
+        ki_neg = ki_df[ki_df["sentiment"]=="Negative"]
+        top_pos = keywords(ki_pos["full_text"].tolist(), n=60)
+        top_neg = keywords(ki_neg["full_text"].tolist(), n=60)
+
+        # ── Word clouds inline ─────────────────────────────────
+        if WORDCLOUD_OK and (top_pos or top_neg):
+            wc_l, wc_r = st.columns(2)
+            with wc_l:
+                st.markdown('<div style="font-size:.7rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#20c65a;margin-bottom:.4rem;">Positive</div>', unsafe_allow_html=True)
+                buf = wordcloud(ki_pos["full_text"].tolist(), "Greens")
+                if buf: st.image(buf, use_container_width=True)
+            with wc_r:
+                st.markdown('<div style="font-size:.7rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#ff3d52;margin-bottom:.4rem;">Negative</div>', unsafe_allow_html=True)
+                buf = wordcloud(ki_neg["full_text"].tolist(), "Reds")
+                if buf: st.image(buf, use_container_width=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        def _kw_buttons(kws, sent, prefix, active):
+            if not kws:
+                st.markdown('<span style="font-size:.8rem;color:var(--muted);">No data</span>', unsafe_allow_html=True)
+                return
+            n_cols = 5
+            rows = [kws[i:i+n_cols] for i in range(0, len(kws), n_cols)]
+            for row_kws in rows:
+                cols = st.columns(n_cols)
+                for col, (word, count) in zip(cols, row_kws):
+                    is_active = (active == word)
+                    css = f"kw-btn-active-{sent}" if is_active else f"kw-btn-{sent}"
+                    with col:
+                        st.markdown(f'<div class="{css}">', unsafe_allow_html=True)
+                        if st.button(f"{word}  {count}", key=f"kw_{prefix}_{sent}_{word}"):
+                            if is_active:
+                                st.session_state.kw_selected_term = None
+                                st.session_state.kw_selected_sent = None
+                            else:
+                                st.session_state.kw_selected_term = word
+                                st.session_state.kw_selected_sent = sent
+                        st.markdown('</div>', unsafe_allow_html=True)
+
+        kl, kr = st.columns(2)
+        with kl:
+            sh(f"WHAT PEOPLE LIKED  — {len(ki_pos):,} positive")
+            _kw_buttons(top_pos[:30], "pos", "ki",
+                        active=st.session_state.get("kw_selected_term")
+                        if st.session_state.get("kw_selected_sent")=="pos" else None)
+        with kr:
+            sh(f"WHAT PEOPLE DISLIKED  — {len(ki_neg):,} negative")
+            _kw_buttons(top_neg[:30], "neg", "ki",
+                        active=st.session_state.get("kw_selected_term")
+                        if st.session_state.get("kw_selected_sent")=="neg" else None)
+
+        # ── Matching posts/comments panel ──────────────────────
+        kw_term = st.session_state.get("kw_selected_term")
+        kw_sent = st.session_state.get("kw_selected_sent")
+        if kw_term and kw_sent:
+            colour  = "#20c65a" if kw_sent=="pos" else "#ff3d52"
+            label   = "positive" if kw_sent=="pos" else "negative"
+            voted   = (kw_sent == "pos")
+            pool    = ki_df[ki_df["sentiment"]==("Positive" if voted else "Negative")]
+            mask    = pool["full_text"].str.contains(re.escape(kw_term), case=False, na=False)
+            matches = pool[mask].sort_values("score", ascending=False).head(10)
+            st.markdown(
+                f'<div style="background:var(--surface);border:1px solid var(--border);'
+                f'border-left:3px solid {colour};border-radius:0 6px 6px 0;'
+                f'padding:.75rem 1.1rem;margin:1rem 0 .75rem;">'
+                f'<span style="font-size:.7rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:{colour};">MENTIONING</span> '
+                f'<span style="font-family:Inter Tight,sans-serif;font-weight:800;font-size:1.05rem;color:var(--text);">"{kw_term}"</span> '
+                f'<span style="font-size:.75rem;color:var(--muted);">— {mask.sum():,} {label} results</span>'
+                f'</div>', unsafe_allow_html=True)
+            if matches.empty:
+                st.info("No matches.")
+            for _, row in matches.iterrows():
+                snip = row["full_text"][:500] + ("…" if len(row["full_text"])>500 else "")
+                hi = re.sub(re.escape(kw_term),
+                    lambda m: f'<strong style="color:{colour};font-weight:700;">' + m.group(0) + '</strong>',
+                    snip, flags=re.IGNORECASE)
+                src_icon = "💬" if row.get("source")=="comment" else "📝"
+                title_html = f'<strong>{row["title"]}</strong><br>' if row.get("title") else ""
+                st.markdown(
+                    f'<div style="background:var(--surface2);border:1px solid var(--border);'
+                    f'border-left:3px solid {colour};border-radius:0 6px 6px 0;'
+                    f'padding:.8rem 1rem .85rem;margin-bottom:.7rem;">'
+                    f'<div style="font-size:.84rem;line-height:1.65;color:var(--text);margin-bottom:.5rem;">{title_html}{hi}</div>'
+                    f'<div style="font-size:.71rem;color:var(--muted);">'
+                    f'{src_icon} r/{row["subreddit"]} · ▲{row["score"]:,} · '
+                    f'<a href="{row["permalink"]}" target="_blank" style="color:var(--blue);">view ↗</a>'
+                    f'</div></div>', unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════
+    # WORD CLOUD TAB — with per-subreddit filter
+    # ══════════════════════════════════════════════════════════
     with tab_wc:
-        wcf = st.selectbox("Filter","All,Positive,Neutral,Negative".split(","))
-        wct = df["full_text"].tolist() if wcf=="All" else df[df["sentiment"]==wcf]["full_text"].tolist()
-        cm_ = {"All":"YlOrRd","Positive":"Greens","Neutral":"Blues","Negative":"Reds"}[wcf]
-        buf = wordcloud(wct, cm_)
-        if buf: st.image(buf, use_container_width=True)
-        else:   st.info("Install `wordcloud` and `matplotlib` to enable word clouds.")
+        wc_c1, wc_c2 = st.columns([2, 2])
+        with wc_c1:
+            wc_sent = st.selectbox("Sentiment", ["All","Positive","Neutral","Negative"], key="wc_sent")
+        with wc_c2:
+            wc_sub_opts = ["All subreddits"] + sorted(df["subreddit"].unique().tolist())
+            wc_sub = st.selectbox("Subreddit", wc_sub_opts, key="wc_sub")
+        wc_src = st.radio("Source", ["Posts + Comments","Posts only","Comments only"],
+                          horizontal=True, key="wc_src")
 
-    # ── PER-SUBREDDIT ─────────────────────────────────────────
+        wc_df = df.copy()
+        if wc_src == "Posts only":      wc_df = wc_df[wc_df["source"]=="post"]
+        elif wc_src == "Comments only": wc_df = wc_df[wc_df["source"]=="comment"]
+        if wc_sub != "All subreddits":  wc_df = wc_df[wc_df["subreddit"]==wc_sub]
+        if wc_sent != "All":            wc_df = wc_df[wc_df["sentiment"]==wc_sent]
+
+        cm_ = {"All":"Blues","Positive":"Greens","Neutral":"Greys","Negative":"Reds"}[wc_sent]
+        buf = wordcloud(wc_df["full_text"].tolist(), cm_)
+        if buf:   st.image(buf, use_container_width=True)
+        elif not WORDCLOUD_OK: st.info("Install `wordcloud` and `matplotlib` to enable word clouds.")
+        else:     st.info("No text found for the selected filters.")
+
+    # ══════════════════════════════════════════════════════════
+    # PER-SUBREDDIT TAB
+    # ══════════════════════════════════════════════════════════
     with tab_sub:
-        st.dataframe(sdf.sort_values("post_count",ascending=False).reset_index(drop=True), use_container_width=True)
+        st.dataframe(sdf.sort_values("post_count",ascending=False).reset_index(drop=True),
+                     use_container_width=True)
         for _, row in sdf.iterrows():
             with st.expander(f"r/{row['subreddit']}  —  {row['post_count']} posts  ·  {row['positive_pct']:.1f}% positive"):
-                sc1,sc2 = st.columns(2)
-                with sc1: st.plotly_chart(donut(row["pos_count"],row["neu_count"],row["neg_count"],f"r/{row['subreddit']}"), use_container_width=True)
+                sc1, sc2 = st.columns(2)
+                with sc1:
+                    st.plotly_chart(donut(row["pos_count"],row["neu_count"],row["neg_count"],
+                                         f"r/{row['subreddit']}"), use_container_width=True)
                 with sc2:
                     st.markdown(f"""
 | Metric | Value |
@@ -882,76 +1195,128 @@ if st.session_state.fetch_done and st.session_state.posts_df is not None:
 | Negative | {row['neg_count']:,} ({row['negative_pct']:.1f}%) |
 """)
 
-    # ── POSTS BROWSER ─────────────────────────────────────────
-    with tab_posts:
-        pf1,pf2,pf3 = st.columns(3)
-        with pf1: sf = st.selectbox("Sentiment","All,Positive,Neutral,Negative".split(","))
-        with pf2: rf = st.selectbox("Subreddit",["All"]+sorted(df["subreddit"].unique().tolist()))
-        with pf3: ps = st.selectbox("Sort by",["score","num_comments","sent_score","date"])
-        vdf = df.copy()
-        if sf!="All": vdf=vdf[vdf["sentiment"]==sf]
-        if rf!="All": vdf=vdf[vdf["subreddit"]==rf]
+    # ══════════════════════════════════════════════════════════
+    # POSTS BROWSER TAB
+    # ══════════════════════════════════════════════════════════
+    with tab_posts_br:
+        pf1,pf2,pf3,pf4 = st.columns(4)
+        with pf1: sf  = st.selectbox("Sentiment","All,Positive,Neutral,Negative".split(","), key="pf_sent")
+        with pf2: rf  = st.selectbox("Subreddit",["All"]+sorted(df_posts["subreddit"].unique().tolist()), key="pf_sub")
+        with pf3: ps  = st.selectbox("Sort by",["score","num_comments","sent_score","date"], key="pf_sort")
+        with pf4: kw_f = st.text_input("Keyword filter", placeholder="e.g. balance, lag, story…", key="pf_kw")
+        vdf = df_posts.copy()
+        if sf  != "All":  vdf = vdf[vdf["sentiment"]==sf]
+        if rf  != "All":  vdf = vdf[vdf["subreddit"]==rf]
+        if kw_f.strip():  vdf = vdf[vdf["full_text"].str.contains(re.escape(kw_f.strip()), case=False, na=False)]
         vdf = vdf.sort_values(ps, ascending=False)
+        st.caption(f"{len(vdf):,} posts match filters — showing top 30.")
         for _, row in vdf.head(30).iterrows():
             cls = "pos" if row["sentiment"]=="Positive" else "neg" if row["sentiment"]=="Negative" else ""
-            exc = (row["text"][:300]+"…") if len(row["text"])>300 else (row["text"] or "<em>Link post</em>")
+            exc = (row["text"][:300]+"…") if len(row.get("text",""))>300 else (row.get("text","") or "<em>Link post</em>")
+            title_hi = row["title"]
+            if kw_f.strip():
+                title_hi = re.sub(re.escape(kw_f.strip()),
+                    lambda m: f'<mark style="background:rgba(64,128,255,.25);border-radius:2px;">'+m.group(0)+'</mark>',
+                    title_hi, flags=re.IGNORECASE)
+                exc = re.sub(re.escape(kw_f.strip()),
+                    lambda m: f'<mark style="background:rgba(64,128,255,.25);border-radius:2px;">'+m.group(0)+'</mark>',
+                    exc, flags=re.IGNORECASE)
             st.markdown(
-                f'<div class="post-card {cls}"><strong>{row["title"]}</strong><br>{exc}'
+                f'<div class="post-card {cls}"><strong>{title_hi}</strong><br>{exc}'
                 f'<div class="post-meta">r/{row["subreddit"]} · ▲{row["score"]:,} · '
                 f'💬{row["num_comments"]} · {row["sentiment"]} ({row["sent_score"]:+.3f}) · '
-                f'<a href="{row["permalink"]}" target="_blank" style="color:var(--blue);">view on Reddit</a>'
+                f'<a href="{row["permalink"]}" target="_blank" style="color:var(--blue);">view ↗</a>'
                 f'</div></div>', unsafe_allow_html=True)
-        st.caption(f"Showing 30 of {len(vdf):,} filtered posts.")
         slug = st.session_state.get("active_genre","export").replace(" ","_")
         st.download_button("⬇ Download CSV", data=vdf.to_csv(index=False).encode(),
                            file_name=f"reddit_{slug}_posts.csv", mime="text/csv")
 
-    # ── AI REPORT ─────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════
+    # COMMENTS BROWSER TAB
+    # ══════════════════════════════════════════════════════════
+    with tab_cmts:
+        if df_cmts.empty:
+            st.info("No comments fetched — enable 'Fetch top 50 comments per post' before running.")
+        else:
+            cc1,cc2,cc3,cc4 = st.columns(4)
+            with cc1: cs  = st.selectbox("Sentiment","All,Positive,Neutral,Negative".split(","), key="cf_sent")
+            with cc2: cr  = st.selectbox("Subreddit",["All"]+sorted(df_cmts["subreddit"].unique().tolist()), key="cf_sub")
+            with cc3: cso = st.selectbox("Sort by",["score","sent_score"], key="cf_sort")
+            with cc4: ckw = st.text_input("Keyword filter", placeholder="e.g. gameplay, story…", key="cf_kw")
+            vcd = df_cmts.copy()
+            if cs  != "All": vcd = vcd[vcd["sentiment"]==cs]
+            if cr  != "All": vcd = vcd[vcd["subreddit"]==cr]
+            if ckw.strip():  vcd = vcd[vcd["full_text"].str.contains(re.escape(ckw.strip()), case=False, na=False)]
+            vcd = vcd.sort_values(cso, ascending=False)
+            st.caption(f"{len(vcd):,} comments match — showing top 40.")
+            for _, row in vcd.head(40).iterrows():
+                cls = "pos" if row["sentiment"]=="Positive" else "neg" if row["sentiment"]=="Negative" else ""
+                body = row["text"][:400] + ("…" if len(row["text"])>400 else "")
+                if ckw.strip():
+                    body = re.sub(re.escape(ckw.strip()),
+                        lambda m: f'<mark style="background:rgba(64,128,255,.25);border-radius:2px;">'+m.group(0)+'</mark>',
+                        body, flags=re.IGNORECASE)
+                st.markdown(
+                    f'<div class="post-card {cls}">{body}'
+                    f'<div class="post-meta">💬 r/{row["subreddit"]} · ▲{row["score"]:,} · '
+                    f'{row["sentiment"]} ({row["sent_score"]:+.3f}) · '
+                    f'<a href="{row["permalink"]}" target="_blank" style="color:var(--blue);">view ↗</a>'
+                    f'</div></div>', unsafe_allow_html=True)
+            slug = st.session_state.get("active_genre","export").replace(" ","_")
+            st.download_button("⬇ Download Comments CSV", data=vcd.to_csv(index=False).encode(),
+                               file_name=f"reddit_{slug}_comments.csv", mime="text/csv")
+
+    # ══════════════════════════════════════════════════════════
+    # AI REPORT TAB
+    # ══════════════════════════════════════════════════════════
     with tab_ai:
         if not ANTHROPIC_OK:
             st.warning("Install `anthropic` to enable AI reports.")
         elif not _SECRET_KEY:
-            st.info("Enter your Anthropic API key in the sidebar to generate a report.")
+            st.info("Add CLAUDE_KEY to secrets to enable AI reports.")
         else:
             if not st.session_state.ai_report:
                 if st.button("✨ Generate AI Report", key="gen_rpt"):
-                    gname = st.session_state.get("active_genre","the genre").strip()
-                    pk_s = ", ".join(f"{w}({c})" for w,c in keywords(df[df["sentiment"]=="Positive"]["full_text"].tolist())[:20])
-                    nk_s = ", ".join(f"{w}({c})" for w,c in keywords(df[df["sentiment"]=="Negative"]["full_text"].tolist())[:20])
-                    sub_s = "\n".join(f"  - r/{r['subreddit']}: {r['post_count']} posts, {r['positive_pct']:.1f}% positive, avg {r['avg_score']:+.4f}" for _,r in sdf.iterrows())
-                    sp = df[df["sentiment"]=="Positive"].nlargest(5,"score")["title"].tolist()
-                    sn = df[df["sentiment"]=="Negative"].nlargest(5,"score")["title"].tolist()
+                    gname  = st.session_state.get("active_genre","the genre").strip()
+                    pk_s   = ", ".join(f"{w}({c})" for w,c in keywords(df_posts[df_posts["sentiment"]=="Positive"]["full_text"].tolist())[:20])
+                    nk_s   = ", ".join(f"{w}({c})" for w,c in keywords(df_posts[df_posts["sentiment"]=="Negative"]["full_text"].tolist())[:20])
+                    cpk_s  = ", ".join(f"{w}({c})" for w,c in keywords(df_cmts[df_cmts["sentiment"]=="Positive"]["full_text"].tolist())[:15]) if not df_cmts.empty else "n/a"
+                    cnk_s  = ", ".join(f"{w}({c})" for w,c in keywords(df_cmts[df_cmts["sentiment"]=="Negative"]["full_text"].tolist())[:15]) if not df_cmts.empty else "n/a"
+                    sub_s  = "\n".join(f"  - r/{r['subreddit']}: {r['post_count']} posts, {r['positive_pct']:.1f}% positive" for _,r in sdf.iterrows())
+                    sp     = df_posts[df_posts["sentiment"]=="Positive"].nlargest(5,"score")["title"].tolist()
+                    sn     = df_posts[df_posts["sentiment"]=="Negative"].nlargest(5,"score")["title"].tolist()
                     prompt = f"""You are a senior games market analyst at SEGA.
-Write a structured executive sentiment analysis report from the Reddit data below.
+Write a structured executive sentiment analysis report from this Reddit data.
 
-Game: {gname}
-Posts analysed: {total:,}
-Subreddits: {", ".join("r/"+s for s in df["subreddit"].unique())}
-Date range: {df["date"].min().strftime("%Y-%m-%d")} → {df["date"].max().strftime("%Y-%m-%d")}
-Overall: {100*pos_n/total:.1f}% positive · {100*neu_n/total:.1f}% neutral · {100*neg_n/total:.1f}% negative
-Avg VADER score: {avg_s:+.4f}
+Genre / topic: {gname}
+Posts analysed: {total:,} · Comments analysed: {n_cmts:,}
+Subreddits: {", ".join("r/"+s for s in df_posts["subreddit"].unique())}
+Date range: {df_posts["date"].min().strftime("%Y-%m-%d")} → {df_posts["date"].max().strftime("%Y-%m-%d")}
+Overall posts: {100*pos_n/max(total,1):.1f}% positive · {100*neg_n/max(total,1):.1f}% negative
+Avg VADER: {avg_s:+.4f}
 
-Per-subreddit:
+Per-subreddit breakdown:
 {sub_s}
 
-Top positive keywords: {pk_s}
-Top negative keywords: {nk_s}
+Post positive keywords: {pk_s}
+Post negative keywords: {nk_s}
+Comment positive keywords: {cpk_s}
+Comment negative keywords: {cnk_s}
 
-Sample positive post titles: {sp}
-Sample negative post titles: {sn}
+Top positive post titles: {sp}
+Top negative post titles: {sn}
 
----
-Write a comprehensive report with sections:
+Write a comprehensive report covering:
 1. Executive Summary
 2. Overall Sentiment Landscape
 3. Subreddit-by-Subreddit Breakdown
-4. Key Themes — Positive & Negative
+4. Key Themes (posts vs comments where different)
 5. Community Strengths & Pain Points
-6. Competitor / Market Context (inferred)
+6. Competitor / Market Context
 7. Actionable Recommendations for SEGA
 8. Data Quality Notes
 
-Use markdown. Be specific with numbers. Prioritise strategic insights."""
+Use markdown. Be specific with numbers."""
 
                     client = _anthropic.Anthropic(api_key=_SECRET_KEY)
                     ph = st.empty(); txt = ""
@@ -963,8 +1328,8 @@ Use markdown. Be specific with numbers. Prioritise strategic insights."""
                         ph.markdown(txt)
                         st.session_state.ai_report = txt
                     except _anthropic.AuthenticationError: st.error("Invalid API key.")
-                    except _anthropic.RateLimitError: st.error("Rate limit — wait and retry.")
-                    except Exception as e: st.error(f"{type(e).__name__}: {e}")
+                    except _anthropic.RateLimitError:      st.error("Rate limit — wait and retry.")
+                    except Exception as e:                 st.error(f"{type(e).__name__}: {e}")
             else:
                 st.markdown(st.session_state.ai_report)
 
@@ -974,29 +1339,24 @@ Use markdown. Be specific with numbers. Prioritise strategic insights."""
                 st.markdown('<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">DOWNLOAD REPORT</div>', unsafe_allow_html=True)
                 d1,d2,d3 = st.columns(3)
                 with d1: st.download_button("⬇ Markdown",data=st.session_state.ai_report,
-                                            file_name=f"reddit_{slug}.md",mime="text/markdown",
-                                            width="stretch",key="dl_md")
+                                            file_name=f"reddit_{slug}.md",mime="text/markdown",key="dl_md")
                 with d2: st.download_button("⬇ HTML",data=to_html(st.session_state.ai_report).encode(),
-                                            file_name=f"reddit_{slug}.html",mime="text/html",
-                                            width="stretch",key="dl_html")
+                                            file_name=f"reddit_{slug}.html",mime="text/html",key="dl_html")
                 with d3:
                     pdf = to_pdf(st.session_state.ai_report)
                     if pdf: st.download_button("⬇ PDF",data=pdf,file_name=f"reddit_{slug}.pdf",
-                                               mime="application/pdf",width="stretch",key="dl_pdf")
-                    else: st.caption("PDF unavailable — install `reportlab`")
+                                               mime="application/pdf",key="dl_pdf")
+                    else: st.caption("PDF: install `reportlab`")
 
                 sh("FOLLOW-UP CHAT")
-                st.caption("Ask Claude follow-up questions about the data or report.")
-
                 for msg in st.session_state.chat_history:
                     with st.chat_message(msg["role"]):
                         st.markdown(msg["content"])
 
                 if st.session_state.chat_pending:
                     st.session_state.chat_pending = False
-                    sys_ = (f"You are a senior games market analyst. The user received a Reddit "
-                            f"sentiment report for '{st.session_state.get('_gsq','')}'. "
-                            f"Answer concisely, referencing real data.\n\n"
+                    sys_ = (f"You are a SEGA games market analyst. The user has a Reddit sentiment "
+                            f"report for '{gname}'. Answer concisely, referencing real data.\n\n"
                             f"## Report\n{st.session_state.ai_report[:4000]}")
                     try:
                         cc = _anthropic.Anthropic(api_key=_SECRET_KEY)
@@ -1026,8 +1386,8 @@ elif not st.session_state.fetch_done:
 <div class="empty-state">
   <div class="empty-title">NO DATA YET</div>
   <div class="empty-sub">
-    Search for a game above to auto-discover subreddits, or add them manually below,
-    then click <strong style="color:var(--blue);">Fetch &amp; Analyse</strong>.
+    Pick a genre above, select your subreddits,
+    then click <strong style="color:var(--blue);">Fetch</strong> to begin.
   </div>
 </div>
 """, unsafe_allow_html=True)

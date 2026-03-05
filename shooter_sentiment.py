@@ -437,19 +437,41 @@ PLOTLY_BASE = dict(
 )
 
 # Top 10 shooters on Steam (source: SteamDB live charts, March 2026)
+# Roster sourced directly from SteamDB top shooter chart (screenshot, Mar 2026).
+# Ranked by current CCU. CS:GO (rank 26) shares app_id 730 with CS2 — duplicate removed,
+# replaced with the next chart entry. Roster = 29 unique titles. Marathon (2379780) and Battlefield 6 (2377570)
+# app IDs are uncertain — verify at steamdb.info before downloading CSVs.
 SHOOTER_ROSTER = [
-    {"app_id": 730,     "name": "Counter-Strike 2",    "sub": "Tactical / Competitive", "publisher": "Valve",            "f2p": True},
-    {"app_id": 578080,  "name": "PUBG: Battlegrounds", "sub": "Battle Royale",          "publisher": "Krafton",          "f2p": True},
-    {"app_id": 1808500, "name": "ARC Raiders",         "sub": "Extraction Shooter",     "publisher": "Embark Studios",   "f2p": False},
-    {"app_id": 252490,  "name": "Rust",                "sub": "Open World / PvP",       "publisher": "Facepunch",        "f2p": False},
-    {"app_id": 2767030, "name": "Marvel Rivals",       "sub": "Hero Shooter",           "publisher": "NetEase Games",    "f2p": True},
-    {"app_id": 271590,  "name": "Grand Theft Auto V",  "sub": "Open World / Action",    "publisher": "Rockstar Games",   "f2p": False},
-    {"app_id": 236390,  "name": "War Thunder",         "sub": "Vehicle Combat / MMO",   "publisher": "Gaijin",           "f2p": True},
-    {"app_id": 1172470, "name": "Apex Legends",        "sub": "Battle Royale / Hero",   "publisher": "EA / Respawn",     "f2p": True},
-    {"app_id": 230410,  "name": "Warframe",            "sub": "Looter Shooter / Co-op", "publisher": "Digital Extremes", "f2p": True},
-    {"app_id": 3240220, "name": "GTA V Enhanced",      "sub": "Open World / Action",    "publisher": "Rockstar Games",   "f2p": False},
+    {"app_id": 730,     "name": "Counter-Strike 2",               "sub": "Tactical / Competitive",  "publisher": "Valve",                "f2p": True},
+    {"app_id": 1808500, "name": "ARC Raiders",                    "sub": "Extraction Shooter",      "publisher": "Embark Studios",       "f2p": False},
+    {"app_id": 252490,  "name": "Rust",                           "sub": "Open World / Survival",   "publisher": "Facepunch Studios",    "f2p": False},
+    {"app_id": 359550,  "name": "Tom Clancy's Rainbow Six Siege", "sub": "Tactical / Arena",        "publisher": "Ubisoft",              "f2p": False},
+    {"app_id": 578080,  "name": "PUBG: Battlegrounds",            "sub": "Battle Royale",           "publisher": "Krafton",              "f2p": True},
+    {"app_id": 2379780, "name": "Marathon",                       "sub": "Extraction Shooter",      "publisher": "Bungie",               "f2p": False},
+    {"app_id": 2357570, "name": "Overwatch 2",                    "sub": "Hero Shooter",            "publisher": "Blizzard",             "f2p": True},
+    {"app_id": 2933620, "name": "Deadlock",                       "sub": "Hero Shooter / MOBA",     "publisher": "Valve",                "f2p": True},
+    {"app_id": 2767030, "name": "Marvel Rivals",                  "sub": "Hero Shooter",            "publisher": "NetEase Games",        "f2p": True},
+    {"app_id": 271590,  "name": "Grand Theft Auto V Legacy",      "sub": "Open World / Action",     "publisher": "Rockstar Games",       "f2p": False},
+    {"app_id": 1172470, "name": "Apex Legends",                   "sub": "Battle Royale / Hero",    "publisher": "EA / Respawn",         "f2p": True},
+    {"app_id": 2668510, "name": "Helldivers 2",                   "sub": "Co-op Shooter",           "publisher": "Arrowhead",            "f2p": False},
+    {"app_id": 230410,  "name": "Warframe",                       "sub": "Looter Shooter / Co-op",  "publisher": "Digital Extremes",     "f2p": True},
+    {"app_id": 236390,  "name": "War Thunder",                    "sub": "Vehicle Combat / MMO",    "publisher": "Gaijin",               "f2p": True},
+    {"app_id": 440,     "name": "Team Fortress 2",                "sub": "Arena / Class FPS",       "publisher": "Valve",                "f2p": True},
+    {"app_id": 1938090, "name": "Call of Duty",                   "sub": "Military FPS",            "publisher": "Activision",           "f2p": True},
+    {"app_id": 1070560, "name": "Crosshair X",                    "sub": "Aim Trainer / Utility",   "publisher": "Reflex Gaming",        "f2p": False},
+    {"app_id": 2377570, "name": "Battlefield 6",                  "sub": "Military FPS",            "publisher": "EA / DICE",            "f2p": False},
+    {"app_id": 221100,  "name": "DayZ",                           "sub": "Survival / Shooter",      "publisher": "Bohemia Interactive",  "f2p": False},
+    {"app_id": 2483290, "name": "Delta Force",                    "sub": "Military FPS / BR",       "publisher": "Team Jade / TiMi",     "f2p": True},
+    {"app_id": 3240220, "name": "Grand Theft Auto V Enhanced",    "sub": "Open World / Action",     "publisher": "Rockstar Games",       "f2p": False},
+    {"app_id": 218620,  "name": "PAYDAY 2",                       "sub": "Co-op FPS / Heist",       "publisher": "Overkill Software",    "f2p": False},
+    {"app_id": 550,     "name": "Left 4 Dead 2",                  "sub": "Co-op FPS / Horror",      "publisher": "Valve",                "f2p": False},
+    {"app_id": 377160,  "name": "Fallout 4",                      "sub": "FPS / RPG",               "publisher": "Bethesda",             "f2p": False},
+    {"app_id": 1174180, "name": "Red Dead Redemption 2",          "sub": "Open World / TPS",        "publisher": "Rockstar Games",       "f2p": False},
+    {"app_id": 2457170, "name": "Arena Breakout: Infinite",       "sub": "Extraction Shooter",      "publisher": "MoreFun Studios",      "f2p": True},
+    {"app_id": 4000,    "name": "Garry's Mod",                   "sub": "Sandbox / Shooter",       "publisher": "Facepunch Studios",    "f2p": False},
+    {"app_id": 1151340, "name": "Fallout 76",                     "sub": "Online RPG / Shooter",    "publisher": "Bethesda",             "f2p": False},
+    {"app_id": 2835570, "name": "Schedule I",                     "sub": "Simulation / Action",     "publisher": "TVGS",                 "f2p": False},
 ]
-
 # Folder containing SteamDB CSVs, named steamdb_chart_{appid}.csv
 # Resolve DATA_DIR: check next to script first, then cwd/data, then cwd
 def _resolve_data_dir() -> Path:
@@ -1423,15 +1445,21 @@ ANNOTATIONS: dict[int, list[dict]] = {
               {"month": "2023-03", "label": "Season 20"}],
     1808500: [{"month": "2025-10", "label": "Early Access launch"}],
     2767030: [{"month": "2024-12", "label": "Global launch"}],
-    252490:  [{"month": "2021-05", "label": "Console launch"},
-              {"month": "2023-02", "label": "All-time peak"}],
-    236390:  [{"month": "2022-06", "label": "Top Gun collab"},
-              {"month": "2023-08", "label": "Ground battles update"}],
     230410:  [{"month": "2023-04", "label": "Duviri Paradox"},
               {"month": "2024-11", "label": "1999 update"}],
-    271590:  [{"month": "2022-03", "label": "Expanded & Enhanced"},
-              {"month": "2023-05", "label": "GTA Online update"}],
-    3240220: [{"month": "2025-03", "label": "Enhanced launch"}],
+    2668510: [{"month": "2024-02", "label": "Global launch"},
+              {"month": "2024-05", "label": "Major patch / peak"}],
+    1237970: [{"month": "2022-02", "label": "Witch Queen launch"},
+              {"month": "2024-06", "label": "The Final Shape"}],
+    359550:  [{"month": "2021-06", "label": "F2P launch"},
+              {"month": "2023-08", "label": "Operation Solar Raid"}],
+    1509960: [{"month": "2023-08", "label": "AC6 Launch"},
+              {"month": "2024-04", "label": "DLC: Fires of Raven"}],
+    1238810: [{"month": "2022-11", "label": "BF2042 launch"},
+              {"month": "2023-09", "label": "Season 6 / F2P"}],
+    2933620: [{"month": "2024-09", "label": "Beta access begins"}],
+    1449560: [{"month": "2022-10", "label": "OW2 launch (F2P)"},
+              {"month": "2023-08", "label": "Invasion update"}],
 }
 
 
@@ -1468,7 +1496,7 @@ st.markdown("""
   <div class="topbar-logo"><span class="seg">SEGA</span> &nbsp;SHOOTER INTELLIGENCE</div>
   <div class="topbar-divider"></div>
   <div class="topbar-label">Market &amp; Tech Analysis</div>
-  <div class="topbar-pill">🎯 Internal Use Only</div>
+  <div class="topbar-pill">Internal Use Only</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1480,12 +1508,12 @@ with st.sidebar:
     st.markdown("""
     <div style="font-family:'Inter Tight',sans-serif;font-weight:900;font-size:1rem;
     letter-spacing:.1em;text-transform:uppercase;color:#4080ff;margin-bottom:1rem;">
-    ⚙ Configuration</div>
+    Configuration</div>
     """, unsafe_allow_html=True)
 
     _cl_ok = bool(st.session_state.claude_key)
     if _cl_ok:
-        st.success("✓ Anthropic API key loaded", icon="🔑")
+        st.success("Anthropic API key loaded")
     else:
         st.error("Anthropic API key missing")
         st.markdown(
@@ -1510,20 +1538,20 @@ with st.sidebar:
     roster_ids = {g["app_id"] for g in SHOOTER_ROSTER}
     loaded     = hist_ids & roster_ids
     missing    = roster_ids - hist_ids
-    st.caption(f"📁 SteamDB CSVs: {len(loaded)}/{len(roster_ids)} loaded")
+    st.caption(f"SteamDB CSVs: {len(loaded)}/{len(roster_ids)} loaded")
     if missing:
         missing_names = [g["name"] for g in SHOOTER_ROSTER if g["app_id"] in missing]
-        st.caption("⚠️ Missing: " + ", ".join(missing_names))
+        st.caption("Missing: " + ", ".join(missing_names))
     st.caption("Drop steamdb_chart_{appid}.csv into /data to update")
 
     st.markdown("---")
     # Watchlist management
     st.markdown("""<div style="font-size:.65rem;font-weight:800;letter-spacing:.18em;
-    text-transform:uppercase;color:#5a5f82;margin-bottom:.5rem;">📌 My Watchlist</div>""",
+    text-transform:uppercase;color:#5a5f82;margin-bottom:.5rem;">My Watchlist</div>""",
     unsafe_allow_html=True)
     for g in SHOOTER_ROSTER:
         is_pinned = g["app_id"] in st.session_state.watchlist
-        label = f"{'★' if is_pinned else '☆'} {g['name']}"
+        label = f"{'[pinned]' if is_pinned else ''} {g['name']}"
         if st.button(label, key=f"pin_{g['app_id']}",
                      type="primary" if is_pinned else "secondary",
                      use_container_width=True):
@@ -1686,7 +1714,7 @@ if st.session_state.active_view == "drilldown" and st.session_state.drilldown_ga
         """, unsafe_allow_html=True)
 
         if not st.session_state.claude_key:
-            st.warning("CLAUDE_KEY not found. Add it to .streamlit/secrets.toml to run AI analysis.", icon="🔑")
+            st.warning("CLAUDE_KEY not found. Add it to .streamlit/secrets.toml to run AI analysis.")
         elif not ANTHROPIC_AVAILABLE:
             st.error("Install the `anthropic` package: `pip install anthropic`")
         else:
@@ -1694,7 +1722,7 @@ if st.session_state.active_view == "drilldown" and st.session_state.drilldown_ga
             if st.session_state.drilldown_report and st.session_state.get("drilldown_cache_key") == drill_cache_key:
                 st.markdown(st.session_state.drilldown_report)
             else:
-                if st.button(f"🔍 Generate Deep Dive for {game['name']}", key="run_drilldown"):
+                if st.button(f"Generate Deep Dive — {game['name']}", key="run_drilldown"):
                     with st.spinner(f"Analysing {game['name']}…"):
                         prompt = build_drilldown_prompt(game, historical)
                         ph_dd = st.empty()
@@ -1719,7 +1747,7 @@ if st.session_state.active_view == "drilldown" and st.session_state.drilldown_ga
             # Download drill-down
             if st.session_state.drilldown_report:
                 slug = re.sub(r"[^a-z0-9]+", "_", game["name"].lower())
-                st.download_button("⬇ Download Deep Dive (.md)",
+                st.download_button("Download Deep Dive (.md)",
                     data=st.session_state.drilldown_report,
                     file_name=f"sega_drilldown_{slug}.md",
                     mime="text/markdown", key="dl_drill")
@@ -1737,7 +1765,7 @@ elif st.session_state.active_view == "main":
     if st.session_state.watchlist and st.session_state.ccu_data:
         st.markdown("""
         <div class="section-header">
-          <span class="dot"></span>★ MY WATCHLIST
+          <span class="dot"></span>MY WATCHLIST
         </div>
         """, unsafe_allow_html=True)
         pinned = [r for r in st.session_state.ccu_data
@@ -1751,7 +1779,7 @@ elif st.session_state.active_view == "main":
                 <div class="metric-value" style="font-size:1rem">{r['ccu']:,}</div>
                 <div class="metric-sub" style="color:{yoy_color}">YoY {r.get('yoy','N/A')}</div>
                 </div>""", unsafe_allow_html=True)
-                if st.button("🔍 Drill down", key=f"watch_drill_{r['app_id']}"):
+                if st.button("Drill Down", key=f"watch_drill_{r['app_id']}"):
                     st.session_state.drilldown_game   = r["app_id"]
                     st.session_state.drilldown_report  = ""
                     st.session_state.active_view       = "drilldown"
@@ -1824,7 +1852,7 @@ elif st.session_state.active_view == "main":
     """, unsafe_allow_html=True)
 
     if not st.session_state.ccu_data:
-        if st.button("📡  Fetch Live CCU Data", key="fetch_ccu"):
+        if st.button("Fetch Live CCU Data", key="fetch_ccu"):
             with st.spinner("Pulling live CCU from Steam + SteamSpy…"):
                 historical = load_all_historical()
                 results    = []
@@ -1965,7 +1993,7 @@ elif st.session_state.active_view == "main":
         st.markdown("<br>", unsafe_allow_html=True)
 
         # ── YoY breakdown expander ──
-        with st.expander(f"📊 YoY Growth Breakdown — {growing} growing, {declining} declining"):
+        with st.expander(f"YoY Growth Breakdown — {growing} growing, {declining} declining"):
             if yoy_titled:
                 yoy_sorted = sorted(yoy_titled, key=lambda x: x[1], reverse=True)
                 yoy_df = pd.DataFrame([{
@@ -2000,7 +2028,7 @@ elif st.session_state.active_view == "main":
 
         # ── Week-over-Week diff expander ──
         if wow_diff:
-            with st.expander("📅 Week-over-Week CCU Change"):
+            with st.expander("Week-over-Week vs. YoY Change"):
                 wow_rows = []
                 for r in ccu_data:
                     diff = wow_diff.get(r["app_id"])
@@ -2011,13 +2039,13 @@ elif st.session_state.active_view == "main":
                             "Previous": diff["prev_ccu"],
                             "Δ CCU":    diff["delta"],
                             "Δ %":      f"{diff['delta_pct']:+.1f}%",
-                            "Direction": "↑" if diff["delta"] > 0 else "↓" if diff["delta"] < 0 else "→",
+                            "WoW Direction": "Up" if diff["delta"] > 0 else "Down" if diff["delta"] < 0 else "Flat",
                         })
                 if wow_rows:
                     wow_df = pd.DataFrame(sorted(wow_rows, key=lambda x: x["Δ CCU"], reverse=True))
                     st.dataframe(wow_df, use_container_width=True, hide_index=True)
                     snap_time = snaps[-2]["ts"][:10] if len(snaps) >= 2 else "previous"
-                    st.caption(f"Comparing current fetch to snapshot from {snap_time}. Snapshots auto-saved each fetch.")
+                    st.caption(f"Week-over-Week comparison vs. snapshot from {snap_time}. Snapshots auto-saved each fetch.")
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -2029,7 +2057,7 @@ elif st.session_state.active_view == "main":
         hover_texts = []
         for r in top10:
             diff = wow_diff.get(r["app_id"])
-            wow_str = f"<br>WoW: {diff['delta_pct']:+.1f}%" if diff else ""
+            wow_str = f"<br>WoW Change: {diff['delta_pct']:+.1f}%" if diff else ""
             hover_texts.append(f"<b>{r['name']}</b><br>CCU: {r['ccu']:,}<br>YoY: {r.get('yoy','N/A')}{wow_str}<extra></extra>")
 
         fig = go.Figure(go.Bar(
@@ -2050,7 +2078,7 @@ elif st.session_state.active_view == "main":
             height=340, showlegend=False,
         )
         st.plotly_chart(fig, use_container_width=True)
-        st.caption("🔵 Paid  🟢 F2P  |  Hover for YoY & WoW delta  |  Source: Steam public API")
+        st.caption("Paid titles (blue) / F2P titles (green)  |  Hover bars for YoY & Week-over-Week delta  |  Source: Steam public API")
 
         # ── Drill-down buttons row ──
         st.markdown("""<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;
@@ -2068,7 +2096,7 @@ elif st.session_state.active_view == "main":
         st.markdown("<br>", unsafe_allow_html=True)
 
         # ── Genre Heat Map ──
-        with st.expander("🗺 Sub-Genre CCU Heat Map"):
+        with st.expander("Sub-Genre CCU Heat Map"):
             genre_df = compute_genre_share(ccu_data)
             if not genre_df.empty:
                 fig_g = go.Figure(go.Bar(
@@ -2098,7 +2126,7 @@ elif st.session_state.active_view == "main":
                 "Title":       r["name"],
                 "Sub-genre":   r["sub"],
                 "Publisher":   r["publisher"],
-                "F2P":         "✓" if r["f2p"] else "—",
+                "F2P":         "Yes" if r["f2p"] else "No",
                 "Live CCU":    r["ccu"],
                 "YoY":         r.get("yoy", "N/A"),
                 "Data Source": "SteamDB CSV" if r.get("has_hist") else "SteamSpy proxy",
@@ -2112,7 +2140,7 @@ elif st.session_state.active_view == "main":
             st.dataframe(df, use_container_width=True, hide_index=True)
             hist_count2 = sum(1 for r in ccu_data if r.get("has_hist"))
             st.caption(
-                f"📁 {hist_count2}/{len(ccu_data)} titles have SteamDB CSV data. "
+                f"{hist_count2}/{len(ccu_data)} titles have SteamDB CSV data. "
                 "YoY = real same-month comparison (CSV) or SteamSpy proxy. "
                 "Sources: SteamDB CSV, Steam API, SteamSpy."
             )
@@ -2120,7 +2148,7 @@ elif st.session_state.active_view == "main":
         # ── CSV Deep Stats ──
         csv_games = [r for r in ccu_data if r.get("has_hist")]
         if csv_games:
-            with st.expander(f"🗂 SteamDB CSV Deep Stats — {len(csv_games)} titles"):
+            with st.expander(f"SteamDB CSV Deep Stats — {len(csv_games)} titles"):
                 historical2 = load_all_historical()
                 deep_rows   = []
                 for r in csv_games:
@@ -2161,7 +2189,7 @@ elif st.session_state.active_view == "main":
         hist_titles2 = [r for r in ccu_data if r.get("has_hist")]
         if hist_titles2:
             historical3 = load_all_historical()
-            with st.expander("📈 Monthly Peak CCU History — SteamDB Data"):
+            with st.expander("Monthly Peak CCU History — SteamDB Data"):
                 # Range selector
                 range_opt = st.radio("Time range", ["12m", "24m", "All"], horizontal=True, key="hist_range")
                 n_months  = 12 if range_opt == "12m" else 24 if range_opt == "24m" else 9999
@@ -2203,9 +2231,9 @@ elif st.session_state.active_view == "main":
                     legend=dict(font=dict(size=10), bgcolor="rgba(0,0,0,0)"),
                 )
                 st.plotly_chart(fig2, use_container_width=True)
-                st.caption("Source: SteamDB 10-min interval CSVs, aggregated to monthly peak. 🟡 Annotations mark key events.")
+                st.caption("Source: SteamDB 10-min interval CSVs, aggregated to monthly peak. Annotations mark key events.")
 
-        if st.button("🔄 Refresh CCU Data", key="refresh_ccu"):
+        if st.button("Refresh CCU Data", key="refresh_ccu"):
             st.cache_data.clear()
             st.session_state.ccu_data      = []
             st.session_state.ccu_fetched_at = None
@@ -2223,7 +2251,7 @@ elif st.session_state.active_view == "main":
         """, unsafe_allow_html=True)
 
         if not st.session_state.claude_key:
-            st.warning("CLAUDE_KEY not found. Add it to .streamlit/secrets.toml to run AI analysis.", icon="🔑")
+            st.warning("CLAUDE_KEY not found. Add it to .streamlit/secrets.toml to run AI analysis.")
         elif not ANTHROPIC_AVAILABLE:
             st.error("Install the `anthropic` package: `pip install anthropic`")
         else:
@@ -2235,12 +2263,12 @@ elif st.session_state.active_view == "main":
             cached = st.session_state.report_cache.get(cache_key)
             if cached and not st.session_state.ai_report:
                 st.session_state.ai_report = cached
-                st.info("⚡ Loaded from cache — data unchanged since last run. Re-fetch CCU to force refresh.", icon="💾")
+                st.info("Loaded from cache — data unchanged since last run. Re-fetch CCU to force refresh.")
 
             if not st.session_state.ai_report:
                 if aq == "ccu_mecha":
                     if not ccu_data:
-                        st.warning("Please fetch live CCU data first.", icon="📡")
+                        st.warning("Please fetch live CCU data first.")
                         st.stop()
                     user_prompt = build_ccu_mecha_prompt(ccu_data[:10])
                 elif aq == "table_stakes":
@@ -2249,7 +2277,7 @@ elif st.session_state.active_view == "main":
                     user_prompt = build_social_metrics_prompt()
                 elif aq == "weekly_report":
                     if not ccu_data:
-                        st.warning("Please fetch live CCU data first.", icon="📡")
+                        st.warning("Please fetch live CCU data first.")
                         st.stop()
                     user_prompt = build_weekly_report_prompt(ccu_data[:20])
                 else:
@@ -2298,25 +2326,25 @@ elif st.session_state.active_view == "main":
 
                 dl1, dl2, dl3, dl4 = st.columns(4)
                 with dl1:
-                    st.download_button("⬇ Markdown", data=st.session_state.ai_report,
+                    st.download_button("Download Markdown", data=st.session_state.ai_report,
                         file_name=f"{fname}.md", mime="text/markdown",
                         use_container_width=True, key="dl_md")
                 with dl2:
                     html_bytes = report_to_html(st.session_state.ai_report).encode("utf-8")
-                    st.download_button("⬇ HTML", data=html_bytes,
+                    st.download_button("Download HTML", data=html_bytes,
                         file_name=f"{fname}.html", mime="text/html",
                         use_container_width=True, key="dl_html")
                 with dl3:
                     if _REPORTLAB_AVAILABLE:
                         pdf_bytes = report_to_pdf(st.session_state.ai_report)
                         if pdf_bytes:
-                            st.download_button("⬇ PDF", data=pdf_bytes,
+                            st.download_button("Download PDF", data=pdf_bytes,
                                 file_name=f"{fname}.pdf", mime="application/pdf",
                                 use_container_width=True, key="dl_pdf")
                     else:
                         st.caption("PDF: install `reportlab`")
                 with dl4:
-                    if st.button("⬇ PowerPoint", key="dl_pptx", use_container_width=True):
+                    if st.button("Download PowerPoint", key="dl_pptx", use_container_width=True):
                         with st.spinner("Building slides…"):
                             pptx_bytes = generate_pptx_bytes(
                                 st.session_state.ai_report,
@@ -2324,7 +2352,7 @@ elif st.session_state.active_view == "main":
                                 st.session_state.report_label,
                             )
                         if pptx_bytes:
-                            st.download_button("⬇ Download .pptx", data=pptx_bytes,
+                            st.download_button("Download .pptx", data=pptx_bytes,
                                 file_name=f"{fname}.pptx",
                                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
                                 key="dl_pptx_actual")
