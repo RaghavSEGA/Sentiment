@@ -1583,10 +1583,6 @@ if st.session_state.active_view == "main":
     st.markdown("""
     <div class="hero">
       <div class="hero-title">SHOOTER MARKET<br><span class="accent">INTELLIGENCE</span></div>
-      <div class="hero-sub">
-        Live Steam CCU data · AI-powered analysis · Competitive benchmarks ·
-        Weekly reporting templates — all in one tool for SEGA's publishing and strategy teams.
-      </div>
     </div>
     """, unsafe_allow_html=True)
 
