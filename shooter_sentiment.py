@@ -1162,6 +1162,7 @@ TRANSLATIONS = {
         # Hero
         "hero_line1":             "SHOOTER MARKET",
         "hero_line2":             "INTELLIGENCE",
+        "hero_sub":               "Live Steam CCU data · AI-powered analysis · Competitive benchmarks · Weekly reporting templates — all in one tool for SEGA's publishing and strategy teams.",
         # Section headers
         "select_analysis":        "SELECT ANALYSIS TYPE",
         "live_ccu_header":        "LIVE STEAM CCU SNAPSHOT",
@@ -1286,6 +1287,7 @@ TRANSLATIONS = {
         "last_fetched":           "⏱ CCU最終取得: {time}",
         "hero_line1":             "シューター市場",
         "hero_line2":             "インテリジェンス",
+        "hero_sub":               "Steam CCUライブデータ · AI搭載分析 · 競合ベンチマーク · 週次レポートテンプレート — SEGAのパブリッシング・戦略チーム向け統合ツール",
         "select_analysis":        "分析タイプを選択",
         "live_ccu_header":        "Steam CCU ライブスナップショット",
         "ai_analysis_header":     "AI分析 — {label}",
@@ -1419,13 +1421,10 @@ with _tc[1]:
 # HERO
 # ─────────────────────────────────────────────────────────────
 
-st.markdown("""
+st.markdown(f"""
 <div class="hero">
-  <div class="hero-title">SHOOTER MARKET<br><span class="accent">INTELLIGENCE</span></div>
-  <div class="hero-sub">
-    Live Steam CCU data · AI-powered analysis · Competitive benchmarks ·
-    Weekly reporting templates — all in one tool for SEGA's publishing and strategy teams.
-  </div>
+  <div class="hero-title">{T("hero_line1")}<br><span class="accent">{T("hero_line2")}</span></div>
+  <div class="hero-sub">{T("hero_sub")}</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1475,7 +1474,7 @@ with st.sidebar:
 
 st.markdown('<div class="query-block">', unsafe_allow_html=True)
 
-st.markdown("""
+st.markdown(f"""
 <div class="section-header" style="margin-top:0">
   <span class="dot"></span>{T("select_analysis")}
 </div>
@@ -1502,7 +1501,7 @@ for i, preset in enumerate(PRESET_QUERIES):
             st.session_state.report_label = preset["label"]
 
 st.markdown("<br>", unsafe_allow_html=True)
-st.markdown('<div class="field-label">{T("custom_label")}</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="field-label">{T("custom_label")}</div>', unsafe_allow_html=True)
 col_q, col_btn = st.columns([5, 1])
 with col_q:
     custom = st.text_input(
@@ -1528,7 +1527,7 @@ st.markdown("</div>", unsafe_allow_html=True)
 # LIVE CCU PANEL
 # ─────────────────────────────────────────────────────────────
 
-st.markdown("""
+st.markdown(f"""
 <div class="section-header">
   <span class="dot"></span>{T("live_ccu_header")}
 </div>
@@ -1720,12 +1719,12 @@ else:
 if st.session_state.active_query:
     st.markdown(f"""
     <div class="section-header">
-      <span class="dot"></span>AI ANALYSIS — {st.session_state.report_label.upper()}
+      <span class="dot"></span>{T("ai_analysis_header", label=st.session_state.report_label.upper())}
     </div>
     """, unsafe_allow_html=True)
 
     if not st.session_state.claude_key:
-        st.warning("Enter your Claude API key in the sidebar to run AI analysis.", icon="🔑")
+        st.warning(T("no_key_warning"), icon="🔑")
     elif not ANTHROPIC_AVAILABLE:
         st.error(T("no_anthropic_error"))
     elif not st.session_state.ai_report:
@@ -1831,9 +1830,9 @@ if st.session_state.active_query:
         # ── Follow-up chat ──
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
-            '<div class="section-header"><span class="dot"></span>FOLLOW-UP CHAT'
-            '<span style="color:var(--muted);font-size:.7rem;font-weight:400;"> '
-            '— ask Claude follow-up questions about this report</span></div>',
+            f'<div class="section-header"><span class="dot"></span>{T("chat_header")}'
+            f'<span style="color:var(--muted);font-size:.7rem;font-weight:400;"> '
+            f'{T("chat_subtext")}</span></div>',
             unsafe_allow_html=True,
         )
 
