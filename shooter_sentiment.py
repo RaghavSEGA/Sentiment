@@ -437,42 +437,48 @@ PLOTLY_BASE = dict(
 )
 
 # Top 10 shooters on Steam (source: SteamDB live charts, March 2026)
-# Roster sourced directly from SteamDB top shooter chart (screenshot, Mar 2026).
-# Ranked by current CCU. CS:GO (rank 26) shares app_id 730 with CS2 — duplicate removed,
-# replaced with the next chart entry. Roster = 31 titles (CS:GO and CS2 share app_id 730 — both tracked for historical context). Marathon (2379780) and Battlefield 6 (2377570)
-# app IDs are uncertain — verify at steamdb.info before downloading CSVs.
+# Roster built from CSVs present in the /data folder (30 titles).
+# App IDs verified against Steam store. Corrected IDs vs previous roster:
+#   Helldivers 2:       553850  (was 2668510)
+#   Crosshair X:        1366800 (was 1070560)
+#   Deadlock:           1422450 (was 2933620)
+#   Arena Breakout:     2073620 (was 2457170)
+#   Delta Force:        2507950 (was 2483290)
+#   Battlefield 6:      2807960 (was 2377570)
+#   Marathon:           3065800 (was 2379780)
+#   Schedule I:         3164500 (was 2835570)
 SHOOTER_ROSTER = [
+    {"app_id": 440,     "name": "Team Fortress 2",                "sub": "Arena / Class FPS",       "publisher": "Valve",                "f2p": True},
+    {"app_id": 550,     "name": "Left 4 Dead 2",                  "sub": "Co-op FPS / Horror",      "publisher": "Valve",                "f2p": False},
     {"app_id": 730,     "name": "Counter-Strike 2",               "sub": "Tactical / Competitive",  "publisher": "Valve",                "f2p": True},
-    {"app_id": 1808500, "name": "ARC Raiders",                    "sub": "Extraction Shooter",      "publisher": "Embark Studios",       "f2p": False},
-    {"app_id": 252490,  "name": "Rust",                           "sub": "Open World / Survival",   "publisher": "Facepunch Studios",    "f2p": False},
-    {"app_id": 359550,  "name": "Tom Clancy's Rainbow Six Siege", "sub": "Tactical / Arena",        "publisher": "Ubisoft",              "f2p": False},
-    {"app_id": 578080,  "name": "PUBG: Battlegrounds",            "sub": "Battle Royale",           "publisher": "Krafton",              "f2p": True},
-    {"app_id": 2379780, "name": "Marathon",                       "sub": "Extraction Shooter",      "publisher": "Bungie",               "f2p": False},
-    {"app_id": 2357570, "name": "Overwatch 2",                    "sub": "Hero Shooter",            "publisher": "Blizzard",             "f2p": True},
-    {"app_id": 2933620, "name": "Deadlock",                       "sub": "Hero Shooter / MOBA",     "publisher": "Valve",                "f2p": True},
-    {"app_id": 2767030, "name": "Marvel Rivals",                  "sub": "Hero Shooter",            "publisher": "NetEase Games",        "f2p": True},
-    {"app_id": 271590,  "name": "Grand Theft Auto V Legacy",      "sub": "Open World / Action",     "publisher": "Rockstar Games",       "f2p": False},
-    {"app_id": 1172470, "name": "Apex Legends",                   "sub": "Battle Royale / Hero",    "publisher": "EA / Respawn",         "f2p": True},
-    {"app_id": 2668510, "name": "Helldivers 2",                   "sub": "Co-op Shooter",           "publisher": "Arrowhead",            "f2p": False},
+    {"app_id": 4000,    "name": "Garry's Mod",                   "sub": "Sandbox / Shooter",       "publisher": "Facepunch Studios",    "f2p": False},
+    {"app_id": 218620,  "name": "PAYDAY 2",                       "sub": "Co-op FPS / Heist",       "publisher": "Overkill Software",    "f2p": False},
+    {"app_id": 221100,  "name": "DayZ",                           "sub": "Survival / Shooter",      "publisher": "Bohemia Interactive",  "f2p": False},
     {"app_id": 230410,  "name": "Warframe",                       "sub": "Looter Shooter / Co-op",  "publisher": "Digital Extremes",     "f2p": True},
     {"app_id": 236390,  "name": "War Thunder",                    "sub": "Vehicle Combat / MMO",    "publisher": "Gaijin",               "f2p": True},
-    {"app_id": 440,     "name": "Team Fortress 2",                "sub": "Arena / Class FPS",       "publisher": "Valve",                "f2p": True},
-    {"app_id": 1938090, "name": "Call of Duty",                   "sub": "Military FPS",            "publisher": "Activision",           "f2p": True},
-    {"app_id": 1070560, "name": "Crosshair X",                    "sub": "Aim Trainer / Utility",   "publisher": "Reflex Gaming",        "f2p": False},
-    {"app_id": 2377570, "name": "Battlefield 6",                  "sub": "Military FPS",            "publisher": "EA / DICE",            "f2p": False},
-    {"app_id": 221100,  "name": "DayZ",                           "sub": "Survival / Shooter",      "publisher": "Bohemia Interactive",  "f2p": False},
-    {"app_id": 2483290, "name": "Delta Force",                    "sub": "Military FPS / BR",       "publisher": "Team Jade / TiMi",     "f2p": True},
-    {"app_id": 3240220, "name": "Grand Theft Auto V Enhanced",    "sub": "Open World / Action",     "publisher": "Rockstar Games",       "f2p": False},
-    {"app_id": 218620,  "name": "PAYDAY 2",                       "sub": "Co-op FPS / Heist",       "publisher": "Overkill Software",    "f2p": False},
-    {"app_id": 550,     "name": "Left 4 Dead 2",                  "sub": "Co-op FPS / Horror",      "publisher": "Valve",                "f2p": False},
+    {"app_id": 252490,  "name": "Rust",                           "sub": "Open World / Survival",   "publisher": "Facepunch Studios",    "f2p": False},
+    {"app_id": 271590,  "name": "Grand Theft Auto V Legacy",      "sub": "Open World / Action",     "publisher": "Rockstar Games",       "f2p": False},
+    {"app_id": 359550,  "name": "Tom Clancy's Rainbow Six Siege","sub": "Tactical / Arena",        "publisher": "Ubisoft",              "f2p": False},
     {"app_id": 377160,  "name": "Fallout 4",                      "sub": "FPS / RPG",               "publisher": "Bethesda",             "f2p": False},
-    {"app_id": 1174180, "name": "Red Dead Redemption 2",          "sub": "Open World / TPS",        "publisher": "Rockstar Games",       "f2p": False},
-    {"app_id": 2457170, "name": "Arena Breakout: Infinite",       "sub": "Extraction Shooter",      "publisher": "MoreFun Studios",      "f2p": True},
-    {"app_id": 4000,    "name": "Garry's Mod",                   "sub": "Sandbox / Shooter",       "publisher": "Facepunch Studios",    "f2p": False},
+    {"app_id": 553850,  "name": "Helldivers 2",                   "sub": "Co-op Shooter",           "publisher": "Arrowhead",            "f2p": False},
+    {"app_id": 578080,  "name": "PUBG: Battlegrounds",            "sub": "Battle Royale",           "publisher": "Krafton",              "f2p": True},
     {"app_id": 1151340, "name": "Fallout 76",                     "sub": "Online RPG / Shooter",    "publisher": "Bethesda",             "f2p": False},
-    {"app_id": 2835570, "name": "Schedule I",                     "sub": "Simulation / Action",     "publisher": "TVGS",                 "f2p": False},
-    {"app_id": 2221490, "name": "Tom Clancy's The Division 2",    "sub": "Cover Shooter / MMO",     "publisher": "Ubisoft",              "f2p": False},
-    {"app_id": 4465480, "name": "Counter-Strike: Global Offensive", "sub": "Tactical / Competitive",  "publisher": "Valve",                "f2p": True},
+    {"app_id": 1172470, "name": "Apex Legends",                   "sub": "Battle Royale / Hero",    "publisher": "EA / Respawn",         "f2p": True},
+    {"app_id": 1174180, "name": "Red Dead Redemption 2",          "sub": "Open World / TPS",        "publisher": "Rockstar Games",       "f2p": False},
+    {"app_id": 1366800, "name": "Crosshair X",                    "sub": "Aim Trainer / Utility",   "publisher": "Reflex Gaming",        "f2p": False},
+    {"app_id": 1422450, "name": "Deadlock",                       "sub": "Hero Shooter / MOBA",     "publisher": "Valve",                "f2p": True},
+    {"app_id": 1808500, "name": "ARC Raiders",                    "sub": "Extraction Shooter",      "publisher": "Embark Studios",       "f2p": False},
+    {"app_id": 1938090, "name": "Call of Duty",                   "sub": "Military FPS",            "publisher": "Activision",           "f2p": True},
+    {"app_id": 2073620, "name": "Arena Breakout: Infinite",       "sub": "Extraction Shooter",      "publisher": "MoreFun Studios",      "f2p": True},
+    {"app_id": 2221490, "name": "Tom Clancy's The Division 2",   "sub": "Cover Shooter / MMO",     "publisher": "Ubisoft",              "f2p": False},
+    {"app_id": 2357570, "name": "Overwatch 2",                    "sub": "Hero Shooter",            "publisher": "Blizzard",             "f2p": True},
+    {"app_id": 2507950, "name": "Delta Force",                    "sub": "Military FPS / BR",       "publisher": "Team Jade / TiMi",     "f2p": True},
+    {"app_id": 2767030, "name": "Marvel Rivals",                  "sub": "Hero Shooter",            "publisher": "NetEase Games",        "f2p": True},
+    {"app_id": 2807960, "name": "Battlefield 6",                  "sub": "Military FPS",            "publisher": "EA / DICE",            "f2p": False},
+    {"app_id": 3065800, "name": "Marathon",                       "sub": "Extraction Shooter",      "publisher": "Bungie",               "f2p": False},
+    {"app_id": 3164500, "name": "Schedule I",                     "sub": "Simulation / Action",     "publisher": "TVGS",                 "f2p": False},
+    {"app_id": 3240220, "name": "Grand Theft Auto V Enhanced",    "sub": "Open World / Action",     "publisher": "Rockstar Games",       "f2p": False},
+    {"app_id": 4465480, "name": "Counter-Strike: Global Offensive","sub": "Tactical / Competitive", "publisher": "Valve",                "f2p": True},
 ]
 # Folder containing SteamDB CSVs, named steamdb_chart_{appid}.csv
 # Resolve DATA_DIR: check next to script first, then cwd/data, then cwd
@@ -1996,6 +2002,21 @@ elif st.session_state.active_view == "main":
                 health_ratios.append(r["ccu"] / hs["peak_ever"] * 100)
         avg_health = sum(health_ratios) / len(health_ratios) if health_ratios else 0
 
+        # ── Compute MoM growth balance from raw CSV data ──
+        mom_growing  = sum(1 for r in ccu_data if wow_diff.get(r["app_id"], {}).get("delta", 0) > 0
+                           and r.get("has_hist"))  # reuse 7d diff as proxy until monthly computed
+        # Real MoM from historical monthly summaries
+        mom_up   = sum(1 for r in ccu_data if (r.get("hist_summary") or {}).get("mom_pct") is not None
+                       and (r.get("hist_summary") or {}).get("mom_pct", 0) > 0)
+        mom_down = sum(1 for r in ccu_data if (r.get("hist_summary") or {}).get("mom_pct") is not None
+                       and (r.get("hist_summary") or {}).get("mom_pct", 0) < 0)
+        mom_total = mom_up + mom_down
+
+        # WoW balance from compute_period_diff (7-day CSV lookback)
+        wow_up   = sum(1 for v in wow_diff.values() if v["delta"] > 0)
+        wow_down = sum(1 for v in wow_diff.values() if v["delta"] < 0)
+        wow_total = len(wow_diff)
+
         # ── Row 1: Primary KPI cards ──
         k1, k2, k3, k4 = st.columns(4)
         with k1:
@@ -2005,10 +2026,12 @@ elif st.session_state.active_view == "main":
             <div class="metric-sub">Across {len(ccu_data)} shooter titles</div>
             </div>""", unsafe_allow_html=True)
         with k2:
+            wow_color = "var(--pos)" if wow_up >= wow_down else "var(--neg)"
+            wow_sub   = f"of {wow_total} titles with CSV data" if wow_total else "No CSV data loaded"
             st.markdown(f"""<div class="metric-card pos-top">
-            <div class="metric-label">Top Title Right Now</div>
-            <div class="metric-value" style="font-size:1.1rem;padding-top:.3rem">{top_title[:22]}</div>
-            <div class="metric-sub">{top_ccu:,} live players</div>
+            <div class="metric-label">WoW Growth Balance</div>
+            <div class="metric-value" style="color:{wow_color}">{wow_up}↑ / {wow_down}↓</div>
+            <div class="metric-sub">{wow_sub}</div>
             </div>""", unsafe_allow_html=True)
         with k3:
             yoy_color = "var(--pos)" if growing >= declining else "var(--neg)"
@@ -2018,10 +2041,12 @@ elif st.session_state.active_view == "main":
             <div class="metric-sub">of {len(yoy_titled)} titles with YoY data</div>
             </div>""", unsafe_allow_html=True)
         with k4:
+            mom_color = "var(--pos)" if mom_up >= mom_down else "var(--neg)"
+            mom_sub   = f"of {mom_total} titles with CSV data" if mom_total else "No CSV data loaded"
             st.markdown(f"""<div class="metric-card purple-top">
-            <div class="metric-label">F2P CCU Share</div>
-            <div class="metric-value">{f2p_share:.0f}%</div>
-            <div class="metric-sub">of total tracked CCU is F2P</div>
+            <div class="metric-label">MoM Growth Balance</div>
+            <div class="metric-value" style="color:{mom_color}">{mom_up}↑ / {mom_down}↓</div>
+            <div class="metric-sub">{mom_sub}</div>
             </div>""", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
