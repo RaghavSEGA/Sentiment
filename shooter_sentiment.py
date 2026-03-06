@@ -1421,14 +1421,30 @@ for k, v in defaults.items():
 # TOP NAV
 # ─────────────────────────────────────────────────────────────
 
-st.markdown("""
+# Topbar: logo + language toggle
+_topbar_cols = st.columns([6, 1])
+with _topbar_cols[0]:
+    st.markdown("""
 <div class="topbar">
   <div class="topbar-logo"><span class="seg">SEGA</span> &nbsp;SHOOTER INTELLIGENCE</div>
   <div class="topbar-divider"></div>
   <div class="topbar-label">Market &amp; Tech Analysis</div>
-  <div class="topbar-pill">Internal Use Only</div>
 </div>
 """, unsafe_allow_html=True)
+with _topbar_cols[1]:
+    _lang = st.segmented_control(
+        "Language",
+        options=["EN", "JP"],
+        default="JP" if st.session_state.report_language == "Japanese" else "EN",
+        label_visibility="collapsed",
+        key="lang_toggle",
+    )
+    _new_lang = "Japanese" if _lang == "JP" else "English"
+    if _new_lang != st.session_state.report_language:
+        st.session_state.report_language = _new_lang
+        st.session_state.ai_report = ""
+        st.session_state.report_cache = {}
+        st.rerun()
 
 # ─────────────────────────────────────────────────────────────
 # SIDEBAR
@@ -2335,7 +2351,7 @@ elif st.session_state.active_view == "main":
                                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
                                 key="dl_pptx_actual")
                         else:
-                            st.error("PPTX generation failed — ensure Node.js is installed (`node --version`).")
+                            st.error("PPTX generation failed. Ensure python-pptx is installed: pip install python-pptx")
 
                 # ── Follow-up chat ──
                 st.markdown("<br>", unsafe_allow_html=True)
