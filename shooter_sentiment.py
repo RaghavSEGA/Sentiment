@@ -3,7 +3,7 @@ Shooter Market Intelligence — SEGA-branded Streamlit App
 =========================================================
 Run with:  streamlit run shooter_intel.py
 
-Required:  pip install streamlit requests pandas plotly anthropic python-pptx
+Required:  pip install streamlit requests pandas plotly anthropic reportlab markdown
 """
 
 import time
@@ -422,7 +422,6 @@ div[data-baseweb="notification"] {
 [data-testid="stChatInput"] > div { background: var(--surface2) !important; border-color: var(--border-hi) !important; }
 [data-testid="stChatInput"] textarea { color: var(--text) !important; }
 </style>
-</style>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
@@ -437,63 +436,21 @@ PLOTLY_BASE = dict(
 )
 
 # Top 10 shooters on Steam (source: SteamDB live charts, March 2026)
-# Roster built from CSVs present in the /data folder (30 titles).
-# App IDs verified against Steam store. Corrected IDs vs previous roster:
-#   Helldivers 2:       553850  (was 2668510)
-#   Crosshair X:        1366800 (was 1070560)
-#   Deadlock:           1422450 (was 2933620)
-#   Arena Breakout:     2073620 (was 2457170)
-#   Delta Force:        2507950 (was 2483290)
-#   Battlefield 6:      2807960 (was 2377570)
-#   Marathon:           3065800 (was 2379780)
-#   Schedule I:         3164500 (was 2835570)
 SHOOTER_ROSTER = [
-    {"app_id": 440,     "name": "Team Fortress 2",                "sub": "Arena / Class FPS",       "publisher": "Valve",                "f2p": True},
-    {"app_id": 550,     "name": "Left 4 Dead 2",                  "sub": "Co-op FPS / Horror",      "publisher": "Valve",                "f2p": False},
-    {"app_id": 730,     "name": "Counter-Strike 2",               "sub": "Tactical / Competitive",  "publisher": "Valve",                "f2p": True},
-    {"app_id": 4000,    "name": "Garry's Mod",                   "sub": "Sandbox / Shooter",       "publisher": "Facepunch Studios",    "f2p": False},
-    {"app_id": 218620,  "name": "PAYDAY 2",                       "sub": "Co-op FPS / Heist",       "publisher": "Overkill Software",    "f2p": False},
-    {"app_id": 221100,  "name": "DayZ",                           "sub": "Survival / Shooter",      "publisher": "Bohemia Interactive",  "f2p": False},
-    {"app_id": 230410,  "name": "Warframe",                       "sub": "Looter Shooter / Co-op",  "publisher": "Digital Extremes",     "f2p": True},
-    {"app_id": 236390,  "name": "War Thunder",                    "sub": "Vehicle Combat / MMO",    "publisher": "Gaijin",               "f2p": True},
-    {"app_id": 252490,  "name": "Rust",                           "sub": "Open World / Survival",   "publisher": "Facepunch Studios",    "f2p": False},
-    {"app_id": 271590,  "name": "Grand Theft Auto V Legacy",      "sub": "Open World / Action",     "publisher": "Rockstar Games",       "f2p": False},
-    {"app_id": 359550,  "name": "Tom Clancy's Rainbow Six Siege","sub": "Tactical / Arena",        "publisher": "Ubisoft",              "f2p": False},
-    {"app_id": 377160,  "name": "Fallout 4",                      "sub": "FPS / RPG",               "publisher": "Bethesda",             "f2p": False},
-    {"app_id": 553850,  "name": "Helldivers 2",                   "sub": "Co-op Shooter",           "publisher": "Arrowhead",            "f2p": False},
-    {"app_id": 578080,  "name": "PUBG: Battlegrounds",            "sub": "Battle Royale",           "publisher": "Krafton",              "f2p": True},
-    {"app_id": 1151340, "name": "Fallout 76",                     "sub": "Online RPG / Shooter",    "publisher": "Bethesda",             "f2p": False},
-    {"app_id": 1172470, "name": "Apex Legends",                   "sub": "Battle Royale / Hero",    "publisher": "EA / Respawn",         "f2p": True},
-    {"app_id": 1174180, "name": "Red Dead Redemption 2",          "sub": "Open World / TPS",        "publisher": "Rockstar Games",       "f2p": False},
-    {"app_id": 1366800, "name": "Crosshair X",                    "sub": "Aim Trainer / Utility",   "publisher": "Reflex Gaming",        "f2p": False},
-    {"app_id": 1422450, "name": "Deadlock",                       "sub": "Hero Shooter / MOBA",     "publisher": "Valve",                "f2p": True},
-    {"app_id": 1808500, "name": "ARC Raiders",                    "sub": "Extraction Shooter",      "publisher": "Embark Studios",       "f2p": False},
-    {"app_id": 1938090, "name": "Call of Duty",                   "sub": "Military FPS",            "publisher": "Activision",           "f2p": True},
-    {"app_id": 2073620, "name": "Arena Breakout: Infinite",       "sub": "Extraction Shooter",      "publisher": "MoreFun Studios",      "f2p": True},
-    {"app_id": 2221490, "name": "Tom Clancy's The Division 2",   "sub": "Cover Shooter / MMO",     "publisher": "Ubisoft",              "f2p": False},
-    {"app_id": 2357570, "name": "Overwatch 2",                    "sub": "Hero Shooter",            "publisher": "Blizzard",             "f2p": True},
-    {"app_id": 2507950, "name": "Delta Force",                    "sub": "Military FPS / BR",       "publisher": "Team Jade / TiMi",     "f2p": True},
-    {"app_id": 2767030, "name": "Marvel Rivals",                  "sub": "Hero Shooter",            "publisher": "NetEase Games",        "f2p": True},
-    {"app_id": 2807960, "name": "Battlefield 6",                  "sub": "Military FPS",            "publisher": "EA / DICE",            "f2p": False},
-    {"app_id": 3065800, "name": "Marathon",                       "sub": "Extraction Shooter",      "publisher": "Bungie",               "f2p": False},
-    {"app_id": 3164500, "name": "Schedule I",                     "sub": "Simulation / Action",     "publisher": "TVGS",                 "f2p": False},
-    {"app_id": 3240220, "name": "Grand Theft Auto V Enhanced",    "sub": "Open World / Action",     "publisher": "Rockstar Games",       "f2p": False},
-    {"app_id": 4465480, "name": "Counter-Strike: Global Offensive","sub": "Tactical / Competitive", "publisher": "Valve",                "f2p": True},
+    {"app_id": 730,     "name": "Counter-Strike 2",    "sub": "Tactical / Competitive", "publisher": "Valve",            "f2p": True},
+    {"app_id": 578080,  "name": "PUBG: Battlegrounds", "sub": "Battle Royale",          "publisher": "Krafton",          "f2p": True},
+    {"app_id": 1808500, "name": "ARC Raiders",         "sub": "Extraction Shooter",     "publisher": "Embark Studios",   "f2p": False},
+    {"app_id": 252490,  "name": "Rust",                "sub": "Open World / PvP",       "publisher": "Facepunch",        "f2p": False},
+    {"app_id": 2767030, "name": "Marvel Rivals",       "sub": "Hero Shooter",           "publisher": "NetEase Games",    "f2p": True},
+    {"app_id": 271590,  "name": "Grand Theft Auto V",  "sub": "Open World / Action",    "publisher": "Rockstar Games",   "f2p": False},
+    {"app_id": 236390,  "name": "War Thunder",         "sub": "Vehicle Combat / MMO",   "publisher": "Gaijin",           "f2p": True},
+    {"app_id": 1172470, "name": "Apex Legends",        "sub": "Battle Royale / Hero",   "publisher": "EA / Respawn",     "f2p": True},
+    {"app_id": 230410,  "name": "Warframe",            "sub": "Looter Shooter / Co-op", "publisher": "Digital Extremes", "f2p": True},
+    {"app_id": 3240220, "name": "GTA V Enhanced",      "sub": "Open World / Action",    "publisher": "Rockstar Games",   "f2p": False},
 ]
-# Folder containing SteamDB CSVs, named steamdb_chart_{appid}.csv
-# Resolve DATA_DIR: check next to script first, then cwd/data, then cwd
-def _resolve_data_dir() -> Path:
-    candidates = [
-        Path(__file__).parent / "data",
-        Path.cwd() / "data",
-        Path.cwd(),
-    ]
-    for p in candidates:
-        if p.exists() and list(p.glob("steamdb_chart_*.csv")):
-            return p
-    return Path(__file__).parent / "data"
 
-DATA_DIR = _resolve_data_dir()
+# Folder containing SteamDB CSVs, named steamdb_chart_{appid}.csv
+DATA_DIR = Path(__file__).parent / "data"
 
 # Steam CCU endpoint
 CCU_URL = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/"
@@ -505,12 +462,15 @@ CCU_URL = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayer
 @st.cache_data(show_spinner=False)
 def load_all_historical() -> dict[int, pd.DataFrame]:
     """
-    Loads all SteamDB CSVs. Returns {app_id: monthly_df} for charts/YoY.
-    monthly_df columns: month (Period), peak_ccu, avg_ccu
+    Loads all SteamDB CSVs from the /data folder at startup.
+    Files must be named steamdb_chart_{appid}.csv
+    Returns a dict of {app_id: monthly_df} where monthly_df has columns:
+        month (Period), peak_ccu, avg_ccu
     """
     historical: dict[int, pd.DataFrame] = {}
     if not DATA_DIR.exists():
         return historical
+
     for csv_path in sorted(DATA_DIR.glob("steamdb_chart_*.csv")):
         try:
             app_id = int(csv_path.stem.replace("steamdb_chart_", ""))
@@ -524,42 +484,18 @@ def load_all_historical() -> dict[int, pd.DataFrame]:
             df["Players"] = pd.to_numeric(df["Players"], errors="coerce")
             df["Average Players"] = pd.to_numeric(df["Average Players"], errors="coerce")
             df["month"] = df["DateTime"].dt.to_period("M")
+
             monthly = (
                 df.groupby("month")
                 .agg(peak_ccu=("Players", "max"), avg_ccu=("Average Players", "mean"))
                 .reset_index()
-            ).sort_values("month")
+            )
+            monthly = monthly.sort_values("month")
             historical[app_id] = monthly
-        except Exception:
-            pass
-    return historical
+        except Exception as e:
+            pass  # Skip malformed CSVs silently
 
-@st.cache_data(show_spinner=False)
-def load_all_raw() -> dict[int, pd.DataFrame]:
-    """
-    Loads all SteamDB CSVs retaining the full 10-minute interval rows.
-    Used for WoW and precise MoM comparisons.
-    Returns {app_id: df} where df has columns: DateTime, Players
-    """
-    raw: dict[int, pd.DataFrame] = {}
-    if not DATA_DIR.exists():
-        return raw
-    for csv_path in sorted(DATA_DIR.glob("steamdb_chart_*.csv")):
-        try:
-            app_id = int(csv_path.stem.replace("steamdb_chart_", ""))
-        except ValueError:
-            continue
-        try:
-            df = pd.read_csv(csv_path, encoding="utf-8-sig")
-            df.columns = [c.strip().strip('"') for c in df.columns]
-            df["DateTime"] = pd.to_datetime(df["DateTime"], errors="coerce")
-            df = df.dropna(subset=["DateTime"])
-            df["Players"] = pd.to_numeric(df["Players"], errors="coerce")
-            df = df.sort_values("DateTime").reset_index(drop=True)
-            raw[app_id] = df[["DateTime", "Players"]]
-        except Exception:
-            pass
-    return raw
+    return historical
 
 
 def compute_yoy(monthly_df: pd.DataFrame) -> tuple[str, float]:
@@ -608,30 +544,22 @@ def get_historical_summary(monthly_df: pd.DataFrame) -> dict:
     """Return a summary dict for the AI prompt from historical data."""
     if monthly_df is None or monthly_df.empty:
         return {}
-    last_12   = monthly_df.tail(12)
+    last_12 = monthly_df.tail(12)
     peak_ever = monthly_df["peak_ccu"].max()
     peak_12m  = last_12["peak_ccu"].max()
     avg_12m   = last_12["avg_ccu"].mean()
-
-    # Real month-over-month: last month vs. the month before it
-    mom_pct   = None
-    mom_trend = "—"
-    if len(monthly_df) >= 2:
-        def _val(row):
-            v = row["avg_ccu"]
-            return v if not pd.isna(v) else row["peak_ccu"]
-        v_now  = _val(monthly_df.iloc[-1])
-        v_prev = _val(monthly_df.iloc[-2])
-        if not pd.isna(v_now) and not pd.isna(v_prev) and v_prev > 0:
-            mom_pct   = (v_now - v_prev) / v_prev * 100
-            mom_trend = f"{'+' if mom_pct >= 0 else ''}{mom_pct:.1f}%"
-
+    # Month-over-month trend (slope sign over last 3 months)
+    last_3 = monthly_df.tail(3)
+    if len(last_3) >= 2:
+        vals = last_3["avg_ccu"].fillna(last_3["peak_ccu"]).dropna().tolist()
+        mom_trend = "↑" if len(vals) >= 2 and vals[-1] > vals[0] else "↓"
+    else:
+        mom_trend = "—"
     return {
-        "peak_ever":   int(peak_ever) if not pd.isna(peak_ever) else None,
-        "peak_12m":    int(peak_12m)  if not pd.isna(peak_12m)  else None,
-        "avg_12m":     int(avg_12m)   if not pd.isna(avg_12m)   else None,
-        "mom_trend":   mom_trend,
-        "mom_pct":     mom_pct,
+        "peak_ever":  int(peak_ever) if not pd.isna(peak_ever) else None,
+        "peak_12m":   int(peak_12m)  if not pd.isna(peak_12m)  else None,
+        "avg_12m":    int(avg_12m)   if not pd.isna(avg_12m)   else None,
+        "mom_trend":  mom_trend,
         "months_data": len(monthly_df),
     }
 
@@ -845,13 +773,7 @@ def build_system_prompt(language: str = "English") -> str:
         "Your analysis is data-driven, commercially sharp, and directly actionable for a publishing team. "
         "Use markdown for all output. Use headers, bullet points, tables, and bold highlights where appropriate. "
         "Be specific — cite titles, numbers, dates, and named competitors whenever possible. "
-        "Avoid vague generalisations. Outputs will be read by product leads and senior management. "
-        "IMPORTANT: For every factual claim, benchmark figure, or industry statistic you include that is NOT "
-        "derived from the data provided to you, you MUST cite a source inline using the format [Source: Name, Year]. "
-        "Examples: [Source: Newzoo Global Games Market Report, 2025], [Source: Steam Spy, Mar 2026], "
-        "[Source: GDC State of the Game Industry 2025], [Source: Valve Steam Blog, 2024]. "
-        "If you are uncertain of a specific source, write [Source: industry estimates] rather than omitting attribution. "
-        "Data provided directly in the prompt (SteamDB CSV, SteamSpy, Steam API) should be attributed as such inline."
+        "Avoid vague generalisations. Outputs will be read by product leads and senior management."
         + lang_instruction
     )
 
@@ -927,9 +849,7 @@ Western PC/console players in 2026 have extremely high expectations for competit
 
 6. **Cost Estimates** — Rough infrastructure budget ranges (low/mid/high tier) for a title targeting 10K, 100K, and 1M peak CCU.
 
-Format as a structured technical brief with a clear PASS/FAIL checklist at the end.
-
-**Source requirements:** Cite every benchmark figure, tick rate standard, and infrastructure cost estimate with [Source: Name, Year]. Reference specific developer blog posts, GDC talks, or published postmortems where possible (e.g. Riot Games engineering blog, Valve networking blog, Epic GDC 2024)."""
+Format as a structured technical brief with a clear PASS/FAIL checklist at the end."""
 
 def build_social_metrics_prompt() -> str:
     return """## Task: Social Media Predictive Metrics — Shooter Day 1 Success
@@ -962,9 +882,7 @@ This analysis synthesises findings from recent investor reports (Embracer, EA, T
    - Design a 10-metric social dashboard SEGA should build for any new shooter pre-launch
    - Include: metric name, platform, measurement method, target threshold, and refresh cadence
 
-6. **Budget Implication** — Given these metrics, what social/influencer spend is required to hit minimum viable social velocity for a Western competitive shooter launch?
-
-**Source requirements:** Every benchmark figure, conversion rate, and spend estimate must be cited with [Source: Name, Year]. Reference specific investor reports (Embracer, EA, Krafton, Nexon), GDC talks, or published postmortems where applicable."""
+6. **Budget Implication** — Given these metrics, what social/influencer spend is required to hit minimum viable social velocity for a Western competitive shooter launch?"""
 
 def build_weekly_report_prompt(ccu_data: list[dict]) -> str:
     rows = []
@@ -1034,98 +952,9 @@ For each of the top 10 titles, estimate or track:
 The output should be a complete, copy-paste-ready template that the analytics team can fill in each Monday in under 2 hours."""
 
 # ─────────────────────────────────────────────────────────────
-# SNAPSHOT STORE  (week-over-week diff)
+# PPTX EXPORT  (pure python-pptx)
 # ─────────────────────────────────────────────────────────────
 
-SNAPSHOT_PATH = Path(__file__).parent / "data" / "snapshots.json"
-SNAPSHOT_MIN_AGE_HOURS = 20  # minimum hours between saved snapshots
-
-def load_snapshots() -> list[dict]:
-    try:
-        if SNAPSHOT_PATH.exists():
-            return json.loads(SNAPSHOT_PATH.read_text())
-    except Exception:
-        pass
-    return []
-
-def save_snapshot(ccu_data: list[dict]) -> None:
-    """Save a snapshot only if the last saved one is older than SNAPSHOT_MIN_AGE_HOURS.
-    This prevents every fetch from overwriting the reference point, ensuring
-    the WoW diff is always comparing against a genuinely older snapshot."""
-    snaps = load_snapshots()
-    now   = datetime.utcnow()
-    if snaps:
-        try:
-            last_ts   = datetime.fromisoformat(snaps[-1]["ts"])
-            age_hours = (now - last_ts).total_seconds() / 3600
-            if age_hours < SNAPSHOT_MIN_AGE_HOURS:
-                return  # too recent — don't overwrite
-        except Exception:
-            pass
-    snap = {
-        "ts": now.isoformat(),
-        "data": [{
-            "app_id":  r["app_id"],
-            "name":    r["name"],
-            "ccu":     r["ccu"],
-            "yoy":     r.get("yoy", "N/A"),
-            "yoy_val": r.get("yoy_val", 0),
-        } for r in ccu_data],
-    }
-    snaps.append(snap)
-    snaps = snaps[-12:]  # keep last 12 snapshots (~12 weeks)
-    try:
-        SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        SNAPSHOT_PATH.write_text(json.dumps(snaps, indent=2))
-    except Exception:
-        pass
-
-def compute_period_diff(ccu_data: list[dict], raw_data: dict, days: int = 7) -> dict[int, dict]:
-    """
-    For titles with CSV data: find the Players value closest to exactly `days`
-    ago within the raw 10-minute interval data, and compare to the latest value.
-
-    For titles without CSV data: returns nothing (no fallback to snapshots —
-    snapshot-based comparisons were unreliable).
-
-    Returns {app_id: {prev_ccu, delta, delta_pct, source, period_label, ref_dt}}
-    """
-    result = {}
-    now = pd.Timestamp.utcnow().tz_localize(None)
-    for r in ccu_data:
-        aid = r["app_id"]
-        df  = raw_data.get(aid)
-        if df is None or df.empty:
-            continue
-        df = df.dropna(subset=["Players"])
-        if len(df) < 2:
-            continue
-        # Use live CCU from the fetched data, not the CSV's last row
-        live_ccu   = r["ccu"]
-        # Look for the row closest to exactly `days` ago from now
-        target_dt  = now - pd.Timedelta(days=days)
-        idx_closest = (df["DateTime"] - target_dt).abs().idxmin()
-        ref_row    = df.loc[idx_closest]
-        ref_dt     = ref_row["DateTime"]
-        ref_ccu    = ref_row["Players"]
-        # Allow up to ±4 days gap (handles stale CSVs and sparse early data)
-        gap_hours  = abs((ref_dt - target_dt).total_seconds()) / 3600
-        if pd.isna(ref_ccu) or ref_ccu == 0 or gap_hours > 96:
-            continue
-        delta = live_ccu - ref_ccu
-        pct   = delta / ref_ccu * 100
-        label = f"{days}d ago ({ref_dt.strftime('%d %b %Y')})"
-        result[aid] = {
-            "prev_ccu":    int(ref_ccu),
-            "delta":       int(delta),
-            "delta_pct":   pct,
-            "source":      "SteamDB CSV",
-            "period_label": label,
-            "ref_dt":      ref_dt.isoformat(),
-        }
-    return result
-
-# ─────────────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────
 # PPTX EXPORT  (pure python-pptx — no Node.js / npm required)
 # ─────────────────────────────────────────────────────────────
@@ -1287,157 +1116,297 @@ def generate_pptx_bytes(report_md: str, ccu_data: list[dict], label: str) -> byt
     prs.save(buf)
     return buf.getvalue()
 
-# ─────────────────────────────────────────────────────────────
-# GAME DRILL-DOWN PROMPT
-# ─────────────────────────────────────────────────────────────
-
-def build_drilldown_prompt(game: dict, historical: dict) -> str:
-    hs   = game.get("hist_summary", {})
-    mdf  = historical.get(game["app_id"])
-    src  = "SteamDB CSV" if game.get("has_hist") else "SteamSpy proxy"
-
-    # Last 12 months table for prompt
-    history_table = ""
-    if mdf is not None and not mdf.empty:
-        last_12 = mdf.tail(12)
-        rows = []
-        for _, row in last_12.iterrows():
-            rows.append(
-                f"  {str(row['month'])}: peak {int(row['peak_ccu']):,}"
-                + (f" / avg {int(row['avg_ccu']):,}" if not pd.isna(row["avg_ccu"]) else "")
-            )
-        history_table = "\n".join(rows)
-
-    return f"""## Deep Dive: {game['name']}
-
-**Publisher:** {game['publisher']}  |  **Sub-genre:** {game['sub']}  |  **F2P:** {"Yes" if game['f2p'] else "No"}
-
-### Current Data
-- Live CCU: {game['ccu']:,}
-- YoY: {game.get('yoy','N/A')} [{src}]
-- Peak ever: {hs.get('peak_ever', 'Unknown'):,} | Peak 12m: {hs.get('peak_12m', 'Unknown'):,}
-- Avg CCU 12m: {hs.get('avg_12m', 'Unknown'):,} | MoM trend: {hs.get('mom_trend','—')}
-- Review score: {game.get('review_pct','?')}% positive | Est. owners: {game.get('owners','Unknown')}
-- Avg hrs played/2wk: {game.get('avg_2w_hrs','?')}
-
-### Monthly CCU History (last 12 months)
-{history_table if history_table else "No historical data available."}
-
-### Provide a focused analysis with these sections:
-
-1. **Performance Summary** — How is this title performing right now vs. its own history? Is it growing, peaking, or declining?
-2. **Player Retention Signals** — What do the CCU trends and engagement metrics suggest about retention health?
-3. **Competitive Position** — Where does this title sit in the broader shooter market? Who are its closest competitors right now?
-4. **Key Risk Factors** — What are the 2-3 biggest threats to this title's playerbase over the next 6 months?
-5. **SEGA Relevance** — What can SEGA learn from this title's trajectory? Any mechanics, monetisation, or community strategies worth noting?
-
-Cite all external benchmarks and industry figures. Be specific and commercially sharp."""
-
-# ─────────────────────────────────────────────────────────────
-# GENRE AGGREGATION
-# ─────────────────────────────────────────────────────────────
-
-def compute_genre_share(ccu_data: list[dict]) -> pd.DataFrame:
-    """Aggregate CCU by sub-genre for the heat map."""
-    genre_map: dict[str, int] = {}
-    for r in ccu_data:
-        genre = r["sub"].split("/")[0].strip()
-        genre_map[genre] = genre_map.get(genre, 0) + r["ccu"]
-    df = pd.DataFrame([
-        {"Sub-genre": g, "Total CCU": v,
-         "Share %": v / max(sum(genre_map.values()), 1) * 100}
-        for g, v in sorted(genre_map.items(), key=lambda x: x[1], reverse=True)
-    ])
-    return df
-
-# ─────────────────────────────────────────────────────────────
-# REPORT HASH  (for analysis caching)
-# ─────────────────────────────────────────────────────────────
-
-def data_hash(ccu_data: list[dict]) -> str:
-    import hashlib
-    sig = json.dumps([{"id": r["app_id"], "ccu": r["ccu"]} for r in ccu_data], sort_keys=True)
-    return hashlib.md5(sig.encode()).hexdigest()[:12]
-
-# ─────────────────────────────────────────────────────────────
-# ANNOTATIONS  (events to overlay on history chart)
-# ─────────────────────────────────────────────────────────────
-
-ANNOTATIONS: dict[int, list[dict]] = {
-    730:     [{"month": "2023-09", "label": "CS2 Launch"},
-              {"month": "2024-04", "label": "Premier update"},
-              {"month": "2025-04", "label": "All-time peak"}],
-    1172470: [{"month": "2023-02", "label": "Season 16 (peak)"},
-              {"month": "2024-06", "label": "Season 22"},
-              {"month": "2025-01", "label": "Revival event"}],
-    578080:  [{"month": "2022-01", "label": "F2P switch"},
-              {"month": "2023-03", "label": "Season 20"}],
-    1808500: [{"month": "2025-10", "label": "Early Access launch"}],
-    2767030: [{"month": "2024-12", "label": "Global launch"}],
-    230410:  [{"month": "2023-04", "label": "Duviri Paradox"},
-              {"month": "2024-11", "label": "1999 update"}],
-    2668510: [{"month": "2024-02", "label": "Global launch"},
-              {"month": "2024-05", "label": "Major patch / peak"}],
-    1237970: [{"month": "2022-02", "label": "Witch Queen launch"},
-              {"month": "2024-06", "label": "The Final Shape"}],
-    359550:  [{"month": "2021-06", "label": "F2P launch"},
-              {"month": "2023-08", "label": "Operation Solar Raid"}],
-    1509960: [{"month": "2023-08", "label": "AC6 Launch"},
-              {"month": "2024-04", "label": "DLC: Fires of Raven"}],
-    1238810: [{"month": "2022-11", "label": "BF2042 launch"},
-              {"month": "2023-09", "label": "Season 6 / F2P"}],
-    2933620: [{"month": "2024-09", "label": "Beta access begins"}],
-    1449560: [{"month": "2022-10", "label": "OW2 launch (F2P)"},
-              {"month": "2023-08", "label": "Invasion update"}],
-}
-
 
 # ─────────────────────────────────────────────────────────────
 # SESSION STATE
 # ─────────────────────────────────────────────────────────────
 
 defaults = {
-    "claude_key":      st.secrets.get("CLAUDE_KEY", os.environ.get("CLAUDE_KEY", "")),
-    "ccu_data":        [],
-    "active_query":    None,
-    "ai_report":       "",
+    "claude_key": st.secrets.get("CLAUDE_KEY", os.environ.get("CLAUDE_KEY", "")),
+    "ccu_data": [],
+    "active_query": None,
+    "ai_report": "",
     "ai_chat_history": [],
     "ai_chat_pending": False,
-    "report_label":    "",
-    "custom_query":    "",
-    "report_cache":    {},      # {hash+query_key: report_text}
-    "drilldown_game":  None,    # app_id of selected game
-    "drilldown_report": "",     # cached drill-down report
-    "watchlist":       [],      # list of app_ids pinned by user
-    "active_view":     "main",  # "main" | "drilldown"
-    "report_language": "English",  # "English" | "Japanese"
-    "ccu_fetched_at":  None,    # datetime of last fetch
+    "report_label": "",
+    "custom_query": "",
+    "report_language": "English",
+    "report_cache": {},
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 # ─────────────────────────────────────────────────────────────
+# TRANSLATIONS  (EN / JP)
+# ─────────────────────────────────────────────────────────────
+
+TRANSLATIONS = {
+    "English": {
+        # Topbar / nav
+        "topbar_subtitle":        "Market &amp; Tech Analysis",
+        # Sidebar
+        "sidebar_config":         "Configuration",
+        "api_loaded":             "Anthropic API key loaded",
+        "api_missing":            "Anthropic API key missing",
+        "model_caption":          "Model: claude-sonnet-4-20250514",
+        "ccu_caption":            "CCU: Steam public API (5 min cache)",
+        "engagement_caption":     "Engagement: SteamSpy API (1 hr cache)",
+        "csvs_loaded":            "SteamDB CSVs: {n}/{total} loaded",
+        "csv_missing":            "Missing: {names}",
+        "csv_drop_hint":          "Drop steamdb_chart_{appid}.csv into /data to update",
+        "watchlist_header":       "My Watchlist",
+        "watchlist_max":          "Max 5 pinned titles",
+        "lang_header":            "Report Language",
+        "last_fetched":           "⏱ CCU last fetched: {time}",
+        # Hero
+        "hero_line1":             "SHOOTER MARKET",
+        "hero_line2":             "INTELLIGENCE",
+        # Section headers
+        "select_analysis":        "SELECT ANALYSIS TYPE",
+        "live_ccu_header":        "LIVE STEAM CCU SNAPSHOT",
+        "ai_analysis_header":     "AI ANALYSIS — {label}",
+        # Fetch button
+        "fetch_ccu_btn":          "Fetch Live CCU Data",
+        "fetch_spinner":          "Pulling live CCU from Steam + SteamSpy…",
+        "fetching_game":          "Fetching: {name}…",
+        "fetch_done":             "Fetched {n} titles",
+        # KPI cards
+        "kpi_total_ccu":          "Total CCU (Tracked)",
+        "kpi_total_sub":          "Across {n} shooter titles",
+        "kpi_wow":                "WoW Growth Balance",
+        "kpi_wow_sub":            "of {n} titles with CSV data",
+        "kpi_wow_none":           "No CSV data loaded",
+        "kpi_yoy":                "YoY Growth Balance",
+        "kpi_yoy_sub":            "of {n} titles with YoY data",
+        "kpi_mom":                "MoM Growth Balance",
+        "kpi_mom_sub":            "of {n} titles with CSV data",
+        "kpi_mom_none":           "No CSV data loaded",
+        "kpi_csvs":               "SteamDB CSVs Loaded",
+        "kpi_csvs_sub":           "titles with full historical data",
+        "kpi_health":             "Avg Peak Health",
+        "kpi_health_sub":         "current CCU vs. all-time peak",
+        "kpi_best_grower":        "Biggest YoY Grower",
+        "kpi_best_sub":           "{pct} YoY (SteamDB)",
+        "kpi_worst_decline":      "Biggest YoY Decline",
+        "kpi_worst_sub":          "{pct} YoY (SteamDB)",
+        # Expanders
+        "yoy_expander":           "YoY Growth Breakdown — {up} growing, {down} declining",
+        "wow_expander":           "Week-over-Week CCU Change ({n} titles with CSV data)",
+        "wow_caption":            "Comparing latest CSV value vs. the row closest to exactly 7 days prior. Source: SteamDB 10-minute interval data.",
+        "wow_none":               "No CSV data loaded yet. Add steamdb_chart_{appid}.csv files to the /data folder.",
+        "heatmap_expander":       "Sub-Genre CCU Heat Map",
+        "heatmap_caption":        "Source: Aggregated from Steam API live CCU, grouped by sub-genre tag in roster.",
+        "table_expander":         "Full Data Table — All Tracked Titles",
+        "history_expander":       "Monthly Peak CCU History — SteamDB Data",
+        "history_caption":        "Source: SteamDB 10-min interval CSVs, aggregated to monthly peak. Annotations mark key events.",
+        # Table columns
+        "col_title":              "Title",
+        "col_subgenre":           "Sub-genre",
+        "col_publisher":          "Publisher",
+        "col_f2p":                "F2P",
+        "col_live_ccu":           "Live CCU",
+        "col_yoy":                "YoY",
+        "col_data_source":        "Data Source",
+        "col_peak_ever":          "Peak Ever",
+        "col_peak_12m":           "Peak 12m",
+        "col_avg_ccu_12m":        "Avg CCU 12m",
+        "col_mom":                "MoM",
+        "col_review":             "Review",
+        "col_owners":             "Est. Owners",
+        "col_7d_ago":             "7d Ago CCU",
+        "col_delta_ccu":          "Δ CCU",
+        "col_delta_pct":          "Δ %",
+        "col_direction":          "Direction",
+        "col_reference":          "Reference",
+        # Bar chart
+        "chart_caption":          "Paid titles (blue) / F2P titles (green)  |  Hover bars for YoY & Week-over-Week delta  |  Source: Steam public API",
+        # Analysis presets
+        "run_analysis":           "Run Analysis",
+        "custom_label":           "Or ask a custom question",
+        "custom_placeholder":     "e.g. Compare monetisation models across the top 5 F2P shooters on Steam…",
+        "run_btn":                "Run",
+        "custom_query_label":     "Custom Query",
+        # AI report
+        "cache_notice":           "Loaded from cache — data unchanged since last run. Re-fetch CCU to force refresh.",
+        "no_ccu_warning":         "Please fetch live CCU data first.",
+        "spinner_generating":     "Claude is generating your analysis…",
+        "no_key_warning":         "CLAUDE_KEY not found. Add it to .streamlit/secrets.toml to run AI analysis.",
+        "no_anthropic_error":     "Install the `anthropic` package: `pip install anthropic`",
+        "auth_error":             "Invalid API key. Check CLAUDE_KEY in .streamlit/secrets.toml.",
+        "rate_limit_error":       "Rate limit hit. Wait a moment and try again.",
+        # Downloads
+        "download_report_header": "DOWNLOAD REPORT",
+        "dl_md":                  "Download Markdown",
+        "dl_html":                "Download HTML",
+        "dl_pdf":                 "Download PDF",
+        "dl_pptx_btn":            "Download PowerPoint",
+        "dl_pptx_file":           "Download .pptx",
+        "dl_pptx_error":          "PPTX generation failed. Ensure python-pptx is installed: pip install python-pptx",
+        "dl_pdf_missing":         "PDF: install `reportlab`",
+        "spinner_pptx":           "Building slides…",
+        # Follow-up chat
+        "chat_header":            "FOLLOW-UP CHAT",
+        "chat_subtext":           "— ask Claude follow-up questions about this report",
+        # Drilldown
+        "drilldown_header":       "GAME INTELLIGENCE DEEP DIVE",
+        "back_btn":               "← Back to Dashboard",
+        "drilldown_select":       "Select a title to deep dive...",
+        "drilldown_btn":          "Deep Dive",
+        "drilldown_no_data":      "Game data not found — please fetch CCU data first.",
+        "drilldown_no_key":       "CLAUDE_KEY not found. Add it to .streamlit/secrets.toml to run AI analysis.",
+        "drilldown_spinner":      "Generating deep-dive analysis…",
+        "drilldown_dl":           "Download Deep Dive (.md)",
+        "no_hist_info":           "No historical CSV data for this title. Drop steamdb_chart_{appid}.csv into /data.",
+        "yoy_caption":            "SteamDB CSV = genuine same-month YoY · SteamSpy proxy = engagement momentum estimate",
+        "yoy_none":               "No YoY data available — fetch CCU data first.",
+        # Watchlist section
+        "watchlist_section":      "WATCHLISTED TITLES",
+        # Values
+        "yes": "Yes",
+        "no":  "No",
+        "up":  "Up",
+        "down":"Down",
+        "flat":"Flat",
+    },
+    "Japanese": {
+        "topbar_subtitle":        "市場・テクノロジー分析",
+        "sidebar_config":         "設定",
+        "api_loaded":             "Anthropic APIキー 読み込み済み",
+        "api_missing":            "Anthropic APIキー が見つかりません",
+        "model_caption":          "モデル: claude-sonnet-4-20250514",
+        "ccu_caption":            "CCU: Steam公開API（5分キャッシュ）",
+        "engagement_caption":     "エンゲージメント: SteamSpy API（1時間キャッシュ）",
+        "csvs_loaded":            "SteamDB CSV: {n}/{total} 読み込み済み",
+        "csv_missing":            "未取得: {names}",
+        "csv_drop_hint":          "steamdb_chart_{{appid}}.csv を /data に追加してください",
+        "watchlist_header":       "ウォッチリスト",
+        "watchlist_max":          "最大5タイトルまで",
+        "lang_header":            "レポート言語",
+        "last_fetched":           "⏱ CCU最終取得: {time}",
+        "hero_line1":             "シューター市場",
+        "hero_line2":             "インテリジェンス",
+        "select_analysis":        "分析タイプを選択",
+        "live_ccu_header":        "Steam CCU ライブスナップショット",
+        "ai_analysis_header":     "AI分析 — {label}",
+        "fetch_ccu_btn":          "ライブCCUデータを取得",
+        "fetch_spinner":          "Steam / SteamSpy からCCUを取得中…",
+        "fetching_game":          "取得中: {name}…",
+        "fetch_done":             "{n} タイトル取得完了",
+        "kpi_total_ccu":          "総CCU（追跡中）",
+        "kpi_total_sub":          "{n} シュータータイトルの合計",
+        "kpi_wow":                "週次成長バランス（WoW）",
+        "kpi_wow_sub":            "CSVデータあり {n} タイトル",
+        "kpi_wow_none":           "CSVデータなし",
+        "kpi_yoy":                "年次成長バランス（YoY）",
+        "kpi_yoy_sub":            "YoYデータあり {n} タイトル",
+        "kpi_mom":                "月次成長バランス（MoM）",
+        "kpi_mom_sub":            "CSVデータあり {n} タイトル",
+        "kpi_mom_none":           "CSVデータなし",
+        "kpi_csvs":               "SteamDB CSV 読み込み数",
+        "kpi_csvs_sub":           "完全な履歴データあり",
+        "kpi_health":             "平均ピーク健全率",
+        "kpi_health_sub":         "現在CCU ÷ 全期間ピーク",
+        "kpi_best_grower":        "最大YoY成長タイトル",
+        "kpi_best_sub":           "{pct} YoY（SteamDB）",
+        "kpi_worst_decline":      "最大YoY下落タイトル",
+        "kpi_worst_sub":          "{pct} YoY（SteamDB）",
+        "yoy_expander":           "YoY成長内訳 — 成長 {up}、下落 {down}",
+        "wow_expander":           "週次CCU変動（{n} タイトル・CSVデータあり）",
+        "wow_caption":            "最新CSV値と7日前の行を比較。出典: SteamDB 10分間隔データ",
+        "wow_none":               "CSVデータが未ロードです。steamdb_chart_{{appid}}.csv を /data に追加してください。",
+        "heatmap_expander":       "サブジャンル別CCUヒートマップ",
+        "heatmap_caption":        "出典: Steam API ライブCCUをロスター内サブジャンルタグで集計",
+        "table_expander":         "全データテーブル — 追跡中の全タイトル",
+        "history_expander":       "月次ピークCCU履歴 — SteamDBデータ",
+        "history_caption":        "出典: SteamDB 10分間隔CSV、月次ピーク集計。注釈は主要イベントを示す。",
+        "col_title":              "タイトル",
+        "col_subgenre":           "サブジャンル",
+        "col_publisher":          "パブリッシャー",
+        "col_f2p":                "基本無料",
+        "col_live_ccu":           "ライブCCU",
+        "col_yoy":                "YoY",
+        "col_data_source":        "データソース",
+        "col_peak_ever":          "全期間ピーク",
+        "col_peak_12m":           "12ヶ月ピーク",
+        "col_avg_ccu_12m":        "12ヶ月平均CCU",
+        "col_mom":                "MoM",
+        "col_review":             "レビュー",
+        "col_owners":             "推定オーナー数",
+        "col_7d_ago":             "7日前CCU",
+        "col_delta_ccu":          "Δ CCU",
+        "col_delta_pct":          "Δ %",
+        "col_direction":          "方向",
+        "col_reference":          "参照日",
+        "chart_caption":          "有料タイトル（青）/ 基本無料（緑）  |  バーにカーソルでYoY・週次変動を表示  |  出典: Steam公開API",
+        "run_analysis":           "分析を実行",
+        "custom_label":           "またはカスタム質問を入力",
+        "custom_placeholder":     "例: SteamのF2Pシューター上位5タイトルの収益モデルを比較…",
+        "run_btn":                "実行",
+        "custom_query_label":     "カスタムクエリ",
+        "cache_notice":           "キャッシュから読み込みました — データに変更なし。更新するにはCCUを再取得してください。",
+        "no_ccu_warning":         "先にライブCCUデータを取得してください。",
+        "spinner_generating":     "Claudeが分析を生成中…",
+        "no_key_warning":         "CLAUDE_KEY が見つかりません。.streamlit/secrets.toml に追加してください。",
+        "no_anthropic_error":     "`anthropic` パッケージをインストールしてください: `pip install anthropic`",
+        "auth_error":             "APIキーが無効です。CLAUDE_KEY を確認してください。",
+        "rate_limit_error":       "レートリミットに達しました。しばらく待ってから再試行してください。",
+        "download_report_header": "レポートをダウンロード",
+        "dl_md":                  "Markdownをダウンロード",
+        "dl_html":                "HTMLをダウンロード",
+        "dl_pdf":                 "PDFをダウンロード",
+        "dl_pptx_btn":            "PowerPointをダウンロード",
+        "dl_pptx_file":           ".pptxをダウンロード",
+        "dl_pptx_error":          "PPTX生成に失敗しました。python-pptxをインストールしてください。",
+        "dl_pdf_missing":         "PDF: `reportlab` をインストールしてください",
+        "spinner_pptx":           "スライドを作成中…",
+        "chat_header":            "フォローアップチャット",
+        "chat_subtext":           "— このレポートについてClaudeに追加質問できます",
+        "drilldown_header":       "ゲーム・インテリジェンス 詳細分析",
+        "back_btn":               "← ダッシュボードに戻る",
+        "drilldown_select":       "詳細分析するタイトルを選択...",
+        "drilldown_btn":          "詳細分析",
+        "drilldown_no_data":      "ゲームデータが見つかりません。先にCCUデータを取得してください。",
+        "drilldown_no_key":       "CLAUDE_KEY が見つかりません。.streamlit/secrets.toml に追加してください。",
+        "drilldown_spinner":      "詳細分析を生成中…",
+        "drilldown_dl":           "詳細分析をダウンロード (.md)",
+        "no_hist_info":           "このタイトルのCSV履歴データがありません。steamdb_chart_{{appid}}.csv を /data に追加してください。",
+        "yoy_caption":            "SteamDB CSV = 実際の同月YoY · SteamSpy推定 = エンゲージメント勢い推定値",
+        "yoy_none":               "YoYデータなし — 先にCCUデータを取得してください。",
+        "watchlist_section":      "ウォッチリスト",
+        "yes": "はい",
+        "no":  "いいえ",
+        "up":  "上昇",
+        "down":"下降",
+        "flat":"横ばい",
+    },
+}
+
+
+def T(key: str, **kwargs) -> str:
+    lang = st.session_state.get("report_language", "English")
+    if lang not in TRANSLATIONS:
+        lang = "English"
+    text = TRANSLATIONS[lang].get(key, TRANSLATIONS["English"].get(key, key))
+    return text.format(**kwargs) if kwargs else text
+
+# ─────────────────────────────────────────────────────────────
 # TOP NAV
 # ─────────────────────────────────────────────────────────────
 
-# Topbar: logo + language toggle
-_topbar_cols = st.columns([6, 1])
-with _topbar_cols[0]:
+_tc = st.columns([7, 1])
+with _tc[0]:
     st.markdown("""
 <div class="topbar">
   <div class="topbar-logo"><span class="seg">SEGA</span> &nbsp;SHOOTER INTELLIGENCE</div>
   <div class="topbar-divider"></div>
-  <div class="topbar-label">Market &amp; Tech Analysis</div>
-</div>
-""", unsafe_allow_html=True)
-with _topbar_cols[1]:
+  <div class="topbar-label">{subtitle}</div>
+</div>""".format(subtitle=T("topbar_subtitle")), unsafe_allow_html=True)
+with _tc[1]:
     _lang = st.segmented_control(
-        "Language",
-        options=["EN", "JP"],
+        "Language", options=["EN", "JP"],
         default="JP" if st.session_state.report_language == "Japanese" else "EN",
-        label_visibility="collapsed",
-        key="lang_toggle",
+        label_visibility="collapsed", key="lang_toggle",
     )
     _new_lang = "Japanese" if _lang == "JP" else "English"
     if _new_lang != st.session_state.report_language:
@@ -1447,19 +1416,33 @@ with _topbar_cols[1]:
         st.rerun()
 
 # ─────────────────────────────────────────────────────────────
-# SIDEBAR
+# HERO
+# ─────────────────────────────────────────────────────────────
+
+st.markdown("""
+<div class="hero">
+  <div class="hero-title">SHOOTER MARKET<br><span class="accent">INTELLIGENCE</span></div>
+  <div class="hero-sub">
+    Live Steam CCU data · AI-powered analysis · Competitive benchmarks ·
+    Weekly reporting templates — all in one tool for SEGA's publishing and strategy teams.
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────
+# SIDEBAR — API KEY
 # ─────────────────────────────────────────────────────────────
 
 with st.sidebar:
     st.markdown("""
     <div style="font-family:'Inter Tight',sans-serif;font-weight:900;font-size:1rem;
     letter-spacing:.1em;text-transform:uppercase;color:#4080ff;margin-bottom:1rem;">
-    Configuration</div>
+    ⚙ Configuration</div>
     """, unsafe_allow_html=True)
 
     _cl_ok = bool(st.session_state.claude_key)
     if _cl_ok:
-        st.success("Anthropic API key loaded")
+        st.success("\u2713 Anthropic API key loaded", icon="\U0001f511")
     else:
         st.error("Anthropic API key missing")
         st.markdown(
@@ -1473,966 +1456,462 @@ with st.sidebar:
     st.caption("Model: claude-sonnet-4-20250514")
     st.caption("CCU: Steam public API (5 min cache)")
     st.caption("Engagement: SteamSpy API (1 hr cache)")
-
-    # Last updated
-    if st.session_state.ccu_fetched_at:
-        st.caption(f"⏱ CCU last fetched: {st.session_state.ccu_fetched_at.strftime('%H:%M UTC, %d %b %Y')}")
-
     st.markdown("---")
-    historical_sb = load_all_historical()
-    hist_ids   = set(historical_sb.keys())
+    # Show which games have historical CSV data loaded
+    historical = load_all_historical()
+    hist_ids = set(historical.keys())
     roster_ids = {g["app_id"] for g in SHOOTER_ROSTER}
-    loaded     = hist_ids & roster_ids
-    missing    = roster_ids - hist_ids
-    st.caption(f"SteamDB CSVs: {len(loaded)}/{len(roster_ids)} loaded")
+    loaded = hist_ids & roster_ids
+    missing = roster_ids - hist_ids
+    st.caption(f"📁 SteamDB CSVs: {len(loaded)}/{len(roster_ids)} loaded")
     if missing:
         missing_names = [g["name"] for g in SHOOTER_ROSTER if g["app_id"] in missing]
-        st.caption("Missing: " + ", ".join(missing_names))
-    st.caption("Drop steamdb_chart_{appid}.csv into /data to update")
+        st.caption("⚠️ Missing: " + ", ".join(missing_names))
+    st.caption("Drop steamdb_chart_{{appid}}.csv into /data to update")
 
-    st.markdown("---")
-    # Report language selector
-    st.markdown("""<div style="font-size:.65rem;font-weight:800;letter-spacing:.18em;
-    text-transform:uppercase;color:#5a5f82;margin-bottom:.5rem;">Report Language</div>""",
-    unsafe_allow_html=True)
-    lang_choice = st.radio(
-        "Report language",
-        options=["English", "日本語"],
-        index=0 if st.session_state.report_language == "English" else 1,
-        horizontal=True,
+# ─────────────────────────────────────────────────────────────
+# QUERY BLOCK
+# ─────────────────────────────────────────────────────────────
+
+st.markdown('<div class="query-block">', unsafe_allow_html=True)
+
+st.markdown("""
+<div class="section-header" style="margin-top:0">
+  <span class="dot"></span>{T("select_analysis")}
+</div>
+""", unsafe_allow_html=True)
+
+# Preset cards
+col1, col2 = st.columns(2)
+for i, preset in enumerate(PRESET_QUERIES):
+    col = col1 if i % 2 == 0 else col2
+    with col:
+        st.markdown(f"""
+        <div class="insight-card">
+          <div class="insight-card-title">
+            <span class="{preset['tag_class']}">{preset['tag']}</span>
+            {preset['label']}
+          </div>
+          <div class="insight-card-desc">{preset['desc']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button(T("run_analysis"), key=f"preset_{preset['id']}"):
+            st.session_state.active_query = preset["prompt_key"]
+            st.session_state.ai_report = ""
+            st.session_state.ai_chat_history = []
+            st.session_state.report_label = preset["label"]
+
+st.markdown("<br>", unsafe_allow_html=True)
+st.markdown('<div class="field-label">{T("custom_label")}</div>', unsafe_allow_html=True)
+col_q, col_btn = st.columns([5, 1])
+with col_q:
+    custom = st.text_input(
+        "Custom query",
+        value=st.session_state.custom_query,
         label_visibility="collapsed",
+        placeholder="e.g. Compare monetisation models across the top 5 F2P shooters on Steam…",
+        key="custom_input",
     )
-    if lang_choice == "日本語" and st.session_state.report_language != "Japanese":
-        st.session_state.report_language = "Japanese"
-        st.session_state.ai_report = ""          # clear cached report
-        st.session_state.report_cache = {}
+with col_btn:
+    run_custom = st.button(T("run_btn"), key="run_custom")
+
+if run_custom and custom.strip():
+    st.session_state.custom_query = custom.strip()
+    st.session_state.active_query = "custom"
+    st.session_state.ai_report = ""
+    st.session_state.ai_chat_history = []
+    st.session_state.report_label = "Custom Query"
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────
+# LIVE CCU PANEL
+# ─────────────────────────────────────────────────────────────
+
+st.markdown("""
+<div class="section-header">
+  <span class="dot"></span>{T("live_ccu_header")}
+</div>
+""", unsafe_allow_html=True)
+
+if not st.session_state.ccu_data:
+    if st.button(T("fetch_ccu_btn"), key="fetch_ccu"):
+        with st.spinner(T("fetch_spinner")):
+            # Load historical SteamDB data from /data folder
+            historical = load_all_historical()
+            results = []
+            prog = st.progress(0.0)
+            status = st.empty()
+            for idx, game in enumerate(SHOOTER_ROSTER):
+                status.caption(T("fetching_game", name=game["name"]))
+
+                # Live CCU from Steam API
+                ccu = fetch_ccu(game["app_id"])
+
+                # Real YoY from SteamDB historical CSV (if available)
+                hist_df  = historical.get(game["app_id"])
+                has_hist = hist_df is not None and not hist_df.empty
+                if has_hist:
+                    yoy_str, yoy_pct = compute_yoy(hist_df)
+                    hist_summary = get_historical_summary(hist_df)
+                else:
+                    # Fall back to SteamSpy proxy
+                    ss = fetch_steamspy(game["app_id"])
+                    yoy_str, yoy_pct = parse_yoy_from_steamspy(ss)
+                    hist_summary = {}
+
+                # SteamSpy for owner/review data (still useful supplemental)
+                ss = fetch_steamspy(game["app_id"])
+                owners     = ss.get("owners", "Unknown")
+                avg_2w_hrs = round((ss.get("average_2weeks", 0) or 0) / 60, 1)
+                pos_reviews= ss.get("positive", 0) or 0
+                neg_reviews= ss.get("negative", 0) or 0
+                total_rev  = pos_reviews + neg_reviews
+                review_pct = round(pos_reviews / total_rev * 100, 1) if total_rev else None
+
+                results.append({
+                    **game,
+                    "ccu":          ccu if ccu else 0,
+                    "ccu_live":     ccu is not None,
+                    "yoy":          yoy_str,
+                    "yoy_val":      yoy_pct,
+                    "has_hist":     has_hist,
+                    "hist_summary": hist_summary,
+                    "owners":       owners,
+                    "avg_2w_hrs":   avg_2w_hrs,
+                    "review_pct":   review_pct,
+                    "pos_reviews":  pos_reviews,
+                    "neg_reviews":  neg_reviews,
+                })
+                prog.progress((idx + 1) / len(SHOOTER_ROSTER))
+                time.sleep(0.4)  # polite rate limiting for SteamSpy
+
+            status.empty()
+            results.sort(key=lambda x: x["ccu"], reverse=True)
+            st.session_state.ccu_data = results
         st.rerun()
-    elif lang_choice == "English" and st.session_state.report_language != "English":
-        st.session_state.report_language = "English"
-        st.session_state.ai_report = ""
-        st.session_state.report_cache = {}
-        st.rerun()
+else:
+    ccu_data = st.session_state.ccu_data
 
-    st.markdown("---")
-    # Watchlist management
-    st.markdown("""<div style="font-size:.65rem;font-weight:800;letter-spacing:.18em;
-    text-transform:uppercase;color:#5a5f82;margin-bottom:.5rem;">My Watchlist</div>""",
-    unsafe_allow_html=True)
-    for g in SHOOTER_ROSTER:
-        is_pinned = g["app_id"] in st.session_state.watchlist
-        label = f"{'[pinned]' if is_pinned else ''} {g['name']}"
-        if st.button(label, key=f"pin_{g['app_id']}",
-                     type="primary" if is_pinned else "secondary",
-                     use_container_width=True):
-            if is_pinned:
-                st.session_state.watchlist.remove(g["app_id"])
-            else:
-                if len(st.session_state.watchlist) < 5:
-                    st.session_state.watchlist.append(g["app_id"])
-            st.rerun()
-    if len(st.session_state.watchlist) >= 5:
-        st.caption("Max 5 pinned titles")
+    # KPI row
+    total_ccu = sum(r["ccu"] for r in ccu_data)
+    top_title = ccu_data[0]["name"]
+    top_ccu   = ccu_data[0]["ccu"]
+    growing   = sum(1 for r in ccu_data if r["yoy_val"] > 0)
+    f2p_share = sum(r["ccu"] for r in ccu_data if r["f2p"]) / max(total_ccu, 1) * 100
 
-# ─────────────────────────────────────────────────────────────
-# BACK BUTTON (drill-down view)
-# ─────────────────────────────────────────────────────────────
-
-if st.session_state.active_view == "drilldown":
-    if st.button("← Back to Dashboard", key="back_main"):
-        st.session_state.active_view    = "main"
-        st.session_state.drilldown_game  = None
-        st.session_state.drilldown_report = ""
-        st.rerun()
-
-# ─────────────────────────────────────────────────────────────
-# HERO
-# ─────────────────────────────────────────────────────────────
-
-if st.session_state.active_view == "main":
-    st.markdown("""
-    <div class="hero">
-      <div class="hero-title">SHOOTER MARKET<br><span class="accent">INTELLIGENCE</span></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# ═══════════════════════════════════════════════════════════════
-# DRILL-DOWN VIEW
-# ═══════════════════════════════════════════════════════════════
-
-if st.session_state.active_view == "drilldown" and st.session_state.drilldown_game is not None:
-    historical = load_all_historical()
-    game = next((r for r in st.session_state.ccu_data
-                 if r["app_id"] == st.session_state.drilldown_game), None)
-
-    if game is None:
-        st.warning("Game data not found — please fetch CCU data first.")
-    else:
-        hs   = game.get("hist_summary", {})
-        mdf  = historical.get(game["app_id"])
-
-        # ── Title bar ──
-        st.markdown(f"""
-        <div class="section-header" style="margin-top:0">
-          <span class="dot"></span>{game['name'].upper()} — DEEP DIVE
-          <span style="color:var(--muted);font-size:.7rem;margin-left:.5rem;">{game['sub']} · {game['publisher']}</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ── KPI row ──
-        d1, d2, d3, d4, d5 = st.columns(5)
-        peak_health = (game['ccu'] / hs['peak_ever'] * 100) if hs.get('peak_ever') else None
-        ph_color = "var(--pos)" if peak_health and peak_health > 50 else "var(--amber)" if peak_health and peak_health > 25 else "var(--neg)"
-        for col, label, val, sub in [
-            (d1, "Live CCU",      f"{game['ccu']:,}",                             "right now"),
-            (d2, "YoY Change",    game.get('yoy','N/A'),                           "vs same month last year"),
-            (d3, "Peak Ever",     f"{hs['peak_ever']:,}" if hs.get('peak_ever') else "—", "all-time"),
-            (d4, "Peak 12m",      f"{hs['peak_12m']:,}"  if hs.get('peak_12m')  else "—", "rolling 12 months"),
-            (d5, "Peak Health",   f"{peak_health:.0f}%"  if peak_health else "—",  "current vs all-time peak"),
-        ]:
-            with col:
-                color = ph_color if label == "Peak Health" else ("var(--pos)" if game.get('yoy_val', 0) > 0 and label == "YoY Change" else "inherit")
-                st.markdown(f"""<div class="metric-card blue-top">
-                <div class="metric-label">{label}</div>
-                <div class="metric-value" style="color:{color}">{val}</div>
-                <div class="metric-sub">{sub}</div>
-                </div>""", unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # ── Full history chart with annotations ──
-        if mdf is not None and not mdf.empty:
-            fig_dd = go.Figure()
-            fig_dd.add_trace(go.Scatter(
-                x=[str(p) for p in mdf["month"]],
-                y=mdf["peak_ccu"],
-                mode="lines",
-                name="Peak CCU",
-                line=dict(color="#4080ff", width=2),
-                fill="tozeroy",
-                fillcolor="rgba(64,128,255,0.07)",
-                hovertemplate="<b>%{x}</b><br>Peak CCU: %{y:,}<extra></extra>",
-            ))
-            if not mdf["avg_ccu"].isna().all():
-                fig_dd.add_trace(go.Scatter(
-                    x=[str(p) for p in mdf["month"]],
-                    y=mdf["avg_ccu"],
-                    mode="lines",
-                    name="Avg CCU",
-                    line=dict(color="#20c65a", width=1.5, dash="dot"),
-                    hovertemplate="<b>%{x}</b><br>Avg CCU: %{y:,}<extra></extra>",
-                ))
-            # Add annotations
-            for ann in ANNOTATIONS.get(game["app_id"], []):
-                row = mdf[mdf["month"] == ann["month"]]
-                if not row.empty:
-                    y_val = row.iloc[0]["peak_ccu"]
-                    fig_dd.add_annotation(
-                        x=ann["month"], y=y_val,
-                        text=ann["label"],
-                        showarrow=True, arrowhead=2, arrowcolor="#ffb938",
-                        font=dict(size=9, color="#ffb938"),
-                        bgcolor="rgba(15,17,32,0.85)",
-                        bordercolor="#ffb938", borderwidth=1,
-                        ay=-36,
-                    )
-            fig_dd.update_layout(
-                **PLOTLY_BASE,
-                title=dict(text=f"{game['name']} — Full CCU History (SteamDB)", font=dict(size=13, color="#b8bcd4"), x=0),
-                xaxis=dict(showgrid=False, tickangle=-45, tickfont=dict(size=8)),
-                yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
-                height=400,
-                legend=dict(font=dict(size=10), bgcolor="rgba(0,0,0,0)"),
-            )
-            st.plotly_chart(fig_dd, use_container_width=True)
-            st.caption(f"Source: SteamDB CSV · {hs.get('months_data',0)} months of data · Annotations mark key events")
-        else:
-            st.info("No historical CSV data for this title. Drop steamdb_chart_{game['app_id']}.csv into /data.")
-
-        # ── Supplemental stats ──
-        st.markdown("<br>", unsafe_allow_html=True)
-        ss1, ss2, ss3 = st.columns(3)
-        with ss1:
-            st.markdown(f"""<div class="metric-card amber-top">
-            <div class="metric-label">Review Score</div>
-            <div class="metric-value">{game.get('review_pct','?')}%</div>
-            <div class="metric-sub">{game.get('pos_reviews',0):,} positive reviews (SteamSpy)</div>
-            </div>""", unsafe_allow_html=True)
-        with ss2:
-            st.markdown(f"""<div class="metric-card pos-top">
-            <div class="metric-label">Avg Hrs Played / 2wk</div>
-            <div class="metric-value">{game.get('avg_2w_hrs','?')}</div>
-            <div class="metric-sub">per owner, last 14 days (SteamSpy)</div>
-            </div>""", unsafe_allow_html=True)
-        with ss3:
-            st.markdown(f"""<div class="metric-card purple-top">
-            <div class="metric-label">Est. Owners</div>
-            <div class="metric-value" style="font-size:1rem">{game.get('owners','Unknown')}</div>
-            <div class="metric-sub">SteamSpy band estimate</div>
-            </div>""", unsafe_allow_html=True)
-
-        # ── AI drill-down analysis ──
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="section-header">
-          <span class="dot"></span>AI DEEP DIVE — {game['name'].upper()}
-        </div>
-        """, unsafe_allow_html=True)
-
-        if not st.session_state.claude_key:
-            st.warning("CLAUDE_KEY not found. Add it to .streamlit/secrets.toml to run AI analysis.")
-        elif not ANTHROPIC_AVAILABLE:
-            st.error("Install the `anthropic` package: `pip install anthropic`")
-        else:
-            drill_cache_key = f"drill_{game['app_id']}_{game['ccu']}"
-            if st.session_state.drilldown_report and st.session_state.get("drilldown_cache_key") == drill_cache_key:
-                st.markdown(st.session_state.drilldown_report)
-            else:
-                if st.button(f"Generate Deep Dive — {game['name']}", key="run_drilldown"):
-                    with st.spinner(f"Analysing {game['name']}…"):
-                        prompt = build_drilldown_prompt(game, historical)
-                        ph_dd = st.empty()
-                        report_text = ""
-                        try:
-                            client = _anthropic.Anthropic(api_key=st.session_state.claude_key)
-                            with client.messages.stream(
-                                model="claude-sonnet-4-20250514",
-                                max_tokens=3000,
-                                system=build_system_prompt(st.session_state.report_language),
-                                messages=[{"role": "user", "content": prompt}],
-                            ) as stream:
-                                for delta in stream.text_stream:
-                                    report_text += delta
-                                    ph_dd.markdown(report_text + "▌")
-                            ph_dd.markdown(report_text)
-                            st.session_state.drilldown_report    = report_text
-                            st.session_state.drilldown_cache_key = drill_cache_key
-                        except Exception as e:
-                            st.error(f"Analysis error: {e}")
-
-            # Download drill-down
-            if st.session_state.drilldown_report:
-                slug = re.sub(r"[^a-z0-9]+", "_", game["name"].lower())
-                st.download_button("Download Deep Dive (.md)",
-                    data=st.session_state.drilldown_report,
-                    file_name=f"sega_drilldown_{slug}.md",
-                    mime="text/markdown", key="dl_drill")
-
-# ═══════════════════════════════════════════════════════════════
-# MAIN DASHBOARD VIEW
-# ═══════════════════════════════════════════════════════════════
-
-elif st.session_state.active_view == "main":
-
-    # ─────────────────────────────────────────────────────────
-    # WATCHLIST PANEL (shown when pinned titles exist)
-    # ─────────────────────────────────────────────────────────
-
-    if st.session_state.watchlist and st.session_state.ccu_data:
-        st.markdown("""
-        <div class="section-header">
-          <span class="dot"></span>MY WATCHLIST
-        </div>
-        """, unsafe_allow_html=True)
-        pinned = [r for r in st.session_state.ccu_data
-                  if r["app_id"] in st.session_state.watchlist]
-        wcols = st.columns(min(len(pinned), 5))
-        for col, r in zip(wcols, pinned):
-            yoy_color = "var(--pos)" if r.get("yoy_val", 0) > 0 else "var(--neg)" if r.get("yoy_val", 0) < 0 else "var(--muted)"
-            with col:
-                st.markdown(f"""<div class="metric-card blue-top" style="cursor:pointer">
-                <div class="metric-label">{r['name'][:20]}</div>
-                <div class="metric-value" style="font-size:1rem">{r['ccu']:,}</div>
-                <div class="metric-sub" style="color:{yoy_color}">YoY {r.get('yoy','N/A')}</div>
-                </div>""", unsafe_allow_html=True)
-                if st.button("Drill Down", key=f"watch_drill_{r['app_id']}"):
-                    st.session_state.drilldown_game   = r["app_id"]
-                    st.session_state.drilldown_report  = ""
-                    st.session_state.active_view       = "drilldown"
-                    st.rerun()
-        st.markdown("<br>", unsafe_allow_html=True)
-
-    # ─────────────────────────────────────────────────────────
-    # QUERY BLOCK
-    # ─────────────────────────────────────────────────────────
-
-    st.markdown('<div class="query-block">', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="section-header" style="margin-top:0">
-      <span class="dot"></span>SELECT ANALYSIS TYPE
-    </div>
-    """, unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
-    for i, preset in enumerate(PRESET_QUERIES):
-        col = col1 if i % 2 == 0 else col2
-        with col:
-            st.markdown(f"""
-            <div class="insight-card">
-              <div class="insight-card-title">
-                <span class="{preset['tag_class']}">{preset['tag']}</span>
-                {preset['label']}
-              </div>
-              <div class="insight-card-desc">{preset['desc']}</div>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button(f"Run Analysis", key=f"preset_{preset['id']}"):
-                st.session_state.active_query  = preset["prompt_key"]
-                st.session_state.ai_report     = ""
-                st.session_state.ai_chat_history = []
-                st.session_state.report_label  = preset["label"]
-                st.rerun()
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.markdown(f"""<div class="metric-card blue-top">
+        <div class="metric-label">Total CCU (Tracked)</div>
+        <div class="metric-value">{total_ccu:,}</div>
+        <div class="metric-sub">Across {len(ccu_data)} shooter titles</div>
+        </div>""", unsafe_allow_html=True)
+    with k2:
+        st.markdown(f"""<div class="metric-card pos-top">
+        <div class="metric-label">Top Title</div>
+        <div class="metric-value" style="font-size:1.1rem;padding-top:.3rem">{top_title[:22]}</div>
+        <div class="metric-sub">{top_ccu:,} live players</div>
+        </div>""", unsafe_allow_html=True)
+    with k3:
+        st.markdown(f"""<div class="metric-card amber-top">
+        <div class="metric-label">YoY Growth (Titles)</div>
+        <div class="metric-value">{growing}/{len(ccu_data)}</div>
+        <div class="metric-sub">titles showing positive YoY trend</div>
+        </div>""", unsafe_allow_html=True)
+    with k4:
+        st.markdown(f"""<div class="metric-card purple-top">
+        <div class="metric-label">F2P CCU Share</div>
+        <div class="metric-value">{f2p_share:.0f}%</div>
+        <div class="metric-sub">of total tracked CCU is F2P titles</div>
+        </div>""", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown('<div class="field-label">Or ask a custom question</div>', unsafe_allow_html=True)
-    col_q, col_btn = st.columns([5, 1])
-    with col_q:
-        custom = st.text_input(
-            "Custom query",
-            value=st.session_state.custom_query,
-            label_visibility="collapsed",
-            placeholder="e.g. Compare monetisation models across the top 5 F2P shooters on Steam…",
-            key="custom_input",
-        )
-    with col_btn:
-        run_custom = st.button("Run", key="run_custom")
 
-    if run_custom and custom.strip():
-        st.session_state.custom_query    = custom.strip()
-        st.session_state.active_query    = "custom"
-        st.session_state.ai_report       = ""
-        st.session_state.ai_chat_history = []
-        st.session_state.report_label    = "Custom Query"
+    # CCU Bar Chart
+    top10 = ccu_data[:10]
+    colors = ["#4080ff" if not r["f2p"] else "#20c65a" for r in top10]
+    fig = go.Figure(go.Bar(
+        x=[r["name"] for r in top10],
+        y=[r["ccu"] for r in top10],
+        marker_color=colors,
+        text=[f"{r['ccu']:,}" for r in top10],
+        textposition="outside",
+        textfont=dict(size=10, color="#b8bcd4"),
+        hovertemplate="<b>%{x}</b><br>CCU: %{y:,}<extra></extra>",
+    ))
+    fig.update_layout(
+        **PLOTLY_BASE,
+        title=dict(text="Top 10 Shooters by Live CCU", font=dict(size=13, color="#b8bcd4"), x=0),
+        xaxis=dict(showgrid=False, tickfont=dict(size=10), tickangle=-30,
+                   linecolor="#232640", tickcolor="#232640"),
+        yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
+        height=340,
+        showlegend=False,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption("🔵 Paid  🟢 Free-to-Play  |  CCU = Concurrent Users  |  Live data from Steam API")
+
+    # Full Table
+    with st.expander("Full Data Table — All Tracked Titles"):
+        df = pd.DataFrame([{
+            "Title":          r["name"],
+            "Sub-genre":      r["sub"],
+            "Publisher":      r["publisher"],
+            "F2P":            "✓" if r["f2p"] else "—",
+            "Live CCU":       r["ccu"],
+            "YoY (real)":     r.get("yoy", "N/A"),
+            "Data Source":    "SteamDB CSV" if r.get("has_hist") else "SteamSpy proxy",
+            "Peak Ever":      f"{r['hist_summary']['peak_ever']:,}" if r.get("hist_summary", {}).get("peak_ever") else "—",
+            "Peak 12m":       f"{r['hist_summary']['peak_12m']:,}" if r.get("hist_summary", {}).get("peak_12m") else "—",
+            "Avg CCU 12m":    f"{r['hist_summary']['avg_12m']:,}" if r.get("hist_summary", {}).get("avg_12m") else "—",
+            "MoM Trend":      r.get("hist_summary", {}).get("mom_trend", "—"),
+            "Avg Hrs/2wk":    r.get("avg_2w_hrs", "—"),
+            "Review Score":   f"{r['review_pct']}%" if r.get("review_pct") else "—",
+            "Est. Owners":    r.get("owners", "—"),
+        } for r in ccu_data])
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+        hist_count = sum(1 for r in ccu_data if r.get("has_hist"))
+        st.caption(
+            f"📁 {hist_count}/{len(ccu_data)} titles have SteamDB historical CSV data loaded. "
+            "YoY = real same-month comparison where CSV available, SteamSpy proxy otherwise. "
+            "Peak/Avg figures derived from SteamDB 10-min interval data aggregated monthly."
+        )
+
+    # Historical trend chart (for titles with CSV data)
+    hist_titles = [r for r in ccu_data if r.get("has_hist")]
+    if hist_titles:
+        historical = load_all_historical()
+        with st.expander("📈 Monthly Peak CCU History — SteamDB Data"):
+            fig2 = go.Figure()
+            for r in hist_titles:
+                mdf = historical.get(r["app_id"])
+                if mdf is not None and not mdf.empty:
+                    last_24 = mdf.tail(24)
+                    fig2.add_trace(go.Scatter(
+                        x=[str(p) for p in last_24["month"]],
+                        y=last_24["peak_ccu"],
+                        mode="lines",
+                        name=r["name"],
+                        hovertemplate=f"<b>{r['name']}</b><br>%{{x}}<br>Peak CCU: %{{y:,}}<extra></extra>",
+                        line=dict(width=2),
+                    ))
+            fig2.update_layout(
+                **PLOTLY_BASE,
+                title=dict(text="Monthly Peak CCU — Last 24 Months (SteamDB)", font=dict(size=13, color="#b8bcd4"), x=0),
+                xaxis=dict(showgrid=False, tickangle=-45, tickfont=dict(size=9)),
+                yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
+                height=380,
+                legend=dict(font=dict(size=10), bgcolor="rgba(0,0,0,0)"),
+            )
+            st.plotly_chart(fig2, use_container_width=True)
+            st.caption("Source: SteamDB 10-minute interval CSVs, aggregated to monthly peak. Drop updated CSVs into /data to refresh.")
+
+    if st.button("🔄 Refresh CCU Data", key="refresh_ccu"):
+        st.cache_data.clear()
+        st.session_state.ccu_data = []
         st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)
+# ─────────────────────────────────────────────────────────────
+# AI ANALYSIS ENGINE
+# ─────────────────────────────────────────────────────────────
 
-    # ─────────────────────────────────────────────────────────
-    # LIVE CCU PANEL
-    # ─────────────────────────────────────────────────────────
-
-    st.markdown("""
+if st.session_state.active_query:
+    st.markdown(f"""
     <div class="section-header">
-      <span class="dot"></span>LIVE STEAM CCU SNAPSHOT
+      <span class="dot"></span>AI ANALYSIS — {st.session_state.report_label.upper()}
     </div>
     """, unsafe_allow_html=True)
 
-    if not st.session_state.ccu_data:
-        if st.button("Fetch Live CCU Data", key="fetch_ccu"):
-            with st.spinner("Pulling live CCU from Steam + SteamSpy…"):
-                historical = load_all_historical()
-                raw_data   = load_all_raw()
-                results    = []
-                prog       = st.progress(0.0)
-                status     = st.empty()
-                for idx, game in enumerate(SHOOTER_ROSTER):
-                    status.caption(f"Fetching: {game['name']}…")
-                    ccu     = fetch_ccu(game["app_id"])
-                    hist_df = historical.get(game["app_id"])
-                    has_hist = hist_df is not None and not hist_df.empty
-                    if has_hist:
-                        yoy_str, yoy_pct = compute_yoy(hist_df)
-                        hist_summary     = get_historical_summary(hist_df)
-                    else:
-                        ss               = fetch_steamspy(game["app_id"])
-                        yoy_str, yoy_pct = parse_yoy_from_steamspy(ss)
-                        hist_summary     = {}
-                    ss          = fetch_steamspy(game["app_id"])
-                    owners      = ss.get("owners", "Unknown")
-                    avg_2w_hrs  = round((ss.get("average_2weeks", 0) or 0) / 60, 1)
-                    pos_reviews = ss.get("positive", 0) or 0
-                    neg_reviews = ss.get("negative", 0) or 0
-                    total_rev   = pos_reviews + neg_reviews
-                    review_pct  = round(pos_reviews / total_rev * 100, 1) if total_rev else None
-                    results.append({
-                        **game,
-                        # Fall back to latest CSV row if API returns 0 or None
-                        # (e.g. Deadlock blocks the public CCU endpoint)
-                        "ccu":          ccu if ccu else (
-                            int(raw_data[game["app_id"]].dropna(subset=["Players"])["Players"].iloc[-1])
-                            if game["app_id"] in raw_data and not raw_data[game["app_id"]].empty
-                            else 0
-                        ),
-                        "ccu_from_csv": not bool(ccu),
-                        "ccu_live":     ccu is not None,
-                        "yoy":          yoy_str,
-                        "yoy_val":      yoy_pct,
-                        "has_hist":     has_hist,
-                        "hist_summary": hist_summary,
-                        "owners":       owners,
-                        "avg_2w_hrs":   avg_2w_hrs,
-                        "review_pct":   review_pct,
-                        "pos_reviews":  pos_reviews,
-                        "neg_reviews":  neg_reviews,
-                    })
-                    prog.progress((idx + 1) / len(SHOOTER_ROSTER))
-                    time.sleep(0.4)
-                status.empty()
-                results.sort(key=lambda x: x["ccu"], reverse=True)
-                st.session_state.ccu_data      = results
-                st.session_state.ccu_fetched_at = datetime.utcnow()
-            st.rerun()
+    if not st.session_state.claude_key:
+        st.warning("Enter your Claude API key in the sidebar to run AI analysis.", icon="🔑")
+    elif not ANTHROPIC_AVAILABLE:
+        st.error(T("no_anthropic_error"))
+    elif not st.session_state.ai_report:
+        # Build prompt
+        ccu_data = st.session_state.ccu_data or []
+        aq = st.session_state.active_query
+        if aq == "ccu_mecha":
+            if not ccu_data:
+                st.warning(T("no_ccu_warning"), icon="📡")
+                st.stop()
+            user_prompt = build_ccu_mecha_prompt(ccu_data[:10])
+        elif aq == "table_stakes":
+            user_prompt = build_table_stakes_prompt()
+        elif aq == "social_metrics":
+            user_prompt = build_social_metrics_prompt()
+        elif aq == "weekly_report":
+            if not ccu_data:
+                st.warning(T("no_ccu_warning"), icon="📡")
+                st.stop()
+            user_prompt = build_weekly_report_prompt(ccu_data[:20])
+        elif aq == "custom":
+            user_prompt = st.session_state.custom_query
+        else:
+            user_prompt = st.session_state.custom_query
 
-    else:
-        ccu_data = st.session_state.ccu_data
-        raw_data = load_all_raw()
-        wow_diff = compute_period_diff(ccu_data, raw_data, days=7)
+        ai_model = "claude-sonnet-4-20250514"
 
-        # ── Derived stats ──
-        total_ccu  = sum(r["ccu"] for r in ccu_data)
-        top_title  = ccu_data[0]["name"]
-        top_ccu    = ccu_data[0]["ccu"]
-        f2p_share  = sum(r["ccu"] for r in ccu_data if r["f2p"]) / max(total_ccu, 1) * 100
-        hist_count = sum(1 for r in ccu_data if r.get("has_hist"))
+        with st.spinner(T("spinner_generating")):
+            ph = st.empty()
+            report_text = ""
+            try:
+                client = _anthropic.Anthropic(api_key=st.session_state.claude_key)
+                with client.messages.stream(
+                    model=ai_model,
+                    max_tokens=4096,
+                    system=build_system_prompt(st.session_state.report_language),
+                    messages=[{"role": "user", "content": user_prompt}],
+                ) as stream:
+                    for delta in stream.text_stream:
+                        report_text += delta
+                        ph.markdown(report_text + "▌")
+                ph.markdown(report_text)
+                st.session_state.ai_report = report_text
+            except _anthropic.AuthenticationError:
+                st.error(T("auth_error"))
+            except _anthropic.RateLimitError:
+                st.error(T("rate_limit_error"))
+            except _anthropic.APIConnectionError as e:
+                st.error(f"Could not reach Anthropic API: {e}")
+            except Exception as e:
+                st.error(f"Unexpected error: {type(e).__name__}: {e}")
 
-        yoy_titled = [(r["name"], r["yoy_val"], r.get("yoy","N/A"), r.get("has_hist", False))
-                      for r in ccu_data if r.get("yoy","N/A") != "N/A"]
-        growing    = sum(1 for _, v, _, _ in yoy_titled if v > 0)
-        declining  = sum(1 for _, v, _, _ in yoy_titled if v < 0)
+    elif st.session_state.ai_report:
+        st.markdown(st.session_state.ai_report)
 
-        csv_yoy     = [(r["name"], r["yoy_val"]) for r in ccu_data
-                       if r.get("has_hist") and r.get("yoy","N/A") != "N/A"]
-        best_mover  = max(csv_yoy, key=lambda x: x[1],  default=("—", 0))
-        worst_mover = min(csv_yoy, key=lambda x: x[1], default=("—", 0))
-
-        health_ratios = []
-        for r in ccu_data:
-            hs = r.get("hist_summary", {})
-            if hs.get("peak_ever") and r["ccu"] > 0:
-                health_ratios.append(r["ccu"] / hs["peak_ever"] * 100)
-        avg_health = sum(health_ratios) / len(health_ratios) if health_ratios else 0
-
-        # ── Compute MoM growth balance from raw CSV data ──
-        mom_growing  = sum(1 for r in ccu_data if wow_diff.get(r["app_id"], {}).get("delta", 0) > 0
-                           and r.get("has_hist"))  # reuse 7d diff as proxy until monthly computed
-        # Real MoM from historical monthly summaries
-        mom_up   = sum(1 for r in ccu_data if (r.get("hist_summary") or {}).get("mom_pct") is not None
-                       and (r.get("hist_summary") or {}).get("mom_pct", 0) > 0)
-        mom_down = sum(1 for r in ccu_data if (r.get("hist_summary") or {}).get("mom_pct") is not None
-                       and (r.get("hist_summary") or {}).get("mom_pct", 0) < 0)
-        mom_total = mom_up + mom_down
-
-        # WoW balance from compute_period_diff (7-day CSV lookback)
-        wow_up   = sum(1 for v in wow_diff.values() if v["delta"] > 0)
-        wow_down = sum(1 for v in wow_diff.values() if v["delta"] < 0)
-        wow_total = len(wow_diff)
-
-        # ── Row 1: Primary KPI cards ──
-        k1, k2, k3, k4 = st.columns(4)
-        with k1:
-            st.markdown(f"""<div class="metric-card blue-top">
-            <div class="metric-label">Total CCU (Tracked)</div>
-            <div class="metric-value">{total_ccu:,}</div>
-            <div class="metric-sub">Across {len(ccu_data)} shooter titles</div>
-            </div>""", unsafe_allow_html=True)
-        with k2:
-            wow_color = "var(--pos)" if wow_up >= wow_down else "var(--neg)"
-            wow_sub   = f"of {wow_total} titles with CSV data" if wow_total else "No CSV data loaded"
-            st.markdown(f"""<div class="metric-card pos-top">
-            <div class="metric-label">WoW Growth Balance</div>
-            <div class="metric-value" style="color:{wow_color}">{wow_up}↑ / {wow_down}↓</div>
-            <div class="metric-sub">{wow_sub}</div>
-            </div>""", unsafe_allow_html=True)
-        with k3:
-            yoy_color = "var(--pos)" if growing >= declining else "var(--neg)"
-            st.markdown(f"""<div class="metric-card amber-top">
-            <div class="metric-label">YoY Growth Balance</div>
-            <div class="metric-value" style="color:{yoy_color}">{growing}↑ / {declining}↓</div>
-            <div class="metric-sub">of {len(yoy_titled)} titles with YoY data</div>
-            </div>""", unsafe_allow_html=True)
-        with k4:
-            mom_color = "var(--pos)" if mom_up >= mom_down else "var(--neg)"
-            mom_sub   = f"of {mom_total} titles with CSV data" if mom_total else "No CSV data loaded"
-            st.markdown(f"""<div class="metric-card purple-top">
-            <div class="metric-label">MoM Growth Balance</div>
-            <div class="metric-value" style="color:{mom_color}">{mom_up}↑ / {mom_down}↓</div>
-            <div class="metric-sub">{mom_sub}</div>
-            </div>""", unsafe_allow_html=True)
-
+    # ── Download options ──
+    if st.session_state.ai_report:
         st.markdown("<br>", unsafe_allow_html=True)
-
-        # ── Row 2: CSV-derived stat cards ──
-        s1, s2, s3, s4 = st.columns(4)
-        with s1:
-            st.markdown(f"""<div class="metric-card blue-top">
-            <div class="metric-label">SteamDB CSVs Loaded</div>
-            <div class="metric-value">{hist_count}/{len(ccu_data)}</div>
-            <div class="metric-sub">titles with full historical data</div>
-            </div>""", unsafe_allow_html=True)
-        with s2:
-            health_color = "var(--pos)" if avg_health > 50 else "var(--amber)" if avg_health > 25 else "var(--neg)"
-            st.markdown(f"""<div class="metric-card amber-top">
-            <div class="metric-label">Avg Peak Health</div>
-            <div class="metric-value" style="color:{health_color}">{avg_health:.0f}%</div>
-            <div class="metric-sub">current CCU vs. all-time peak</div>
-            </div>""", unsafe_allow_html=True)
-        with s3:
-            bm_pct = f"+{best_mover[1]:.1f}%" if best_mover[1] >= 0 else f"{best_mover[1]:.1f}%"
-            st.markdown(f"""<div class="metric-card pos-top">
-            <div class="metric-label">Biggest YoY Grower</div>
-            <div class="metric-value" style="font-size:1rem;color:var(--pos)">{best_mover[0][:18]}</div>
-            <div class="metric-sub">{bm_pct} YoY (SteamDB)</div>
-            </div>""", unsafe_allow_html=True)
-        with s4:
-            wm_pct = f"{worst_mover[1]:.1f}%"
-            st.markdown(f"""<div class="metric-card purple-top">
-            <div class="metric-label">Biggest YoY Decline</div>
-            <div class="metric-value" style="font-size:1rem;color:var(--neg)">{worst_mover[0][:18]}</div>
-            <div class="metric-sub">{wm_pct} YoY (SteamDB)</div>
-            </div>""", unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # ── YoY breakdown expander ──
-        with st.expander(f"YoY Growth Breakdown — {growing} growing, {declining} declining"):
-            if yoy_titled:
-                yoy_sorted = sorted(yoy_titled, key=lambda x: x[1], reverse=True)
-                yoy_df = pd.DataFrame([{
-                    "Title":      name,
-                    "YoY Change": pct_str,
-                    "Direction":  "↑ Growing" if val > 0 else ("↓ Declining" if val < 0 else "→ Flat"),
-                    "Source":     "SteamDB CSV" if has_hist else "SteamSpy proxy",
-                    "Value":      val,
-                } for name, val, pct_str, has_hist in yoy_sorted])
-                yoy_colors = ["#20c65a" if v > 0 else "#ff3d52" for v in yoy_df["Value"]]
-                fig_yoy = go.Figure(go.Bar(
-                    x=yoy_df["Title"], y=yoy_df["Value"],
-                    marker_color=yoy_colors,
-                    text=yoy_df["YoY Change"],
-                    textposition="outside",
-                    textfont=dict(size=10, color="#b8bcd4"),
-                    hovertemplate="<b>%{x}</b><br>YoY: %{text}<extra></extra>",
-                ))
-                fig_yoy.add_hline(y=0, line_color="#5a5f82", line_width=1)
-                fig_yoy.update_layout(
-                    **PLOTLY_BASE,
-                    title=dict(text="Year-over-Year CCU Change by Title", font=dict(size=13, color="#b8bcd4"), x=0),
-                    xaxis=dict(showgrid=False, tickangle=-30, tickfont=dict(size=10)),
-                    yaxis=dict(showgrid=True, gridcolor="#1a1e30", ticksuffix="%"),
-                    height=300, showlegend=False,
-                )
-                st.plotly_chart(fig_yoy, use_container_width=True)
-                st.dataframe(yoy_df[["Title","Direction","YoY Change","Source"]], use_container_width=True, hide_index=True)
-                st.caption("SteamDB CSV = genuine same-month YoY · SteamSpy proxy = engagement momentum estimate")
-            else:
-                st.info("No YoY data available — fetch CCU data first.")
-
-        # ── Week-over-Week diff expander ──
-        n_wow = sum(1 for r in ccu_data if r["app_id"] in wow_diff)
-        with st.expander(f"Week-over-Week CCU Change ({n_wow} titles with CSV data)"):
-            if wow_diff:
-                wow_rows = []
-                for r in sorted(ccu_data, key=lambda x: abs(wow_diff.get(x["app_id"], {}).get("delta", 0)), reverse=True):
-                    diff = wow_diff.get(r["app_id"])
-                    if diff:
-                        wow_rows.append({
-                            "Title":       r["name"],
-                            "Current CCU": f"{r['ccu']:,}",
-                            "7d Ago CCU":  f"{diff['prev_ccu']:,}",
-                            "Δ CCU":       diff["delta"],
-                            "Δ %":         f"{diff['delta_pct']:+.1f}%",
-                            "Direction":   "Up" if diff["delta"] > 0 else "Down" if diff["delta"] < 0 else "Flat",
-                            "Reference":   diff["period_label"],
-                        })
-                if wow_rows:
-                    wow_df = pd.DataFrame(wow_rows)
-                    st.dataframe(wow_df, use_container_width=True, hide_index=True)
-                    st.caption("Comparing latest CSV value vs. the row closest to exactly 7 days prior. Source: SteamDB 10-minute interval data.")
-            else:
-                st.info("No CSV data loaded yet. Add steamdb_chart_{appid}.csv files to the /data folder.")
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # ── CCU Bar Chart ──
-        top10  = ccu_data[:10]
-        colors = ["#4080ff" if not r["f2p"] else "#20c65a" for r in top10]
-
-        # Add WoW delta to hover (from raw CSV 7-day diff)
-        hover_texts = []
-        for r in top10:
-            diff    = wow_diff.get(r["app_id"])
-            wow_str = f"<br>WoW: {diff['delta_pct']:+.1f}% ({diff['period_label']})" if diff else ""
-            hover_texts.append(f"<b>{r['name']}</b><br>CCU: {r['ccu']:,}<br>YoY: {r.get('yoy','N/A')}{wow_str}<extra></extra>")
-
-        fig = go.Figure(go.Bar(
-            x=[r["name"] for r in top10],
-            y=[r["ccu"] for r in top10],
-            marker_color=colors,
-            text=[f"{r['ccu']:,}" for r in top10],
-            textposition="outside",
-            textfont=dict(size=10, color="#b8bcd4"),
-            hovertemplate=hover_texts,
-        ))
-        fig.update_layout(
-            **PLOTLY_BASE,
-            title=dict(text="Top 10 Shooters by Live CCU", font=dict(size=13, color="#b8bcd4"), x=0),
-            xaxis=dict(showgrid=False, tickfont=dict(size=10), tickangle=-30,
-                       linecolor="#232640", tickcolor="#232640"),
-            yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
-            height=340, showlegend=False,
+        st.markdown(
+            '<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;'
+            'text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">'
+            f'{T("download_report_header")}</div>',
+            unsafe_allow_html=True,
         )
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("Paid titles (blue) / F2P titles (green)  |  Hover bars for YoY & Week-over-Week delta  |  Source: Steam public API")
+        slug = re.sub(r"[^a-z0-9]+", "_", st.session_state.report_label.lower())[:40]
+        fname = f"sega_shooter_intel_{slug}"
 
-        # ── Drill-down buttons row ──
-        dd_col, dd_btn_col = st.columns([4, 1])
-        with dd_col:
-            drill_options = ["Select a title to deep dive..."] + [r["name"] for r in ccu_data]
-            drill_choice  = st.selectbox("Deep Dive", drill_options, label_visibility="collapsed", key="drill_select")
-        with dd_btn_col:
-            if st.button("Deep Dive", key="drill_go", use_container_width=True,
-                         disabled=drill_choice == "Select a title to deep dive..."):
-                selected = next(r for r in ccu_data if r["name"] == drill_choice)
-                st.session_state.drilldown_game   = selected["app_id"]
-                st.session_state.drilldown_report  = ""
-                st.session_state.active_view       = "drilldown"
-                st.rerun()
+        dl1, dl2, dl3, dl4 = st.columns(4)
+        with dl1:
+            st.download_button(T("dl_md"), data=st.session_state.ai_report,
+                file_name=f"{fname}.md", mime="text/markdown",
+                use_container_width=True, key="dl_md")
+        with dl2:
+            html_bytes = report_to_html(st.session_state.ai_report).encode("utf-8")
+            st.download_button(T("dl_html"), data=html_bytes,
+                file_name=f"{fname}.html", mime="text/html",
+                use_container_width=True, key="dl_html")
+        with dl3:
+            if _REPORTLAB_AVAILABLE:
+                pdf_bytes = report_to_pdf(st.session_state.ai_report)
+                if pdf_bytes:
+                    st.download_button(T("dl_pdf"), data=pdf_bytes,
+                        file_name=f"{fname}.pdf", mime="application/pdf",
+                        use_container_width=True, key="dl_pdf")
+            else:
+                st.caption(T("dl_pdf_missing"))
+        with dl4:
+            if st.button(T("dl_pptx_btn"), key="dl_pptx", use_container_width=True):
+                with st.spinner(T("spinner_pptx")):
+                    pptx_bytes = generate_pptx_bytes(
+                        st.session_state.ai_report,
+                        st.session_state.ccu_data or [],
+                        st.session_state.report_label,
+                    )
+                if pptx_bytes:
+                    st.download_button(T("dl_pptx_file"), data=pptx_bytes,
+                        file_name=f"{fname}.pptx",
+                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        key="dl_pptx_actual")
+                else:
+                    st.error(T("dl_pptx_error"))
 
+        # ── Follow-up chat ──
         st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-header"><span class="dot"></span>FOLLOW-UP CHAT'
+            '<span style="color:var(--muted);font-size:.7rem;font-weight:400;"> '
+            '— ask Claude follow-up questions about this report</span></div>',
+            unsafe_allow_html=True,
+        )
 
-        # ── Genre Heat Map ──
-        with st.expander("Sub-Genre CCU Heat Map"):
-            genre_df = compute_genre_share(ccu_data)
-            if not genre_df.empty:
-                fig_g = go.Figure(go.Bar(
-                    x=genre_df["Sub-genre"],
-                    y=genre_df["Total CCU"],
-                    marker_color="#4080ff",
-                    text=[f"{v:.1f}%" for v in genre_df["Share %"]],
-                    textposition="outside",
-                    textfont=dict(size=10, color="#b8bcd4"),
-                    hovertemplate="<b>%{x}</b><br>CCU: %{y:,}<br>Share: %{text}<extra></extra>",
-                ))
-                fig_g.update_layout(
-                    **PLOTLY_BASE,
-                    title=dict(text="CCU by Sub-Genre (% market share)", font=dict(size=13, color="#b8bcd4"), x=0),
-                    xaxis=dict(showgrid=False, tickangle=-20, tickfont=dict(size=10)),
-                    yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
-                    height=300, showlegend=False,
+        def build_chat_system():
+            ccu_ctx = ""
+            if st.session_state.ccu_data:
+                ccu_ctx = "\n\nLIVE CCU DATA:\n" + "\n".join(
+                    f"- {r['name']}: {r['ccu']:,} CCU ({r['yoy']} YoY)"
+                    for r in st.session_state.ccu_data[:15]
                 )
-                st.plotly_chart(fig_g, use_container_width=True)
-                st.dataframe(genre_df.style.format({"Total CCU": "{:,}", "Share %": "{:.1f}%"}),
-                             use_container_width=True, hide_index=True)
-                st.caption("Source: Aggregated from Steam API live CCU, grouped by sub-genre tag in roster.")
-
-        # ── Full Data Table ──
-        with st.expander("Full Data Table — All Tracked Titles"):
-            df = pd.DataFrame([{
-                "Title":       r["name"],
-                "Sub-genre":   r["sub"],
-                "Publisher":   r["publisher"],
-                "F2P":         "Yes" if r["f2p"] else "No",
-                "Live CCU":    f"{r['ccu']:,} *" if r.get("ccu_from_csv") else r["ccu"],
-                "YoY":         r.get("yoy", "N/A"),
-                "Data Source": "SteamDB CSV" if r.get("has_hist") else "SteamSpy proxy",
-                "Peak Ever":   f"{r['hist_summary']['peak_ever']:,}" if r.get("hist_summary",{}).get("peak_ever") else "—",
-                "Peak 12m":    f"{r['hist_summary']['peak_12m']:,}"  if r.get("hist_summary",{}).get("peak_12m")  else "—",
-                "Avg CCU 12m": f"{r['hist_summary']['avg_12m']:,}"   if r.get("hist_summary",{}).get("avg_12m")   else "—",
-                "MoM":         r.get("hist_summary",{}).get("mom_trend","—"),
-                "Review":      f"{r['review_pct']}%" if r.get("review_pct") else "—",
-                "Est. Owners": r.get("owners","—"),
-            } for r in ccu_data])
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            hist_count2 = sum(1 for r in ccu_data if r.get("has_hist"))
-            st.caption(
-                f"{hist_count2}/{len(ccu_data)} titles have SteamDB CSV data. "
-                "YoY = real same-month comparison (CSV) or SteamSpy proxy. "
-                "Sources: SteamDB CSV, Steam API, SteamSpy."
+            return (
+                "You are a senior games market analyst at SEGA. "
+                "The user has just received the following analysis report about the competitive shooter market. "
+                "Answer follow-up questions concisely, accurately, and commercially. "
+                "Reference the report and live data where relevant. "
+                "Use markdown for formatting.\n\n"
+                f"## Report\n\n{st.session_state.ai_report[:4000]}"
+                + ("…[truncated]" if len(st.session_state.ai_report) > 4000 else "")
+                + ccu_ctx
             )
 
-        # ── CSV Deep Stats ──
-        csv_games = [r for r in ccu_data if r.get("has_hist")]
-        if csv_games:
-            with st.expander(f"SteamDB CSV Deep Stats — {len(csv_games)} titles"):
-                historical2 = load_all_historical()
-                deep_rows   = []
-                for r in csv_games:
-                    mdf2 = historical2.get(r["app_id"])
-                    if mdf2 is None or mdf2.empty:
-                        continue
-                    hs2       = r.get("hist_summary", {})
-                    peak_ever = hs2.get("peak_ever", 0) or 0
-                    live_ccu  = r["ccu"]
-                    peak_health = f"{live_ccu/peak_ever*100:.1f}%" if peak_ever else "—"
-                    last_12   = mdf2.tail(12)["peak_ccu"].dropna()
-                    volatility = f"{last_12.std()/last_12.mean()*100:.1f}%" if len(last_12) > 2 and last_12.mean() > 0 else "—"
-                    best_month_row = mdf2.loc[mdf2["peak_ccu"].idxmax()] if not mdf2["peak_ccu"].isna().all() else None
-                    best_month = str(best_month_row["month"]) if best_month_row is not None else "—"
-                    span = f"{str(mdf2.iloc[0]['month'])} → {str(mdf2.iloc[-1]['month'])}" if len(mdf2) > 0 else "—"
-                    deep_rows.append({
-                        "Title":          r["name"],
-                        "Data Span":      span,
-                        "Months":         hs2.get("months_data", 0),
-                        "All-Time Peak":  f"{peak_ever:,}" if peak_ever else "—",
-                        "Best Month":     best_month,
-                        "Peak 12m":       f"{hs2.get('peak_12m',0):,}" if hs2.get("peak_12m") else "—",
-                        "Avg CCU 12m":    f"{hs2.get('avg_12m',0):,}"  if hs2.get("avg_12m")  else "—",
-                        "Peak Health":    peak_health,
-                        "Volatility":     volatility,
-                        "YoY":            r.get("yoy","N/A"),
-                        "MoM":            hs2.get("mom_trend","—"),
-                    })
-                if deep_rows:
-                    st.dataframe(pd.DataFrame(deep_rows), use_container_width=True, hide_index=True)
-                    st.caption(
-                        "Peak Health = live CCU ÷ all-time peak. "
-                        "Volatility = coefficient of variation of monthly peaks (lower = more stable). "
-                        "Source: SteamDB 10-min interval CSVs."
-                    )
+        for msg in st.session_state.ai_chat_history:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
 
-        # ── Historical trend chart with annotations ──
-        hist_titles2 = [r for r in ccu_data if r.get("has_hist")]
-        if hist_titles2:
-            historical3 = load_all_historical()
-            with st.expander("Monthly Peak CCU History — SteamDB Data"):
-                # Range selector
-                range_opt = st.radio("Time range", ["12m", "24m", "All"], horizontal=True, key="hist_range")
-                n_months  = 12 if range_opt == "12m" else 24 if range_opt == "24m" else 9999
+        if st.session_state.ai_chat_pending:
+            st.session_state.ai_chat_pending = False
+            api_msgs = [{"role": m["role"], "content": m["content"]}
+                        for m in st.session_state.ai_chat_history]
+            try:
+                chat_client = _anthropic.Anthropic(api_key=st.session_state.claude_key)
+                with st.chat_message("assistant"):
+                    reply = ""
+                    ph2 = st.empty()
+                    with chat_client.messages.stream(
+                        model="claude-sonnet-4-20250514",
+                        max_tokens=2048,
+                        system=build_chat_system(),
+                        messages=api_msgs,
+                    ) as stream:
+                        for delta in stream.text_stream:
+                            reply += delta
+                            ph2.markdown(reply + "▌")
+                    ph2.markdown(reply)
+                st.session_state.ai_chat_history.append({"role": "assistant", "content": reply})
+            except _anthropic.AuthenticationError:
+                st.error(T("auth_error"))
+            except _anthropic.RateLimitError:
+                st.error("Rate limit. Please wait and retry.")
+            except Exception as e:
+                st.error(f"Chat error: {type(e).__name__}: {e}")
 
-                fig2 = go.Figure()
-                for r in hist_titles2:
-                    mdf3 = historical3.get(r["app_id"])
-                    if mdf3 is not None and not mdf3.empty:
-                        sub_df = mdf3.tail(n_months)
-                        fig2.add_trace(go.Scatter(
-                            x=[str(p) for p in sub_df["month"]],
-                            y=sub_df["peak_ccu"],
-                            mode="lines",
-                            name=r["name"],
-                            hovertemplate=f"<b>{r['name']}</b><br>%{{x}}<br>Peak: %{{y:,}}<extra></extra>",
-                            line=dict(width=2),
-                        ))
-                        # Add annotations for this game
-                        for ann in ANNOTATIONS.get(r["app_id"], []):
-                            row_ann = mdf3[mdf3["month"] == ann["month"]]
-                            if not row_ann.empty:
-                                y_ann = row_ann.iloc[0]["peak_ccu"]
-                                fig2.add_annotation(
-                                    x=ann["month"], y=y_ann,
-                                    text=ann["label"],
-                                    showarrow=True, arrowhead=2, arrowcolor="#ffb938",
-                                    font=dict(size=8, color="#ffb938"),
-                                    bgcolor="rgba(15,17,32,0.85)",
-                                    bordercolor="#ffb938", borderwidth=1,
-                                    ay=-30,
-                                )
-                fig2.update_layout(
-                    **PLOTLY_BASE,
-                    title=dict(text=f"Monthly Peak CCU — {range_opt} (SteamDB)",
-                               font=dict(size=13, color="#b8bcd4"), x=0),
-                    xaxis=dict(showgrid=False, tickangle=-45, tickfont=dict(size=9)),
-                    yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
-                    height=420,
-                    legend=dict(font=dict(size=10), bgcolor="rgba(0,0,0,0)"),
-                )
-                st.plotly_chart(fig2, use_container_width=True)
-                st.caption("Source: SteamDB 10-min interval CSVs, aggregated to monthly peak. Annotations mark key events.")
-
-        if st.button("Refresh CCU Data", key="refresh_ccu"):
-            st.cache_data.clear()
-            st.session_state.ccu_data      = []
-            st.session_state.ccu_fetched_at = None
+        user_msg = st.chat_input("Ask a follow-up question…", key="ai_chat_input")
+        if user_msg:
+            st.session_state.ai_chat_history.append({"role": "user", "content": user_msg})
+            st.session_state.ai_chat_pending = True
             st.rerun()
 
-    # ─────────────────────────────────────────────────────────
-    # AI ANALYSIS ENGINE
-    # ─────────────────────────────────────────────────────────
+        if st.session_state.ai_chat_history:
+            if st.button("Clear chat history", key="clear_chat"):
+                st.session_state.ai_chat_history = []
+                st.session_state.ai_chat_pending = False
+                st.rerun()
 
-    if st.session_state.active_query:
-        st.markdown(f"""
-        <div class="section-header">
-          <span class="dot"></span>AI ANALYSIS — {st.session_state.report_label.upper()}
-        </div>
-        """, unsafe_allow_html=True)
+# ─────────────────────────────────────────────────────────────
+# EMPTY STATE
+# ─────────────────────────────────────────────────────────────
 
-        if not st.session_state.claude_key:
-            st.warning("CLAUDE_KEY not found. Add it to .streamlit/secrets.toml to run AI analysis.")
-        elif not ANTHROPIC_AVAILABLE:
-            st.error("Install the `anthropic` package: `pip install anthropic`")
-        else:
-            ccu_data    = st.session_state.ccu_data or []
-            aq          = st.session_state.active_query
-            cache_key   = f"{aq}_{data_hash(ccu_data)}" if ccu_data else aq
-
-            # Check cache
-            cached = st.session_state.report_cache.get(cache_key)
-            if cached and not st.session_state.ai_report:
-                st.session_state.ai_report = cached
-                st.info("Loaded from cache — data unchanged since last run. Re-fetch CCU to force refresh.")
-
-            if not st.session_state.ai_report:
-                if aq == "ccu_mecha":
-                    if not ccu_data:
-                        st.warning("Please fetch live CCU data first.")
-                        st.stop()
-                    user_prompt = build_ccu_mecha_prompt(ccu_data[:10])
-                elif aq == "table_stakes":
-                    user_prompt = build_table_stakes_prompt()
-                elif aq == "social_metrics":
-                    user_prompt = build_social_metrics_prompt()
-                elif aq == "weekly_report":
-                    if not ccu_data:
-                        st.warning("Please fetch live CCU data first.")
-                        st.stop()
-                    user_prompt = build_weekly_report_prompt(ccu_data[:20])
-                else:
-                    user_prompt = st.session_state.custom_query
-
-                with st.spinner("Claude is generating your analysis…"):
-                    ph        = st.empty()
-                    report_text = ""
-                    try:
-                        client = _anthropic.Anthropic(api_key=st.session_state.claude_key)
-                        with client.messages.stream(
-                            model="claude-sonnet-4-20250514",
-                            max_tokens=4096,
-                            system=build_system_prompt(st.session_state.report_language),
-                            messages=[{"role": "user", "content": user_prompt}],
-                        ) as stream:
-                            for delta in stream.text_stream:
-                                report_text += delta
-                                ph.markdown(report_text + "▌")
-                        ph.markdown(report_text)
-                        st.session_state.ai_report = report_text
-                        st.session_state.report_cache[cache_key] = report_text
-                    except _anthropic.AuthenticationError:
-                        st.error("Invalid API key. Check CLAUDE_KEY in .streamlit/secrets.toml.")
-                    except _anthropic.RateLimitError:
-                        st.error("Rate limit hit. Wait a moment and try again.")
-                    except _anthropic.APIConnectionError as e:
-                        st.error(f"Could not reach Anthropic API: {e}")
-                    except Exception as e:
-                        st.error(f"Unexpected error: {type(e).__name__}: {e}")
-
-            elif st.session_state.ai_report:
-                st.markdown(st.session_state.ai_report)
-
-            # ── Download options ──
-            if st.session_state.ai_report:
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown(
-                    '<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;'
-                    'text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">'
-                    'DOWNLOAD REPORT</div>',
-                    unsafe_allow_html=True,
-                )
-                slug  = re.sub(r"[^a-z0-9]+", "_", st.session_state.report_label.lower())[:40]
-                fname = f"sega_shooter_intel_{slug}"
-
-                dl1, dl2, dl3, dl4 = st.columns(4)
-                with dl1:
-                    st.download_button("Download Markdown", data=st.session_state.ai_report,
-                        file_name=f"{fname}.md", mime="text/markdown",
-                        use_container_width=True, key="dl_md")
-                with dl2:
-                    html_bytes = report_to_html(st.session_state.ai_report).encode("utf-8")
-                    st.download_button("Download HTML", data=html_bytes,
-                        file_name=f"{fname}.html", mime="text/html",
-                        use_container_width=True, key="dl_html")
-                with dl3:
-                    if _REPORTLAB_AVAILABLE:
-                        pdf_bytes = report_to_pdf(st.session_state.ai_report)
-                        if pdf_bytes:
-                            st.download_button("Download PDF", data=pdf_bytes,
-                                file_name=f"{fname}.pdf", mime="application/pdf",
-                                use_container_width=True, key="dl_pdf")
-                    else:
-                        st.caption("PDF: install `reportlab`")
-                with dl4:
-                    if st.button("Download PowerPoint", key="dl_pptx", use_container_width=True):
-                        with st.spinner("Building slides…"):
-                            pptx_bytes = generate_pptx_bytes(
-                                st.session_state.ai_report,
-                                st.session_state.ccu_data or [],
-                                st.session_state.report_label,
-                            )
-                        if pptx_bytes:
-                            st.download_button("Download .pptx", data=pptx_bytes,
-                                file_name=f"{fname}.pptx",
-                                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                                key="dl_pptx_actual")
-                        else:
-                            st.error("PPTX generation failed. Ensure python-pptx is installed: pip install python-pptx")
-
-                # ── Follow-up chat ──
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown(
-                    '<div class="section-header"><span class="dot"></span>FOLLOW-UP CHAT'
-                    '<span style="color:var(--muted);font-size:.7rem;font-weight:400;"> '
-                    '— ask Claude follow-up questions about this report</span></div>',
-                    unsafe_allow_html=True,
-                )
-
-                def build_chat_system():
-                    ccu_ctx = ""
-                    if st.session_state.ccu_data:
-                        ccu_ctx = "\n\nLIVE CCU DATA:\n" + "\n".join(
-                            f"- {r['name']}: {r['ccu']:,} CCU ({r['yoy']} YoY)"
-                            for r in st.session_state.ccu_data[:15]
-                        )
-                    return (
-                        "You are a senior games market analyst at SEGA. "
-                        "The user has just received the following analysis report about the competitive shooter market. "
-                        "Answer follow-up questions concisely, accurately, and commercially. "
-                        "Cite sources for any external facts or benchmarks you introduce. "
-                        "Use markdown for formatting.\n\n"
-                        f"## Report\n\n{st.session_state.ai_report[:4000]}"
-                        + ("…[truncated]" if len(st.session_state.ai_report) > 4000 else "")
-                        + ccu_ctx
-                    )
-
-                for msg in st.session_state.ai_chat_history:
-                    with st.chat_message(msg["role"]):
-                        st.markdown(msg["content"])
-
-                if st.session_state.ai_chat_pending:
-                    st.session_state.ai_chat_pending = False
-                    api_msgs = [{"role": m["role"], "content": m["content"]}
-                                for m in st.session_state.ai_chat_history]
-                    try:
-                        chat_client = _anthropic.Anthropic(api_key=st.session_state.claude_key)
-                        with st.chat_message("assistant"):
-                            reply = ""
-                            ph2   = st.empty()
-                            with chat_client.messages.stream(
-                                model="claude-sonnet-4-20250514",
-                                max_tokens=2048,
-                                system=build_chat_system(),
-                                messages=api_msgs,
-                            ) as stream:
-                                for delta in stream.text_stream:
-                                    reply += delta
-                                    ph2.markdown(reply + "▌")
-                            ph2.markdown(reply)
-                        st.session_state.ai_chat_history.append({"role": "assistant", "content": reply})
-                    except _anthropic.AuthenticationError:
-                        st.error("Invalid API key.")
-                    except _anthropic.RateLimitError:
-                        st.error("Rate limit. Please wait and retry.")
-                    except Exception as e:
-                        st.error(f"Chat error: {type(e).__name__}: {e}")
-
-                user_msg = st.chat_input("Ask a follow-up question…", key="ai_chat_input")
-                if user_msg:
-                    st.session_state.ai_chat_history.append({"role": "user", "content": user_msg})
-                    st.session_state.ai_chat_pending = True
-                    st.rerun()
-
-                if st.session_state.ai_chat_history:
-                    if st.button("Clear chat history", key="clear_chat"):
-                        st.session_state.ai_chat_history = []
-                        st.session_state.ai_chat_pending = False
-                        st.rerun()
-
-    elif not st.session_state.active_query:
-        st.markdown("""
-        <div class="empty-state">
-          <div class="empty-title">NO ANALYSIS SELECTED</div>
-          <div class="empty-sub">
-            Fetch live CCU data above, then choose an analysis type
-            or enter a custom question to generate your report.
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+elif not st.session_state.active_query:
+    st.markdown("""
+    <div class="empty-state">
+      <div class="empty-title">NO ANALYSIS SELECTED</div>
+      <div class="empty-sub">
+        Fetch live CCU data above, then choose an analysis type
+        or enter a custom question to generate your report.
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
 # FOOTER
@@ -2441,6 +1920,6 @@ elif st.session_state.active_view == "main":
 st.markdown("""
 <div class="footer">
   <div class="footer-brand">SEGA SHOOTER INTELLIGENCE</div>
-  <div class="footer-note">Steam API · SteamDB CSVs · SteamSpy · Powered by Claude · Internal analytics use only</div>
+  <div class="footer-note">Data sourced from Steam public API · Powered by Claude · Internal analytics use only</div>
 </div>
 """, unsafe_allow_html=True)
