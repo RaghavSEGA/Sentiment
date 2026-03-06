@@ -439,7 +439,7 @@ PLOTLY_BASE = dict(
 # Top 10 shooters on Steam (source: SteamDB live charts, March 2026)
 # Roster sourced directly from SteamDB top shooter chart (screenshot, Mar 2026).
 # Ranked by current CCU. CS:GO (rank 26) shares app_id 730 with CS2 — duplicate removed,
-# replaced with the next chart entry. Roster = 29 unique titles. Marathon (2379780) and Battlefield 6 (2377570)
+# replaced with the next chart entry. Roster = 31 titles (CS:GO and CS2 share app_id 730 — both tracked for historical context). Marathon (2379780) and Battlefield 6 (2377570)
 # app IDs are uncertain — verify at steamdb.info before downloading CSVs.
 SHOOTER_ROSTER = [
     {"app_id": 730,     "name": "Counter-Strike 2",               "sub": "Tactical / Competitive",  "publisher": "Valve",                "f2p": True},
@@ -471,6 +471,8 @@ SHOOTER_ROSTER = [
     {"app_id": 4000,    "name": "Garry's Mod",                   "sub": "Sandbox / Shooter",       "publisher": "Facepunch Studios",    "f2p": False},
     {"app_id": 1151340, "name": "Fallout 76",                     "sub": "Online RPG / Shooter",    "publisher": "Bethesda",             "f2p": False},
     {"app_id": 2835570, "name": "Schedule I",                     "sub": "Simulation / Action",     "publisher": "TVGS",                 "f2p": False},
+    {"app_id": 2221490, "name": "Tom Clancy's The Division 2",    "sub": "Cover Shooter / MMO",     "publisher": "Ubisoft",              "f2p": False},
+    {"app_id": 4465480, "name": "Counter-Strike: Global Offensive", "sub": "Tactical / Competitive",  "publisher": "Valve",                "f2p": True},
 ]
 # Folder containing SteamDB CSVs, named steamdb_chart_{appid}.csv
 # Resolve DATA_DIR: check next to script first, then cwd/data, then cwd
@@ -994,6 +996,7 @@ The output should be a complete, copy-paste-ready template that the analytics te
 # ─────────────────────────────────────────────────────────────
 
 SNAPSHOT_PATH = Path(__file__).parent / "data" / "snapshots.json"
+SNAPSHOT_MIN_AGE_HOURS = 20  # minimum hours between saved snapshots
 
 def load_snapshots() -> list[dict]:
     try:
@@ -1004,9 +1007,21 @@ def load_snapshots() -> list[dict]:
     return []
 
 def save_snapshot(ccu_data: list[dict]) -> None:
+    """Save a snapshot only if the last saved one is older than SNAPSHOT_MIN_AGE_HOURS.
+    This prevents every fetch from overwriting the reference point, ensuring
+    the WoW diff is always comparing against a genuinely older snapshot."""
     snaps = load_snapshots()
+    now   = datetime.utcnow()
+    if snaps:
+        try:
+            last_ts   = datetime.fromisoformat(snaps[-1]["ts"])
+            age_hours = (now - last_ts).total_seconds() / 3600
+            if age_hours < SNAPSHOT_MIN_AGE_HOURS:
+                return  # too recent — don't overwrite
+        except Exception:
+            pass
     snap = {
-        "ts": datetime.utcnow().isoformat(),
+        "ts": now.isoformat(),
         "data": [{
             "app_id":  r["app_id"],
             "name":    r["name"],
@@ -1016,8 +1031,7 @@ def save_snapshot(ccu_data: list[dict]) -> None:
         } for r in ccu_data],
     }
     snaps.append(snap)
-    # Keep last 12 snapshots
-    snaps = snaps[-12:]
+    snaps = snaps[-12:]  # keep last 12 snapshots (~12 weeks)
     try:
         SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
         SNAPSHOT_PATH.write_text(json.dumps(snaps, indent=2))
@@ -1025,18 +1039,20 @@ def save_snapshot(ccu_data: list[dict]) -> None:
         pass
 
 def compute_wow_diff(current: list[dict], snaps: list[dict]) -> dict[int, dict]:
-    """Returns {app_id: {prev_ccu, delta, delta_pct}} from most recent snapshot."""
+    """Compare current CCU against the most recent saved snapshot.
+    Returns {app_id: {prev_ccu, delta, delta_pct, snap_ts}}."""
     if not snaps:
         return {}
     prev_snap = snaps[-1]["data"]
-    prev_map = {r["app_id"]: r["ccu"] for r in prev_snap}
-    result = {}
+    snap_ts   = snaps[-1].get("ts", "")
+    prev_map  = {r["app_id"]: r["ccu"] for r in prev_snap}
+    result    = {}
     for r in current:
         aid = r["app_id"]
         if aid in prev_map and prev_map[aid] > 0:
             delta = r["ccu"] - prev_map[aid]
             pct   = delta / prev_map[aid] * 100
-            result[aid] = {"prev_ccu": prev_map[aid], "delta": delta, "delta_pct": pct}
+            result[aid] = {"prev_ccu": prev_map[aid], "delta": delta, "delta_pct": pct, "snap_ts": snap_ts}
     return result
 
 # ─────────────────────────────────────────────────────────────
@@ -1900,7 +1916,7 @@ elif st.session_state.active_view == "main":
     else:
         ccu_data = st.session_state.ccu_data
         snaps    = load_snapshots()
-        wow_diff = compute_wow_diff(ccu_data, snaps[:-1] if snaps else [])  # compare to snap before latest
+        wow_diff = compute_wow_diff(ccu_data, snaps)
 
         # ── Derived stats ──
         total_ccu  = sum(r["ccu"] for r in ccu_data)
@@ -2040,8 +2056,15 @@ elif st.session_state.active_view == "main":
                 if wow_rows:
                     wow_df = pd.DataFrame(sorted(wow_rows, key=lambda x: x["Δ CCU"], reverse=True))
                     st.dataframe(wow_df, use_container_width=True, hide_index=True)
-                    snap_time = snaps[-2]["ts"][:10] if len(snaps) >= 2 else "previous"
-                    st.caption(f"Week-over-Week comparison vs. snapshot from {snap_time}. Snapshots auto-saved each fetch.")
+                    snap_ts_val = next(iter(wow_diff.values()), {}).get("snap_ts", "")
+                    try:
+                        snap_dt    = datetime.fromisoformat(snap_ts_val)
+                        snap_label = snap_dt.strftime("%H:%M UTC, %d %b %Y")
+                        age_hrs    = (datetime.utcnow() - snap_dt).total_seconds() / 3600
+                        age_label  = f"{age_hrs:.0f}h ago" if age_hrs < 48 else f"{age_hrs/24:.0f} days ago"
+                    except Exception:
+                        snap_label, age_label = "previous snapshot", ""
+                    st.caption(f"Comparing vs. snapshot from {snap_label} ({age_label}). New snapshots are saved automatically once the last one is 20+ hours old.")
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -2077,17 +2100,18 @@ elif st.session_state.active_view == "main":
         st.caption("Paid titles (blue) / F2P titles (green)  |  Hover bars for YoY & Week-over-Week delta  |  Source: Steam public API")
 
         # ── Drill-down buttons row ──
-        st.markdown("""<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;
-        text-transform:uppercase;color:var(--muted);margin:.5rem 0 .3rem;">
-        CLICK A TITLE TO DEEP DIVE</div>""", unsafe_allow_html=True)
-        drill_cols = st.columns(len(ccu_data))
-        for col, r in zip(drill_cols, ccu_data):
-            with col:
-                if st.button(r["name"][:12], key=f"drill_{r['app_id']}", use_container_width=True):
-                    st.session_state.drilldown_game    = r["app_id"]
-                    st.session_state.drilldown_report   = ""
-                    st.session_state.active_view        = "drilldown"
-                    st.rerun()
+        dd_col, dd_btn_col = st.columns([4, 1])
+        with dd_col:
+            drill_options = ["Select a title to deep dive..."] + [r["name"] for r in ccu_data]
+            drill_choice  = st.selectbox("Deep Dive", drill_options, label_visibility="collapsed", key="drill_select")
+        with dd_btn_col:
+            if st.button("Deep Dive", key="drill_go", use_container_width=True,
+                         disabled=drill_choice == "Select a title to deep dive..."):
+                selected = next(r for r in ccu_data if r["name"] == drill_choice)
+                st.session_state.drilldown_game   = selected["app_id"]
+                st.session_state.drilldown_report  = ""
+                st.session_state.active_view       = "drilldown"
+                st.rerun()
 
         st.markdown("<br>", unsafe_allow_html=True)
 
