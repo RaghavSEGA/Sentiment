@@ -1930,6 +1930,7 @@ elif st.session_state.active_view == "main":
         if st.button("Fetch Live CCU Data", key="fetch_ccu"):
             with st.spinner("Pulling live CCU from Steam + SteamSpy…"):
                 historical = load_all_historical()
+                raw_data   = load_all_raw()
                 results    = []
                 prog       = st.progress(0.0)
                 status     = st.empty()
@@ -1954,7 +1955,14 @@ elif st.session_state.active_view == "main":
                     review_pct  = round(pos_reviews / total_rev * 100, 1) if total_rev else None
                     results.append({
                         **game,
-                        "ccu":          ccu if ccu else 0,
+                        # Fall back to latest CSV row if API returns 0 or None
+                        # (e.g. Deadlock blocks the public CCU endpoint)
+                        "ccu":          ccu if ccu else (
+                            int(raw_data[game["app_id"]].dropna(subset=["Players"])["Players"].iloc[-1])
+                            if game["app_id"] in raw_data and not raw_data[game["app_id"]].empty
+                            else 0
+                        ),
+                        "ccu_from_csv": not bool(ccu),
                         "ccu_live":     ccu is not None,
                         "yoy":          yoy_str,
                         "yoy_val":      yoy_pct,
@@ -2223,7 +2231,7 @@ elif st.session_state.active_view == "main":
                 "Sub-genre":   r["sub"],
                 "Publisher":   r["publisher"],
                 "F2P":         "Yes" if r["f2p"] else "No",
-                "Live CCU":    r["ccu"],
+                "Live CCU":    f"{r['ccu']:,} *" if r.get("ccu_from_csv") else r["ccu"],
                 "YoY":         r.get("yoy", "N/A"),
                 "Data Source": "SteamDB CSV" if r.get("has_hist") else "SteamSpy proxy",
                 "Peak Ever":   f"{r['hist_summary']['peak_ever']:,}" if r.get("hist_summary",{}).get("peak_ever") else "—",
