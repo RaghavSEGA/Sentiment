@@ -1084,6 +1084,7 @@ def compute_period_diff(ccu_data: list[dict], raw_data: dict, days: int = 7) -> 
     Returns {app_id: {prev_ccu, delta, delta_pct, source, period_label, ref_dt}}
     """
     result = {}
+    now = pd.Timestamp.utcnow().tz_localize(None)
     for r in ccu_data:
         aid = r["app_id"]
         df  = raw_data.get(aid)
@@ -1092,19 +1093,19 @@ def compute_period_diff(ccu_data: list[dict], raw_data: dict, days: int = 7) -> 
         df = df.dropna(subset=["Players"])
         if len(df) < 2:
             continue
-        latest_dt  = df["DateTime"].iloc[-1]
-        latest_ccu = df["Players"].iloc[-1]
-        target_dt  = latest_dt - pd.Timedelta(days=days)
-        # Find row closest to target_dt
+        # Use live CCU from the fetched data, not the CSV's last row
+        live_ccu   = r["ccu"]
+        # Look for the row closest to exactly `days` ago from now
+        target_dt  = now - pd.Timedelta(days=days)
         idx_closest = (df["DateTime"] - target_dt).abs().idxmin()
-        ref_row     = df.loc[idx_closest]
-        ref_dt      = ref_row["DateTime"]
-        ref_ccu     = ref_row["Players"]
-        # Only use if ref point is actually within ±2 days of target
-        gap_hours = abs((ref_dt - target_dt).total_seconds()) / 3600
-        if pd.isna(ref_ccu) or ref_ccu == 0 or gap_hours > 48:
+        ref_row    = df.loc[idx_closest]
+        ref_dt     = ref_row["DateTime"]
+        ref_ccu    = ref_row["Players"]
+        # Allow up to ±4 days gap (handles stale CSVs and sparse early data)
+        gap_hours  = abs((ref_dt - target_dt).total_seconds()) / 3600
+        if pd.isna(ref_ccu) or ref_ccu == 0 or gap_hours > 96:
             continue
-        delta = latest_ccu - ref_ccu
+        delta = live_ccu - ref_ccu
         pct   = delta / ref_ccu * 100
         label = f"{days}d ago ({ref_dt.strftime('%d %b %Y')})"
         result[aid] = {
