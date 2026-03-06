@@ -499,15 +499,12 @@ CCU_URL = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayer
 @st.cache_data(show_spinner=False)
 def load_all_historical() -> dict[int, pd.DataFrame]:
     """
-    Loads all SteamDB CSVs from the /data folder at startup.
-    Files must be named steamdb_chart_{appid}.csv
-    Returns a dict of {app_id: monthly_df} where monthly_df has columns:
-        month (Period), peak_ccu, avg_ccu
+    Loads all SteamDB CSVs. Returns {app_id: monthly_df} for charts/YoY.
+    monthly_df columns: month (Period), peak_ccu, avg_ccu
     """
     historical: dict[int, pd.DataFrame] = {}
     if not DATA_DIR.exists():
         return historical
-
     for csv_path in sorted(DATA_DIR.glob("steamdb_chart_*.csv")):
         try:
             app_id = int(csv_path.stem.replace("steamdb_chart_", ""))
@@ -521,18 +518,42 @@ def load_all_historical() -> dict[int, pd.DataFrame]:
             df["Players"] = pd.to_numeric(df["Players"], errors="coerce")
             df["Average Players"] = pd.to_numeric(df["Average Players"], errors="coerce")
             df["month"] = df["DateTime"].dt.to_period("M")
-
             monthly = (
                 df.groupby("month")
                 .agg(peak_ccu=("Players", "max"), avg_ccu=("Average Players", "mean"))
                 .reset_index()
-            )
-            monthly = monthly.sort_values("month")
+            ).sort_values("month")
             historical[app_id] = monthly
-        except Exception as e:
-            pass  # Skip malformed CSVs silently
-
+        except Exception:
+            pass
     return historical
+
+@st.cache_data(show_spinner=False)
+def load_all_raw() -> dict[int, pd.DataFrame]:
+    """
+    Loads all SteamDB CSVs retaining the full 10-minute interval rows.
+    Used for WoW and precise MoM comparisons.
+    Returns {app_id: df} where df has columns: DateTime, Players
+    """
+    raw: dict[int, pd.DataFrame] = {}
+    if not DATA_DIR.exists():
+        return raw
+    for csv_path in sorted(DATA_DIR.glob("steamdb_chart_*.csv")):
+        try:
+            app_id = int(csv_path.stem.replace("steamdb_chart_", ""))
+        except ValueError:
+            continue
+        try:
+            df = pd.read_csv(csv_path, encoding="utf-8-sig")
+            df.columns = [c.strip().strip('"') for c in df.columns]
+            df["DateTime"] = pd.to_datetime(df["DateTime"], errors="coerce")
+            df = df.dropna(subset=["DateTime"])
+            df["Players"] = pd.to_numeric(df["Players"], errors="coerce")
+            df = df.sort_values("DateTime").reset_index(drop=True)
+            raw[app_id] = df[["DateTime", "Players"]]
+        except Exception:
+            pass
+    return raw
 
 
 def compute_yoy(monthly_df: pd.DataFrame) -> tuple[str, float]:
@@ -581,22 +602,30 @@ def get_historical_summary(monthly_df: pd.DataFrame) -> dict:
     """Return a summary dict for the AI prompt from historical data."""
     if monthly_df is None or monthly_df.empty:
         return {}
-    last_12 = monthly_df.tail(12)
+    last_12   = monthly_df.tail(12)
     peak_ever = monthly_df["peak_ccu"].max()
     peak_12m  = last_12["peak_ccu"].max()
     avg_12m   = last_12["avg_ccu"].mean()
-    # Month-over-month trend (slope sign over last 3 months)
-    last_3 = monthly_df.tail(3)
-    if len(last_3) >= 2:
-        vals = last_3["avg_ccu"].fillna(last_3["peak_ccu"]).dropna().tolist()
-        mom_trend = "↑" if len(vals) >= 2 and vals[-1] > vals[0] else "↓"
-    else:
-        mom_trend = "—"
+
+    # Real month-over-month: last month vs. the month before it
+    mom_pct   = None
+    mom_trend = "—"
+    if len(monthly_df) >= 2:
+        def _val(row):
+            v = row["avg_ccu"]
+            return v if not pd.isna(v) else row["peak_ccu"]
+        v_now  = _val(monthly_df.iloc[-1])
+        v_prev = _val(monthly_df.iloc[-2])
+        if not pd.isna(v_now) and not pd.isna(v_prev) and v_prev > 0:
+            mom_pct   = (v_now - v_prev) / v_prev * 100
+            mom_trend = f"{'+' if mom_pct >= 0 else ''}{mom_pct:.1f}%"
+
     return {
-        "peak_ever":  int(peak_ever) if not pd.isna(peak_ever) else None,
-        "peak_12m":   int(peak_12m)  if not pd.isna(peak_12m)  else None,
-        "avg_12m":    int(avg_12m)   if not pd.isna(avg_12m)   else None,
-        "mom_trend":  mom_trend,
+        "peak_ever":   int(peak_ever) if not pd.isna(peak_ever) else None,
+        "peak_12m":    int(peak_12m)  if not pd.isna(peak_12m)  else None,
+        "avg_12m":     int(avg_12m)   if not pd.isna(avg_12m)   else None,
+        "mom_trend":   mom_trend,
+        "mom_pct":     mom_pct,
         "months_data": len(monthly_df),
     }
 
@@ -1038,21 +1067,48 @@ def save_snapshot(ccu_data: list[dict]) -> None:
     except Exception:
         pass
 
-def compute_wow_diff(current: list[dict], snaps: list[dict]) -> dict[int, dict]:
-    """Compare current CCU against the most recent saved snapshot.
-    Returns {app_id: {prev_ccu, delta, delta_pct, snap_ts}}."""
-    if not snaps:
-        return {}
-    prev_snap = snaps[-1]["data"]
-    snap_ts   = snaps[-1].get("ts", "")
-    prev_map  = {r["app_id"]: r["ccu"] for r in prev_snap}
-    result    = {}
-    for r in current:
+def compute_period_diff(ccu_data: list[dict], raw_data: dict, days: int = 7) -> dict[int, dict]:
+    """
+    For titles with CSV data: find the Players value closest to exactly `days`
+    ago within the raw 10-minute interval data, and compare to the latest value.
+
+    For titles without CSV data: returns nothing (no fallback to snapshots —
+    snapshot-based comparisons were unreliable).
+
+    Returns {app_id: {prev_ccu, delta, delta_pct, source, period_label, ref_dt}}
+    """
+    result = {}
+    for r in ccu_data:
         aid = r["app_id"]
-        if aid in prev_map and prev_map[aid] > 0:
-            delta = r["ccu"] - prev_map[aid]
-            pct   = delta / prev_map[aid] * 100
-            result[aid] = {"prev_ccu": prev_map[aid], "delta": delta, "delta_pct": pct, "snap_ts": snap_ts}
+        df  = raw_data.get(aid)
+        if df is None or df.empty:
+            continue
+        df = df.dropna(subset=["Players"])
+        if len(df) < 2:
+            continue
+        latest_dt  = df["DateTime"].iloc[-1]
+        latest_ccu = df["Players"].iloc[-1]
+        target_dt  = latest_dt - pd.Timedelta(days=days)
+        # Find row closest to target_dt
+        idx_closest = (df["DateTime"] - target_dt).abs().idxmin()
+        ref_row     = df.loc[idx_closest]
+        ref_dt      = ref_row["DateTime"]
+        ref_ccu     = ref_row["Players"]
+        # Only use if ref point is actually within ±2 days of target
+        gap_hours = abs((ref_dt - target_dt).total_seconds()) / 3600
+        if pd.isna(ref_ccu) or ref_ccu == 0 or gap_hours > 48:
+            continue
+        delta = latest_ccu - ref_ccu
+        pct   = delta / ref_ccu * 100
+        label = f"{days}d ago ({ref_dt.strftime('%d %b %Y')})"
+        result[aid] = {
+            "prev_ccu":    int(ref_ccu),
+            "delta":       int(delta),
+            "delta_pct":   pct,
+            "source":      "SteamDB CSV",
+            "period_label": label,
+            "ref_dt":      ref_dt.isoformat(),
+        }
     return result
 
 # ─────────────────────────────────────────────────────────────
@@ -1909,14 +1965,12 @@ elif st.session_state.active_view == "main":
                 results.sort(key=lambda x: x["ccu"], reverse=True)
                 st.session_state.ccu_data      = results
                 st.session_state.ccu_fetched_at = datetime.utcnow()
-                # Auto-save snapshot
-                save_snapshot(results)
             st.rerun()
 
     else:
         ccu_data = st.session_state.ccu_data
-        snaps    = load_snapshots()
-        wow_diff = compute_wow_diff(ccu_data, snaps)
+        raw_data = load_all_raw()
+        wow_diff = compute_period_diff(ccu_data, raw_data, days=7)
 
         # ── Derived stats ──
         total_ccu  = sum(r["ccu"] for r in ccu_data)
@@ -2039,32 +2093,28 @@ elif st.session_state.active_view == "main":
                 st.info("No YoY data available — fetch CCU data first.")
 
         # ── Week-over-Week diff expander ──
-        if wow_diff:
-            with st.expander("Week-over-Week vs. YoY Change"):
+        n_wow = sum(1 for r in ccu_data if r["app_id"] in wow_diff)
+        with st.expander(f"Week-over-Week CCU Change ({n_wow} titles with CSV data)"):
+            if wow_diff:
                 wow_rows = []
-                for r in ccu_data:
+                for r in sorted(ccu_data, key=lambda x: abs(wow_diff.get(x["app_id"], {}).get("delta", 0)), reverse=True):
                     diff = wow_diff.get(r["app_id"])
                     if diff:
                         wow_rows.append({
-                            "Title":    r["name"],
-                            "Now":      r["ccu"],
-                            "Previous": diff["prev_ccu"],
-                            "Δ CCU":    diff["delta"],
-                            "Δ %":      f"{diff['delta_pct']:+.1f}%",
-                            "WoW Direction": "Up" if diff["delta"] > 0 else "Down" if diff["delta"] < 0 else "Flat",
+                            "Title":       r["name"],
+                            "Current CCU": f"{r['ccu']:,}",
+                            "7d Ago CCU":  f"{diff['prev_ccu']:,}",
+                            "Δ CCU":       diff["delta"],
+                            "Δ %":         f"{diff['delta_pct']:+.1f}%",
+                            "Direction":   "Up" if diff["delta"] > 0 else "Down" if diff["delta"] < 0 else "Flat",
+                            "Reference":   diff["period_label"],
                         })
                 if wow_rows:
-                    wow_df = pd.DataFrame(sorted(wow_rows, key=lambda x: x["Δ CCU"], reverse=True))
+                    wow_df = pd.DataFrame(wow_rows)
                     st.dataframe(wow_df, use_container_width=True, hide_index=True)
-                    snap_ts_val = next(iter(wow_diff.values()), {}).get("snap_ts", "")
-                    try:
-                        snap_dt    = datetime.fromisoformat(snap_ts_val)
-                        snap_label = snap_dt.strftime("%H:%M UTC, %d %b %Y")
-                        age_hrs    = (datetime.utcnow() - snap_dt).total_seconds() / 3600
-                        age_label  = f"{age_hrs:.0f}h ago" if age_hrs < 48 else f"{age_hrs/24:.0f} days ago"
-                    except Exception:
-                        snap_label, age_label = "previous snapshot", ""
-                    st.caption(f"Comparing vs. snapshot from {snap_label} ({age_label}). New snapshots are saved automatically once the last one is 20+ hours old.")
+                    st.caption("Comparing latest CSV value vs. the row closest to exactly 7 days prior. Source: SteamDB 10-minute interval data.")
+            else:
+                st.info("No CSV data loaded yet. Add steamdb_chart_{appid}.csv files to the /data folder.")
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -2072,11 +2122,11 @@ elif st.session_state.active_view == "main":
         top10  = ccu_data[:10]
         colors = ["#4080ff" if not r["f2p"] else "#20c65a" for r in top10]
 
-        # Add WoW delta to hover
+        # Add WoW delta to hover (from raw CSV 7-day diff)
         hover_texts = []
         for r in top10:
-            diff = wow_diff.get(r["app_id"])
-            wow_str = f"<br>WoW Change: {diff['delta_pct']:+.1f}%" if diff else ""
+            diff    = wow_diff.get(r["app_id"])
+            wow_str = f"<br>WoW: {diff['delta_pct']:+.1f}% ({diff['period_label']})" if diff else ""
             hover_texts.append(f"<b>{r['name']}</b><br>CCU: {r['ccu']:,}<br>YoY: {r.get('yoy','N/A')}{wow_str}<extra></extra>")
 
         fig = go.Figure(go.Bar(
