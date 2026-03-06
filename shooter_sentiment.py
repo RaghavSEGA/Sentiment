@@ -1226,6 +1226,24 @@ TRANSLATIONS = {
         "run_analysis":           "Run Analysis",
         "custom_label":           "Or ask a custom question",
         "custom_placeholder":     "e.g. Compare monetisation models across the top 5 F2P shooters on Steam…",
+        "preset_labels": {
+            "ccu_mecha":      "CCU Trends & Mecha-Shooter Demand",
+            "table_stakes":   "2026 Netcode & Server Table Stakes",
+            "social_metrics": "Social Media Metrics for Day-1 Success",
+            "weekly_report":  "Weekly Retention & Engagement Report Template",
+        },
+        "preset_descs": {
+            "ccu_mecha":      "Analyze the top 10 shooters on Steam and compare CCU trends to last year. What does this say about current demand for mecha-shooters?",
+            "table_stakes":   "What are the non-negotiable \'table stakes\' for a competitive shooter in 2026 regarding netcode and server architecture to satisfy Western competitive integrity standards?",
+            "social_metrics": "Based on recent investor reports and market data, what are the primary social media metrics to track to predict a new shooter\'s Day 1 success?",
+            "weekly_report":  "Create a template for a weekly market report that tracks retention and engagement KPIs across the top 100 shooters, highlighting any \'breakout\' indie titles.",
+        },
+        "preset_tags": {
+            "ccu_mecha":      "Market",
+            "table_stakes":   "Tech",
+            "social_metrics": "Social",
+            "weekly_report":  "Report",
+        },
         "run_btn":                "Run",
         "custom_query_label":     "Custom Query",
         # AI report
@@ -1344,6 +1362,24 @@ TRANSLATIONS = {
         "run_analysis":           "分析を実行",
         "custom_label":           "またはカスタム質問を入力",
         "custom_placeholder":     "例: SteamのF2Pシューター上位5タイトルの収益モデルを比較…",
+        "preset_labels": {
+            "ccu_mecha":      "CCUトレンドとメカ系シューター需要",
+            "table_stakes":   "2026年 ネットコード・サーバー最低要件",
+            "social_metrics": "Day-1成功を予測するSNSメトリクス",
+            "weekly_report":  "週次リテンション・エンゲージメントレポートテンプレート",
+        },
+        "preset_descs": {
+            "ccu_mecha":      "Steam上位10シュータータイトルのCCUを前年比で比較し、メカ系シューターへの需要を分析します。",
+            "table_stakes":   "2026年の競技シューターにおいて、西洋の競技整合性基準を満たすためのネットコード・サーバー構成の「最低要件」を明確化します。",
+            "social_metrics": "直近の投資家レポートや市場データをもとに、新作シューターのDay-1成功を予測するための主要SNSメトリクスを特定します。",
+            "weekly_report":  "上位100シュータータイトルのリテンション・エンゲージメントKPIを追跡する週次市場レポートのテンプレートを作成します。インディータイトルのブレイクアウトも検出します。",
+        },
+        "preset_tags": {
+            "ccu_mecha":      "市場",
+            "table_stakes":   "技術",
+            "social_metrics": "SNS",
+            "weekly_report":  "レポート",
+        },
         "run_btn":                "実行",
         "custom_query_label":     "カスタムクエリ",
         "cache_notice":           "キャッシュから読み込みました — データに変更なし。更新するにはCCUを再取得してください。",
@@ -1485,20 +1521,24 @@ col1, col2 = st.columns(2)
 for i, preset in enumerate(PRESET_QUERIES):
     col = col1 if i % 2 == 0 else col2
     with col:
+        _pid   = preset["id"]
+        _label = T("preset_labels")[_pid]
+        _desc  = T("preset_descs")[_pid]
+        _tag   = T("preset_tags")[_pid]
         st.markdown(f"""
         <div class="insight-card">
           <div class="insight-card-title">
-            <span class="{preset['tag_class']}">{preset['tag']}</span>
-            {preset['label']}
+            <span class="{preset['tag_class']}">{_tag}</span>
+            {_label}
           </div>
-          <div class="insight-card-desc">{preset['desc']}</div>
+          <div class="insight-card-desc">{_desc}</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button(T("run_analysis"), key=f"preset_{preset['id']}"):
             st.session_state.active_query = preset["prompt_key"]
             st.session_state.ai_report = ""
             st.session_state.ai_chat_history = []
-            st.session_state.report_label = preset["label"]
+            st.session_state.report_label = _label
 
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown(f'<div class="field-label">{T("custom_label")}</div>', unsafe_allow_html=True)
@@ -1508,7 +1548,7 @@ with col_q:
         "Custom query",
         value=st.session_state.custom_query,
         label_visibility="collapsed",
-        placeholder="e.g. Compare monetisation models across the top 5 F2P shooters on Steam…",
+        placeholder=T("custom_placeholder"),
         key="custom_input",
     )
 with col_btn:
