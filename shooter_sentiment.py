@@ -3,7 +3,7 @@ Shooter Market Intelligence — SEGA-branded Streamlit App
 =========================================================
 Run with:  streamlit run shooter_intel.py
 
-Required:  pip install streamlit requests pandas plotly anthropic reportlab markdown
+Required:  pip install streamlit requests pandas plotly anthropic python-pptx
 """
 
 import time
@@ -832,7 +832,13 @@ def report_to_pdf(md_text: str) -> bytes | None:
 # CLAUDE PROMPTS
 # ─────────────────────────────────────────────────────────────
 
-def build_system_prompt() -> str:
+def build_system_prompt(language: str = "English") -> str:
+    lang_instruction = (
+        " IMPORTANT: Write your entire response in Japanese (日本語). "
+        "Use professional business Japanese suitable for senior management. "
+        "All section headers, bullet points, tables, and analysis must be in Japanese. "
+        "Game titles may be kept in their original English/romanised form where commonly known."
+    ) if language == "Japanese" else ""
     return (
         "You are a senior games market analyst at SEGA's internal strategy team. "
         "You specialise in the competitive shooter genre across Steam, console, and mobile. "
@@ -846,6 +852,7 @@ def build_system_prompt() -> str:
         "[Source: GDC State of the Game Industry 2025], [Source: Valve Steam Blog, 2024]. "
         "If you are uncertain of a specific source, write [Source: industry estimates] rather than omitting attribution. "
         "Data provided directly in the prompt (SteamDB CSV, SteamSpy, Steam API) should be attributed as such inline."
+        + lang_instruction
     )
 
 def build_ccu_mecha_prompt(ccu_data: list[dict]) -> str:
@@ -1119,323 +1126,166 @@ def compute_period_diff(ccu_data: list[dict], raw_data: dict, days: int = 7) -> 
     return result
 
 # ─────────────────────────────────────────────────────────────
-# PPTX EXPORT  (generates via pptxgenjs node script)
+# ─────────────────────────────────────────────────────────────
+# PPTX EXPORT  (pure python-pptx — no Node.js / npm required)
 # ─────────────────────────────────────────────────────────────
 
-def build_pptx_script(report_md: str, ccu_data: list[dict], label: str) -> str:
-    """
-    Generate a pptxgenjs Node.js script styled to the SEGA.com brand guide:
-      - Backgrounds: #050818 (near-black) / #0D1126 (dark navy) / #002266 (section accent)
-      - Primary accent: #0057FF (SEGA blue), secondary highlight #E1EAFF
-      - Typography: Inter Tight ExtraBold (headings), Poppins (body)
-      - Motif: thick left-side blue border on content slides, oversized display numbers
-      - Layouts alternate between: full-bleed header, two-column, stat callout, bullet list
-    """
-
-    # ── helpers ──────────────────────────────────────────────
-    def js_str(s: str) -> str:
-        return (s.replace("\\", "\\\\")
-                 .replace("`", "\\`")
-                 .replace("${", "\\${")
-                 .replace("\n", " "))
-
-    def js_arr(items: list[dict]) -> str:
-        """Render a pptxgenjs text array from [{text, bold, sub}]."""
-        parts = []
-        for it in items:
-            color   = "0057FF" if it.get("sub") else ("E1EAFF" if it.get("bold") else "C3C5D5")
-            size    = 13 if it.get("bold") else 11
-            bullet  = "false" if it.get("bold") or it.get("sub") else "true"
-            spacing = 6 if it.get("bold") else 3
-            parts.append(
-                f'{{text:`{js_str(it["text"][:140])}`,options:{{bold:{"true" if it.get("bold") else "false"},'
-                f'fontSize:{size},color:"{color}",bullet:{bullet},'
-                f'fontFace:"Poppins",paraSpaceAfter:{spacing}}}}}'
-            )
-        return ",\n      ".join(parts)
-
-    # ── parse markdown into slide objects ────────────────────
-    lines   = report_md.split("\n")
-    slides  = []
-    current = {"title": "", "items": [], "stat": None}
-
-    for line in lines:
-        if line.startswith("## "):
-            if current["title"] or current["items"]:
-                slides.append(current)
-            current = {"title": line[3:].strip(), "items": [], "stat": None}
-        elif line.startswith("### "):
-            current["items"].append({"text": line[4:].strip(), "bold": True})
-        elif line.startswith("- ") or line.startswith("* "):
-            current["items"].append({"text": line[2:].strip(), "bold": False})
-        elif line.strip() and not line.startswith("#") and len(line) < 220:
-            # detect bold **stat** patterns for callout layout
-            stripped = line.strip().lstrip("*").rstrip("*")
-            current["items"].append({"text": stripped, "bold": False})
-
-    if current["title"] or current["items"]:
-        slides.append(current)
-
-    slides = slides[:14]
-
-    # ── CCU stat cards for title slide ───────────────────────
-    top5     = ccu_data[:5]
-    top5_str = "   ·   ".join(f"{r['name']}  {r['ccu']:,}" for r in top5)
-    date_str = datetime.utcnow().strftime("%B %d, %Y")
-
-    # ── per-slide JS ─────────────────────────────────────────
-    slide_js_parts = []
-    LAYOUTS = ["border", "accent", "border", "split", "border", "accent",
-               "border", "split", "border", "accent", "border", "split", "border", "border"]
-
-    for idx, s in enumerate(slides):
-        layout  = LAYOUTS[idx % len(LAYOUTS)]
-        title_e = js_str(s["title"][:70])
-        items   = s["items"][:14]
-        arr     = js_arr(items)
-
-        if layout == "border":
-            # Dark navy bg + thick left blue border accent bar
-            block = f"""
-  // ── Slide {idx+1}: {title_e[:35]} (border layout) ──
-  slide = pptx.addSlide();
-  slide.background = {{color:"0D1126"}};
-  slide.addShape(pptx.ShapeType.rect, {{x:0,   y:0, w:0.07, h:"100%", fill:{{color:"0057FF"}}}});
-  slide.addShape(pptx.ShapeType.rect, {{x:0.07,y:0, w:"100%", h:0.06, fill:{{color:"002266"}}}});
-  slide.addText(`{title_e}`, {{
-    x:0.35, y:0.18, w:9.3, h:0.72,
-    fontSize:26, bold:true, color:"FFFFFF",
-    fontFace:"Inter Tight", charSpacing:-0.5
-  }});
-  slide.addText([{arr}], {{
-    x:0.35, y:1.05, w:9.3, h:5.55,
-    valign:"top", fontFace:"Poppins", paraSpaceAfter:4
-  }});
-  slide.addShape(pptx.ShapeType.rect, {{x:0.35,y:6.78,w:9.3,h:0.005,fill:{{color:"002266"}}}});
-  slide.addText("SEGA Shooter Intelligence  ·  Internal Use Only  ·  {date_str}", {{
-    x:0.35, y:6.82, w:9.3, h:0.2, fontSize:7.5, color:"4A5080", fontFace:"Poppins"
-  }});"""
-
-        elif layout == "accent":
-            # SEGA blue header band, dark body
-            block = f"""
-  // ── Slide {idx+1}: {title_e[:35]} (accent layout) ──
-  slide = pptx.addSlide();
-  slide.background = {{color:"050818"}};
-  slide.addShape(pptx.ShapeType.rect, {{x:0, y:0, w:"100%", h:1.1, fill:{{color:"0057FF"}}}});
-  slide.addText(`{title_e}`, {{
-    x:0.5, y:0.18, w:9.0, h:0.75,
-    fontSize:28, bold:true, color:"FFFFFF",
-    fontFace:"Inter Tight", charSpacing:-0.5
-  }});
-  slide.addText([{arr}], {{
-    x:0.5, y:1.25, w:9.0, h:5.35,
-    valign:"top", fontFace:"Poppins", paraSpaceAfter:5
-  }});
-  slide.addText("SEGA Shooter Intelligence  ·  Internal Use Only", {{
-    x:0.5, y:6.82, w:9.0, h:0.2, fontSize:7.5, color:"4A5080", fontFace:"Poppins"
-  }});"""
-
-        else:  # split — title left column, bullets right column
-            half = max(1, len(items) // 2)
-            left_items  = items[:half]
-            right_items = items[half:]
-            arr_l = js_arr(left_items)
-            arr_r = js_arr(right_items)
-            block = f"""
-  // ── Slide {idx+1}: {title_e[:35]} (split layout) ──
-  slide = pptx.addSlide();
-  slide.background = {{color:"0D1126"}};
-  slide.addShape(pptx.ShapeType.rect, {{x:0,    y:0, w:"100%", h:0.06, fill:{{color:"0057FF"}}}});
-  slide.addShape(pptx.ShapeType.rect, {{x:4.85, y:0.06, w:0.04, h:"100%", fill:{{color:"002266"}}}});
-  slide.addText(`{title_e}`, {{
-    x:0.4, y:0.2, w:9.2, h:0.7,
-    fontSize:24, bold:true, color:"FFFFFF",
-    fontFace:"Inter Tight", charSpacing:-0.5
-  }});
-  slide.addText([{arr_l}], {{
-    x:0.4, y:1.05, w:4.2, h:5.55,
-    valign:"top", fontFace:"Poppins", paraSpaceAfter:5
-  }});
-  slide.addText([{arr_r}], {{
-    x:5.1, y:1.05, w:4.55, h:5.55,
-    valign:"top", fontFace:"Poppins", paraSpaceAfter:5
-  }});
-  slide.addText("SEGA Shooter Intelligence  ·  Internal Use Only", {{
-    x:0.4, y:6.82, w:9.2, h:0.2, fontSize:7.5, color:"4A5080", fontFace:"Poppins"
-  }});"""
-
-        slide_js_parts.append(block)
-
-    all_slides = "\n".join(slide_js_parts)
-
-    # ── CCU stat cards slide (if data available) ─────────────
-    stat_cards_js = ""
-    if ccu_data:
-        top6      = ccu_data[:6]
-        card_w    = 1.5
-        card_gap  = 0.1
-        card_y    = 2.2
-        cards_total_w = len(top6) * card_w + (len(top6) - 1) * card_gap
-        start_x   = (10 - cards_total_w) / 2
-        card_blocks = ""
-        for ci, r in enumerate(top6):
-            cx    = start_x + ci * (card_w + card_gap)
-            yoy_v = r.get("yoy_val", 0)
-            yoy_s = js_str(r.get("yoy", "N/A"))
-            yoy_c = "20C65A" if yoy_v > 0 else ("FF3D52" if yoy_v < 0 else "C3C5D5")
-            name_s = js_str(r["name"][:14])
-            ccu_raw = r["ccu"]
-            if ccu_raw >= 1_000_000:
-                ccu_s = f"{ccu_raw/1_000_000:.2f}M"
-            elif ccu_raw >= 1_000:
-                ccu_s = f"{ccu_raw/1_000:.1f}K"
-            else:
-                ccu_s = str(ccu_raw)
-            card_blocks += f"""
-  slide.addShape(pptx.ShapeType.rect, {{x:{cx:.2f},y:{card_y:.2f},w:{card_w},h:1.9,
-    fill:{{color:"0D1126"}}, line:{{color:"002266",pt:1}}}});
-  slide.addShape(pptx.ShapeType.rect, {{x:{cx:.2f},y:{card_y:.2f},w:{card_w},h:0.06,
-    fill:{{color:"0057FF"}}}});
-  slide.addText(`{name_s}`,{{x:{cx+0.1:.2f},y:{card_y+0.12:.2f},w:{card_w-0.2},h:0.38,
-    fontSize:9,bold:true,color:"E1EAFF",fontFace:"Inter Tight",wrap:true}});
-  slide.addText(`{ccu_s}`,{{x:{cx+0.1:.2f},y:{card_y+0.55:.2f},w:{card_w-0.2},h:0.65,
-    fontSize:22,bold:true,color:"FFFFFF",fontFace:"Inter Tight"}});
-  slide.addText(`{yoy_s} YoY`,{{x:{cx+0.1:.2f},y:{card_y+1.22:.2f},w:{card_w-0.2},h:0.3,
-    fontSize:10,bold:true,color:"{yoy_c}",fontFace:"Poppins"}});
-  slide.addText("live CCU",{{x:{cx+0.1:.2f},y:{card_y+1.56:.2f},w:{card_w-0.2},h:0.22,
-    fontSize:7.5,color:"4A5080",fontFace:"Poppins"}});"""
-
-        stat_cards_js = f"""
-  // ── CCU Snapshot slide ──
-  slide = pptx.addSlide();
-  slide.background = {{color:"050818"}};
-  slide.addShape(pptx.ShapeType.rect, {{x:0, y:0, w:"100%", h:0.06, fill:{{color:"0057FF"}}}});
-  slide.addText("LIVE CCU SNAPSHOT", {{
-    x:0.5, y:0.18, w:9.0, h:0.55,
-    fontSize:28, bold:true, color:"FFFFFF", fontFace:"Inter Tight", charSpacing:2
-  }});
-  slide.addText("Steam concurrent users at time of export  ·  Source: Steam public API", {{
-    x:0.5, y:0.78, w:9.0, h:0.3,
-    fontSize:10, color:"C3C5D5", fontFace:"Poppins"
-  }});
-  {card_blocks}
-  slide.addText("SEGA Shooter Intelligence  ·  Internal Use Only  ·  {date_str}", {{
-    x:0.5, y:6.82, w:9.0, h:0.2, fontSize:7.5, color:"4A5080", fontFace:"Poppins"
-  }});"""
-
-    return f"""const PptxGenJS = require("pptxgenjs");
-const pptx = new PptxGenJS();
-pptx.layout = "LAYOUT_WIDE";
-pptx.author  = "SEGA Shooter Intelligence";
-pptx.subject = "{js_str(label)}";
-pptx.company = "SEGA";
-
-let slide;
-
-// ══════════════════════════════════════════════
-// TITLE SLIDE
-// ══════════════════════════════════════════════
-slide = pptx.addSlide();
-slide.background = {{color:"050818"}};
-
-// Full-bleed deep blue left panel
-slide.addShape(pptx.ShapeType.rect, {{x:0, y:0, w:4.6, h:"100%", fill:{{color:"002266"}}}});
-// SEGA blue accent stripe on left edge
-slide.addShape(pptx.ShapeType.rect, {{x:0, y:0, w:0.12, h:"100%", fill:{{color:"0057FF"}}}});
-// Subtle top bar
-slide.addShape(pptx.ShapeType.rect, {{x:0, y:0, w:"100%", h:0.06, fill:{{color:"0057FF"}}}});
-
-// "SEGA" logotype
-slide.addText("SEGA", {{
-  x:0.35, y:1.4, w:3.9, h:1.2,
-  fontSize:72, bold:true, color:"FFFFFF",
-  fontFace:"Inter Tight", charSpacing:-2
-}});
-
-// Thin rule below SEGA
-slide.addShape(pptx.ShapeType.rect, {{x:0.35, y:2.68, w:3.6, h:0.04, fill:{{color:"0057FF"}}}});
-
-// "SHOOTER INTELLIGENCE"
-slide.addText("SHOOTER\\nINTELLIGENCE", {{
-  x:0.35, y:2.82, w:4.0, h:1.1,
-  fontSize:20, bold:true, color:"E1EAFF",
-  fontFace:"Inter Tight", charSpacing:1.5, lineSpacingMultiple:1.1
-}});
-
-// Report label (right panel)
-slide.addText("{js_str(label)}", {{
-  x:4.9, y:1.6, w:4.7, h:0.9,
-  fontSize:32, bold:true, color:"FFFFFF",
-  fontFace:"Inter Tight", charSpacing:-0.5, wrap:true
-}});
-slide.addText("{date_str}", {{
-  x:4.9, y:2.6, w:4.7, h:0.4,
-  fontSize:13, color:"C3C5D5", fontFace:"Poppins"
-}});
-slide.addText("Internal Use Only", {{
-  x:4.9, y:3.1, w:4.7, h:0.3,
-  fontSize:10, color:"0057FF", bold:true, fontFace:"Poppins", charSpacing:2
-}});
-
-// Top CCU ticker at bottom right
-slide.addText("{js_str(top5_str)}", {{
-  x:4.9, y:6.3, w:4.7, h:0.4,
-  fontSize:8, color:"4A5080", fontFace:"Poppins", wrap:true
-}});
-
-// Footer
-slide.addText("SEGA Shooter Intelligence  ·  {date_str}", {{
-  x:0.35, y:6.82, w:9.3, h:0.2, fontSize:7.5, color:"323760", fontFace:"Poppins"
-}});
-
-{stat_cards_js}
-
-{all_slides}
-
-// ══════════════════════════════════════════════
-// CLOSING SLIDE
-// ══════════════════════════════════════════════
-slide = pptx.addSlide();
-slide.background = {{color:"050818"}};
-slide.addShape(pptx.ShapeType.rect, {{x:0, y:0, w:0.12, h:"100%", fill:{{color:"0057FF"}}}});
-slide.addShape(pptx.ShapeType.rect, {{x:0, y:0, w:"100%", h:0.06, fill:{{color:"0057FF"}}}});
-slide.addText("SEGA", {{
-  x:0.5, y:2.2, w:9.0, h:1.4,
-  fontSize:80, bold:true, color:"002266",
-  fontFace:"Inter Tight", charSpacing:-3, align:"center"
-}});
-slide.addText("SHOOTER INTELLIGENCE", {{
-  x:0.5, y:3.65, w:9.0, h:0.55,
-  fontSize:16, bold:true, color:"0057FF",
-  fontFace:"Inter Tight", charSpacing:4, align:"center"
-}});
-slide.addText("{date_str}  ·  Internal Use Only", {{
-  x:0.5, y:6.62, w:9.0, h:0.3,
-  fontSize:9, color:"4A5080", fontFace:"Poppins", align:"center"
-}});
-
-pptx.writeFile({{fileName:"report.pptx"}})
-  .then(()=>{{ process.exit(0); }})
-  .catch(e=>{{ console.error(e); process.exit(1); }});
-"""
-
 def generate_pptx_bytes(report_md: str, ccu_data: list[dict], label: str) -> bytes | None:
-    """Run pptxgenjs and return bytes of the generated pptx."""
-    import subprocess, tempfile
-    script = build_pptx_script(report_md, ccu_data, label)
-    with tempfile.TemporaryDirectory() as tmp:
-        script_path = Path(tmp) / "gen.js"
-        out_path    = Path(tmp) / "report.pptx"
-        script_path.write_text(script)
-        # Install pptxgenjs if not present
-        subprocess.run(["npm", "install", "pptxgenjs"], cwd=tmp,
-                       capture_output=True, timeout=60)
-        result = subprocess.run(["node", "gen.js"], cwd=tmp,
-                                capture_output=True, timeout=30)
-        if result.returncode == 0 and out_path.exists():
-            return out_path.read_bytes()
-    return None
+    try:
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+        from pptx.dml.color import RGBColor
+        from pptx.enum.text import PP_ALIGN
+        from io import BytesIO
+    except ImportError:
+        return None
+
+    BG_DARK = RGBColor(0x05, 0x08, 0x18)
+    BG_NAVY = RGBColor(0x0D, 0x11, 0x26)
+    BLUE    = RGBColor(0x00, 0x57, 0xFF)
+    MUTED   = RGBColor(0xC3, 0xC5, 0xD5)
+    TEXT    = RGBColor(0xE1, 0xEA, 0xFF)
+    POS     = RGBColor(0x20, 0xC6, 0x5A)
+    NEG     = RGBColor(0xFF, 0x4D, 0x6D)
+
+    W = Inches(13.33)
+    H = Inches(7.5)
+    prs = Presentation()
+    prs.slide_width  = W
+    prs.slide_height = H
+    blank = prs.slide_layouts[6]
+
+    def new_slide():
+        return prs.slides.add_slide(blank)
+
+    def bg(slide, color):
+        f = slide.background.fill
+        f.solid()
+        f.fore_color.rgb = color
+
+    def rect(slide, x, y, w, h, color):
+        sh = slide.shapes.add_shape(1, x, y, w, h)
+        sh.fill.solid()
+        sh.fill.fore_color.rgb = color
+        sh.line.fill.background()
+        return sh
+
+    def tb(slide, x, y, w, h, text, size=14, bold=False,
+           color=TEXT, align=PP_ALIGN.LEFT, italic=False):
+        box = slide.shapes.add_textbox(x, y, w, h)
+        box.word_wrap = True
+        tf = box.text_frame
+        tf.word_wrap = True
+        p  = tf.paragraphs[0]
+        p.alignment = align
+        run = p.add_run()
+        run.text = text
+        run.font.size   = Pt(size)
+        run.font.bold   = bold
+        run.font.italic = italic
+        run.font.color.rgb = color
+        run.font.name = "Calibri"
+        return box
+
+    def stripe(slide):
+        rect(slide, 0, 0, Inches(0.18), H, BLUE)
+
+    def fmt_ccu(n):
+        if n >= 1_000_000: return f"{n/1_000_000:.2f}M"
+        if n >= 1_000:     return f"{n/1_000:.1f}K"
+        return str(n)
+
+    # Parse report_md into ## sections
+    sections = []
+    cur_title, cur_body = "", []
+    for line in report_md.splitlines():
+        if line.startswith("## "):
+            if cur_title:
+                sections.append((cur_title, "\n".join(cur_body).strip()))
+            cur_title = line.lstrip("# ").strip()
+            cur_body  = []
+        elif line.startswith("# "):
+            pass
+        else:
+            cur_body.append(line)
+    if cur_title:
+        sections.append((cur_title, "\n".join(cur_body).strip()))
+
+    # Slide 1: Title
+    s = new_slide()
+    bg(s, BG_DARK)
+    stripe(s)
+    rect(s, 0, 0, W, Inches(0.06), BLUE)
+    tb(s, Inches(0.42), Inches(1.6),  Inches(9), Inches(1.1), "SHOOTER MARKET", 52, bold=True, color=TEXT)
+    tb(s, Inches(0.42), Inches(2.55), Inches(9), Inches(1.1), "INTELLIGENCE",   52, bold=True, color=BLUE)
+    tb(s, Inches(0.42), Inches(3.85), Inches(9), Inches(0.5), label, 15, color=MUTED)
+    tb(s, Inches(0.42), Inches(4.35), Inches(9), Inches(0.4),
+       "SEGA Publishing & Strategy  \u00b7  Steam CCU Analysis", 12, color=MUTED, italic=True)
+
+    # Slide 2: CCU snapshot cards
+    top10 = sorted(ccu_data, key=lambda r: r["ccu"], reverse=True)[:10]
+    s = new_slide()
+    bg(s, BG_NAVY)
+    stripe(s)
+    rect(s, Inches(0.18), 0, W - Inches(0.18), Inches(0.8), BLUE)
+    tb(s, Inches(0.42), Inches(0.12), Inches(10), Inches(0.56),
+       "LIVE CCU SNAPSHOT", 18, bold=True, color=TEXT)
+    cols = 5
+    cw, ch = Inches(2.4), Inches(1.4)
+    xoff, yoff, gap = Inches(0.35), Inches(1.0), Inches(0.12)
+    for i, r in enumerate(top10):
+        col, row = i % cols, i // cols
+        cx = xoff + col * (cw + gap)
+        cy = yoff + row * (ch + gap)
+        card_col = BG_DARK if row == 0 else RGBColor(0x08, 0x0C, 0x1E)
+        rect(s, cx, cy, cw, ch, card_col)
+        top_col = POS if r.get("yoy_val", 0) >= 0 else NEG
+        rect(s, cx, cy, cw, Inches(0.04), top_col)
+        tb(s, cx + Inches(0.12), cy + Inches(0.06), cw - Inches(0.14), Inches(0.35),
+           r["name"][:22], 9, color=MUTED)
+        tb(s, cx + Inches(0.12), cy + Inches(0.38), cw - Inches(0.14), Inches(0.55),
+           fmt_ccu(r["ccu"]), 22, bold=True, color=TEXT)
+        yoy = r.get("yoy", "N/A")
+        yoy_col = POS if str(yoy).startswith("+") else (NEG if str(yoy).startswith("-") else MUTED)
+        tb(s, cx + Inches(0.12), cy + Inches(0.92), cw - Inches(0.14), Inches(0.35),
+           f"YoY {yoy}", 10, color=yoy_col)
+
+    # Slides 3+: Report sections
+    for i, (title, body) in enumerate(sections):
+        s = new_slide()
+        bg(s, BG_DARK if i % 2 == 0 else BG_NAVY)
+        stripe(s)
+        rect(s, Inches(0.18), 0, W - Inches(0.18), Inches(0.75), RGBColor(0x00, 0x22, 0x66))
+        tb(s, Inches(0.42), Inches(0.1), Inches(11), Inches(0.55),
+           title.upper(), 16, bold=True, color=TEXT)
+        clean = []
+        for line in body.splitlines():
+            line = line.strip()
+            if not line:
+                clean.append("")
+                continue
+            line = line.lstrip("#").strip()
+            if line.startswith("- ") or line.startswith("* "):
+                line = "\u2022  " + line[2:]
+            clean.append(line)
+        body_text = "\n".join(clean).strip()
+        if len(body_text) > 1400:
+            body_text = body_text[:1400] + "\n\n[\u2026continued in full report]"
+        tb(s, Inches(0.42), Inches(0.9), Inches(12.5), Inches(6.3),
+           body_text, 13, color=MUTED)
+
+    # Final slide
+    s = new_slide()
+    bg(s, BG_DARK)
+    stripe(s)
+    tb(s, Inches(0.42), Inches(2.8), Inches(12), Inches(1.0),
+       "SEGA", 80, bold=True, color=RGBColor(0x0D, 0x11, 0x26))
+    tb(s, Inches(0.42), Inches(3.85), Inches(12), Inches(0.5),
+       "Shooter Market Intelligence  \u00b7  Confidential", 13, color=MUTED, italic=True)
+
+    buf = BytesIO()
+    prs.save(buf)
+    return buf.getvalue()
 
 # ─────────────────────────────────────────────────────────────
 # GAME DRILL-DOWN PROMPT
@@ -1560,6 +1410,7 @@ defaults = {
     "drilldown_report": "",     # cached drill-down report
     "watchlist":       [],      # list of app_ids pinned by user
     "active_view":     "main",  # "main" | "drilldown"
+    "report_language": "English",  # "English" | "Japanese"
     "ccu_fetched_at":  None,    # datetime of last fetch
 }
 for k, v in defaults.items():
@@ -1622,6 +1473,29 @@ with st.sidebar:
         missing_names = [g["name"] for g in SHOOTER_ROSTER if g["app_id"] in missing]
         st.caption("Missing: " + ", ".join(missing_names))
     st.caption("Drop steamdb_chart_{appid}.csv into /data to update")
+
+    st.markdown("---")
+    # Report language selector
+    st.markdown("""<div style="font-size:.65rem;font-weight:800;letter-spacing:.18em;
+    text-transform:uppercase;color:#5a5f82;margin-bottom:.5rem;">Report Language</div>""",
+    unsafe_allow_html=True)
+    lang_choice = st.radio(
+        "Report language",
+        options=["English", "日本語"],
+        index=0 if st.session_state.report_language == "English" else 1,
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    if lang_choice == "日本語" and st.session_state.report_language != "Japanese":
+        st.session_state.report_language = "Japanese"
+        st.session_state.ai_report = ""          # clear cached report
+        st.session_state.report_cache = {}
+        st.rerun()
+    elif lang_choice == "English" and st.session_state.report_language != "English":
+        st.session_state.report_language = "English"
+        st.session_state.ai_report = ""
+        st.session_state.report_cache = {}
+        st.rerun()
 
     st.markdown("---")
     # Watchlist management
@@ -1807,7 +1681,7 @@ if st.session_state.active_view == "drilldown" and st.session_state.drilldown_ga
                             with client.messages.stream(
                                 model="claude-sonnet-4-20250514",
                                 max_tokens=3000,
-                                system=build_system_prompt(),
+                                system=build_system_prompt(st.session_state.report_language),
                                 messages=[{"role": "user", "content": prompt}],
                             ) as stream:
                                 for delta in stream.text_stream:
@@ -2395,7 +2269,7 @@ elif st.session_state.active_view == "main":
                         with client.messages.stream(
                             model="claude-sonnet-4-20250514",
                             max_tokens=4096,
-                            system=build_system_prompt(),
+                            system=build_system_prompt(st.session_state.report_language),
                             messages=[{"role": "user", "content": user_prompt}],
                         ) as stream:
                             for delta in stream.text_stream:
