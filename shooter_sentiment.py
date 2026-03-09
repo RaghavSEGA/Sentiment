@@ -555,13 +555,94 @@ def get_historical_summary(monthly_df: pd.DataFrame) -> dict:
         mom_trend = "↑" if len(vals) >= 2 and vals[-1] > vals[0] else "↓"
     else:
         mom_trend = "—"
+    # Real MoM percentage: last month vs month before
+    last_2 = monthly_df.tail(2)
+    mom_pct = None
+    if len(last_2) == 2:
+        v1 = last_2.iloc[-2]["avg_ccu"] or last_2.iloc[-2]["peak_ccu"]
+        v2 = last_2.iloc[-1]["avg_ccu"] or last_2.iloc[-1]["peak_ccu"]
+        if v1 and v1 > 0 and not pd.isna(v1) and not pd.isna(v2):
+            mom_pct = (v2 - v1) / v1 * 100
+            sign = "+" if mom_pct >= 0 else ""
+            mom_trend = f"{sign}{mom_pct:.1f}%"
     return {
         "peak_ever":  int(peak_ever) if not pd.isna(peak_ever) else None,
         "peak_12m":   int(peak_12m)  if not pd.isna(peak_12m)  else None,
         "avg_12m":    int(avg_12m)   if not pd.isna(avg_12m)   else None,
         "mom_trend":  mom_trend,
+        "mom_pct":    mom_pct,
         "months_data": len(monthly_df),
     }
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def load_all_raw() -> dict[int, pd.DataFrame]:
+    """Load raw 10-minute interval CSV data (no aggregation) for WoW diff."""
+    raw: dict[int, pd.DataFrame] = {}
+    if not DATA_DIR.exists():
+        return raw
+    for csv_path in sorted(DATA_DIR.glob("steamdb_chart_*.csv")):
+        try:
+            app_id = int(csv_path.stem.replace("steamdb_chart_", ""))
+        except ValueError:
+            continue
+        try:
+            df = pd.read_csv(csv_path, encoding="utf-8-sig")
+            df.columns = [c.strip().strip('"') for c in df.columns]
+            df["DateTime"] = pd.to_datetime(df["DateTime"], errors="coerce", utc=True)
+            df = df.dropna(subset=["DateTime"])
+            df["Players"] = pd.to_numeric(df["Players"], errors="coerce")
+            df = df.dropna(subset=["Players"])
+            df = df.sort_values("DateTime")
+            raw[app_id] = df[["DateTime", "Players"]].reset_index(drop=True)
+        except Exception:
+            pass
+    return raw
+
+
+def compute_period_diff(
+    raw_data: dict[int, pd.DataFrame],
+    live_ccu: dict[int, int],
+    days: int = 7,
+    tolerance_hours: int = 96,
+) -> dict[int, dict]:
+    """
+    Compare live CCU against the CSV row closest to exactly `days` ago.
+    Returns {app_id: {prev_ccu, delta, delta_pct, period_label, ref_dt}}
+    """
+    now = pd.Timestamp.utcnow()
+    target = now - pd.Timedelta(days=days)
+    tol    = pd.Timedelta(hours=tolerance_hours)
+    result = {}
+    for app_id, df in raw_data.items():
+        if df.empty or app_id not in live_ccu:
+            continue
+        dts = df["DateTime"]
+        if dts.dt.tz is None:
+            dts = dts.dt.tz_localize("UTC")
+        diff = (dts - target).abs()
+        idx  = diff.idxmin()
+        gap  = diff[idx]
+        if gap > tol:
+            continue
+        prev_ccu = int(df.loc[idx, "Players"])
+        curr_ccu = live_ccu[app_id]
+        delta    = curr_ccu - prev_ccu
+        delta_pct = (delta / prev_ccu * 100) if prev_ccu > 0 else 0.0
+        ref_dt   = df.loc[idx, "DateTime"]
+        if hasattr(ref_dt, "strftime"):
+            ref_label = ref_dt.strftime(f"{days}d ago (%d %b %Y)")
+        else:
+            ref_label = f"{days}d ago"
+        result[app_id] = {
+            "prev_ccu":    prev_ccu,
+            "curr_ccu":    curr_ccu,
+            "delta":       delta,
+            "delta_pct":   delta_pct,
+            "period_label": ref_label,
+            "ref_dt":      ref_dt,
+        }
+    return result
 
 PRESET_QUERIES = [
     {
@@ -1631,98 +1712,207 @@ if not st.session_state.ccu_data:
         st.rerun()
 else:
     ccu_data = st.session_state.ccu_data
+    raw_data = load_all_raw()
+    live_ccu_map = {r["app_id"]: r["ccu"] for r in ccu_data}
+    wow_diff = compute_period_diff(raw_data, live_ccu_map, days=7)
+    n_wow    = len(wow_diff)
 
-    # KPI row
-    total_ccu = sum(r["ccu"] for r in ccu_data)
-    top_title = ccu_data[0]["name"]
-    top_ccu   = ccu_data[0]["ccu"]
-    growing   = sum(1 for r in ccu_data if r["yoy_val"] > 0)
-    f2p_share = sum(r["ccu"] for r in ccu_data if r["f2p"]) / max(total_ccu, 1) * 100
+    # ── Derived stats ──
+    total_ccu    = sum(r["ccu"] for r in ccu_data)
+    growing      = sum(1 for r in ccu_data if r.get("yoy_val", 0) > 0)
+    declining    = sum(1 for r in ccu_data if r.get("yoy_val", 0) < 0)
+    yoy_titled   = [(r["name"], r["yoy_val"]) for r in ccu_data if r.get("yoy_val") not in (0, None) and r.get("yoy") != "N/A"]
+    best_mover   = max(yoy_titled, key=lambda x: x[1], default=("—", 0))
+    worst_mover  = min(yoy_titled, key=lambda x: x[1], default=("—", 0))
+    hist_count   = sum(1 for r in ccu_data if r.get("has_hist"))
+    health_ratios= [r["ccu"] / r["hist_summary"]["peak_ever"] * 100
+                    for r in ccu_data if r.get("hist_summary", {}).get("peak_ever") and r["ccu"] > 0]
+    avg_health   = sum(health_ratios) / len(health_ratios) if health_ratios else 0
+    wow_up   = sum(1 for v in wow_diff.values() if v["delta"] > 0)
+    wow_down = sum(1 for v in wow_diff.values() if v["delta"] < 0)
+    mom_up   = sum(1 for r in ccu_data if (r.get("hist_summary") or {}).get("mom_pct", 0) or 0 > 0)
+    mom_down = sum(1 for r in ccu_data if (r.get("hist_summary") or {}).get("mom_pct", 0) or 0 < 0)
+    mom_total= mom_up + mom_down
 
+    # ── Row 1: Primary KPI cards ──
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(f"""<div class="metric-card blue-top">
-        <div class="metric-label">Total CCU (Tracked)</div>
+        <div class="metric-label">{T("kpi_total_ccu")}</div>
         <div class="metric-value">{total_ccu:,}</div>
-        <div class="metric-sub">Across {len(ccu_data)} shooter titles</div>
+        <div class="metric-sub">{T("kpi_total_sub", n=len(ccu_data))}</div>
         </div>""", unsafe_allow_html=True)
     with k2:
+        wow_color = "var(--pos)" if wow_up >= wow_down else "var(--neg)"
+        wow_sub   = T("kpi_wow_sub", n=n_wow) if n_wow else T("kpi_wow_none")
         st.markdown(f"""<div class="metric-card pos-top">
-        <div class="metric-label">Top Title</div>
-        <div class="metric-value" style="font-size:1.1rem;padding-top:.3rem">{top_title[:22]}</div>
-        <div class="metric-sub">{top_ccu:,} live players</div>
+        <div class="metric-label">{T("kpi_wow")}</div>
+        <div class="metric-value" style="color:{wow_color}">{wow_up}↑ / {wow_down}↓</div>
+        <div class="metric-sub">{wow_sub}</div>
         </div>""", unsafe_allow_html=True)
     with k3:
+        yoy_color = "var(--pos)" if growing >= declining else "var(--neg)"
         st.markdown(f"""<div class="metric-card amber-top">
-        <div class="metric-label">YoY Growth (Titles)</div>
-        <div class="metric-value">{growing}/{len(ccu_data)}</div>
-        <div class="metric-sub">titles showing positive YoY trend</div>
+        <div class="metric-label">{T("kpi_yoy")}</div>
+        <div class="metric-value" style="color:{yoy_color}">{growing}↑ / {declining}↓</div>
+        <div class="metric-sub">{T("kpi_yoy_sub", n=len(yoy_titled))}</div>
         </div>""", unsafe_allow_html=True)
     with k4:
+        mom_color = "var(--pos)" if mom_up >= mom_down else "var(--neg)"
+        mom_sub   = T("kpi_mom_sub", n=mom_total) if mom_total else T("kpi_mom_none")
         st.markdown(f"""<div class="metric-card purple-top">
-        <div class="metric-label">F2P CCU Share</div>
-        <div class="metric-value">{f2p_share:.0f}%</div>
-        <div class="metric-sub">of total tracked CCU is F2P titles</div>
+        <div class="metric-label">{T("kpi_mom")}</div>
+        <div class="metric-value" style="color:{mom_color}">{mom_up}↑ / {mom_down}↓</div>
+        <div class="metric-sub">{mom_sub}</div>
         </div>""", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # CCU Bar Chart
-    top10 = ccu_data[:10]
-    colors = ["#4080ff" if not r["f2p"] else "#20c65a" for r in top10]
+    # ── Row 2: CSV-derived stat cards ──
+    s1, s2, s3, s4 = st.columns(4)
+    with s1:
+        st.markdown(f"""<div class="metric-card blue-top">
+        <div class="metric-label">{T("kpi_csvs")}</div>
+        <div class="metric-value">{hist_count}/{len(ccu_data)}</div>
+        <div class="metric-sub">{T("kpi_csvs_sub")}</div>
+        </div>""", unsafe_allow_html=True)
+    with s2:
+        health_color = "var(--pos)" if avg_health > 50 else "var(--amber)" if avg_health > 25 else "var(--neg)"
+        st.markdown(f"""<div class="metric-card amber-top">
+        <div class="metric-label">{T("kpi_health")}</div>
+        <div class="metric-value" style="color:{health_color}">{avg_health:.0f}%</div>
+        <div class="metric-sub">{T("kpi_health_sub")}</div>
+        </div>""", unsafe_allow_html=True)
+    with s3:
+        bm_pct = f"+{best_mover[1]:.1f}%" if best_mover[1] >= 0 else f"{best_mover[1]:.1f}%"
+        st.markdown(f"""<div class="metric-card pos-top">
+        <div class="metric-label">{T("kpi_best_grower")}</div>
+        <div class="metric-value" style="font-size:1rem;color:var(--pos)">{best_mover[0][:18]}</div>
+        <div class="metric-sub">{T("kpi_best_sub", pct=bm_pct)}</div>
+        </div>""", unsafe_allow_html=True)
+    with s4:
+        wm_pct = f"{worst_mover[1]:.1f}%"
+        st.markdown(f"""<div class="metric-card purple-top">
+        <div class="metric-label">{T("kpi_worst_decline")}</div>
+        <div class="metric-value" style="font-size:1rem;color:var(--neg)">{worst_mover[0][:18]}</div>
+        <div class="metric-sub">{T("kpi_worst_sub", pct=wm_pct)}</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── YoY breakdown expander ──
+    with st.expander(T("yoy_expander", up=growing, down=declining)):
+        if yoy_titled:
+            yoy_df = pd.DataFrame(
+                sorted(yoy_titled, key=lambda x: x[1], reverse=True),
+                columns=[T("col_title"), "YoY %"]
+            )
+            st.dataframe(yoy_df, use_container_width=True, hide_index=True)
+            st.caption(T("yoy_caption"))
+        else:
+            st.info(T("yoy_none"))
+
+    # ── WoW expander ──
+    with st.expander(T("wow_expander", n=n_wow)):
+        if wow_diff:
+            wow_rows = []
+            for r in ccu_data:
+                d = wow_diff.get(r["app_id"])
+                if d:
+                    wow_rows.append({
+                        T("col_title"):     r["name"],
+                        T("col_live_ccu"):  d["curr_ccu"],
+                        T("col_7d_ago"):    d["prev_ccu"],
+                        T("col_delta_ccu"): d["delta"],
+                        T("col_delta_pct"): f"{d['delta_pct']:+.1f}%",
+                        T("col_direction"): T("up") if d["delta"] > 0 else T("down"),
+                        T("col_reference"): d["period_label"],
+                    })
+            if wow_rows:
+                wow_df = pd.DataFrame(sorted(wow_rows, key=lambda x: abs(x[T("col_delta_ccu")]), reverse=True))
+                st.dataframe(wow_df, use_container_width=True, hide_index=True)
+                st.caption(T("wow_caption"))
+        else:
+            st.info(T("wow_none"))
+
+    # ── Sub-genre heatmap ──
+    with st.expander(T("heatmap_expander")):
+        sub_totals: dict[str, int] = {}
+        for r in ccu_data:
+            sub_totals[r["sub"]] = sub_totals.get(r["sub"], 0) + r["ccu"]
+        sub_items = sorted(sub_totals.items(), key=lambda x: x[1], reverse=True)
+        if sub_items:
+            fig_h = go.Figure(go.Bar(
+                x=[s[0] for s in sub_items],
+                y=[s[1] for s in sub_items],
+                marker_color="#4080ff",
+                text=[f"{s[1]:,}" for s in sub_items],
+                textposition="outside",
+                textfont=dict(size=9, color="#b8bcd4"),
+            ))
+            fig_h.update_layout(
+                **PLOTLY_BASE,
+                height=300,
+                xaxis=dict(tickfont=dict(size=9), tickangle=-30, showgrid=False),
+                yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
+                showlegend=False,
+                margin=dict(t=20, b=80),
+            )
+            st.plotly_chart(fig_h, use_container_width=True)
+            st.caption(T("heatmap_caption"))
+
+    # ── CCU Bar Chart ──
+    top_n = ccu_data[:10]
+    hover_texts = []
+    for r in top_n:
+        d = wow_diff.get(r["app_id"])
+        wow_str = f"<br>WoW: {d['delta_pct']:+.1f}% ({d['period_label']})" if d else ""
+        hover_texts.append(f"<b>{r['name']}</b><br>CCU: {r['ccu']:,}<br>YoY: {r.get('yoy','N/A')}{wow_str}<extra></extra>")
+    colors = ["#4080ff" if not r["f2p"] else "#20c65a" for r in top_n]
     fig = go.Figure(go.Bar(
-        x=[r["name"] for r in top10],
-        y=[r["ccu"] for r in top10],
+        x=[r["name"] for r in top_n],
+        y=[r["ccu"] for r in top_n],
         marker_color=colors,
-        text=[f"{r['ccu']:,}" for r in top10],
+        text=[f"{r['ccu']:,}" for r in top_n],
         textposition="outside",
         textfont=dict(size=10, color="#b8bcd4"),
-        hovertemplate="<b>%{x}</b><br>CCU: %{y:,}<extra></extra>",
+        hovertemplate=hover_texts,
     ))
     fig.update_layout(
         **PLOTLY_BASE,
         title=dict(text="Top 10 Shooters by Live CCU", font=dict(size=13, color="#b8bcd4"), x=0),
-        xaxis=dict(showgrid=False, tickfont=dict(size=10), tickangle=-30,
-                   linecolor="#232640", tickcolor="#232640"),
+        xaxis=dict(showgrid=False, tickfont=dict(size=10), tickangle=-30, linecolor="#232640"),
         yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
-        height=340,
-        showlegend=False,
+        height=340, showlegend=False,
     )
     st.plotly_chart(fig, use_container_width=True)
-    st.caption("🔵 Paid  🟢 Free-to-Play  |  CCU = Concurrent Users  |  Live data from Steam API")
+    st.caption(T("chart_caption"))
 
-    # Full Table
-    with st.expander("Full Data Table — All Tracked Titles"):
+    # ── Full data table ──
+    with st.expander(T("table_expander")):
         df = pd.DataFrame([{
-            "Title":          r["name"],
-            "Sub-genre":      r["sub"],
-            "Publisher":      r["publisher"],
-            "F2P":            "✓" if r["f2p"] else "—",
-            "Live CCU":       r["ccu"],
-            "YoY (real)":     r.get("yoy", "N/A"),
-            "Data Source":    "SteamDB CSV" if r.get("has_hist") else "SteamSpy proxy",
-            "Peak Ever":      f"{r['hist_summary']['peak_ever']:,}" if r.get("hist_summary", {}).get("peak_ever") else "—",
-            "Peak 12m":       f"{r['hist_summary']['peak_12m']:,}" if r.get("hist_summary", {}).get("peak_12m") else "—",
-            "Avg CCU 12m":    f"{r['hist_summary']['avg_12m']:,}" if r.get("hist_summary", {}).get("avg_12m") else "—",
-            "MoM Trend":      r.get("hist_summary", {}).get("mom_trend", "—"),
-            "Avg Hrs/2wk":    r.get("avg_2w_hrs", "—"),
-            "Review Score":   f"{r['review_pct']}%" if r.get("review_pct") else "—",
-            "Est. Owners":    r.get("owners", "—"),
+            T("col_title"):      r["name"],
+            T("col_subgenre"):   r["sub"],
+            T("col_publisher"):  r["publisher"],
+            T("col_f2p"):        T("yes") if r["f2p"] else T("no"),
+            T("col_live_ccu"):   f"{r['ccu']:,} *" if r.get("ccu_from_csv") else r["ccu"],
+            T("col_yoy"):        r.get("yoy", "N/A"),
+            T("col_data_source"): "SteamDB CSV" if r.get("has_hist") else "SteamSpy proxy",
+            T("col_peak_ever"):  f"{r['hist_summary']['peak_ever']:,}" if r.get("hist_summary", {}).get("peak_ever") else "—",
+            T("col_peak_12m"):   f"{r['hist_summary']['peak_12m']:,}"  if r.get("hist_summary", {}).get("peak_12m")  else "—",
+            T("col_avg_ccu_12m"):f"{r['hist_summary']['avg_12m']:,}"   if r.get("hist_summary", {}).get("avg_12m")   else "—",
+            T("col_mom"):        r.get("hist_summary", {}).get("mom_trend", "—"),
+            T("col_review"):     f"{r['review_pct']}%" if r.get("review_pct") else "—",
+            T("col_owners"):     r.get("owners", "—"),
         } for r in ccu_data])
         st.dataframe(df, use_container_width=True, hide_index=True)
+        st.caption(f"{hist_count}/{len(ccu_data)} titles with SteamDB CSV · Peak/Avg from 10-min interval data")
 
-        hist_count = sum(1 for r in ccu_data if r.get("has_hist"))
-        st.caption(
-            f"📁 {hist_count}/{len(ccu_data)} titles have SteamDB historical CSV data loaded. "
-            "YoY = real same-month comparison where CSV available, SteamSpy proxy otherwise. "
-            "Peak/Avg figures derived from SteamDB 10-min interval data aggregated monthly."
-        )
-
-    # Historical trend chart (for titles with CSV data)
+    # ── Monthly history chart ──
     hist_titles = [r for r in ccu_data if r.get("has_hist")]
     if hist_titles:
         historical = load_all_historical()
-        with st.expander("📈 Monthly Peak CCU History — SteamDB Data"):
+        with st.expander(T("history_expander")):
             fig2 = go.Figure()
             for r in hist_titles:
                 mdf = historical.get(r["app_id"])
@@ -1731,8 +1921,7 @@ else:
                     fig2.add_trace(go.Scatter(
                         x=[str(p) for p in last_24["month"]],
                         y=last_24["peak_ccu"],
-                        mode="lines",
-                        name=r["name"],
+                        mode="lines", name=r["name"],
                         hovertemplate=f"<b>{r['name']}</b><br>%{{x}}<br>Peak CCU: %{{y:,}}<extra></extra>",
                         line=dict(width=2),
                     ))
@@ -1745,7 +1934,7 @@ else:
                 legend=dict(font=dict(size=10), bgcolor="rgba(0,0,0,0)"),
             )
             st.plotly_chart(fig2, use_container_width=True)
-            st.caption("Source: SteamDB 10-minute interval CSVs, aggregated to monthly peak. Drop updated CSVs into /data to refresh.")
+            st.caption(T("history_caption"))
 
     if st.button("🔄 Refresh CCU Data", key="refresh_ccu"):
         st.cache_data.clear()
