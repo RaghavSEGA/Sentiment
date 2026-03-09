@@ -1850,13 +1850,13 @@ else:
                 textposition="outside",
                 textfont=dict(size=9, color="#b8bcd4"),
             ))
+            _heatmap_layout = {**PLOTLY_BASE, "margin": dict(l=10, r=10, t=20, b=80)}
             fig_h.update_layout(
-                **PLOTLY_BASE,
+                **_heatmap_layout,
                 height=300,
                 xaxis=dict(tickfont=dict(size=9), tickangle=-30, showgrid=False),
                 yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
                 showlegend=False,
-                margin=dict(t=20, b=80),
             )
             st.plotly_chart(fig_h, use_container_width=True)
             st.caption(T("heatmap_caption"))
