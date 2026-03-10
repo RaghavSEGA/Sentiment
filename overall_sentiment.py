@@ -336,7 +336,7 @@ _defaults = {
     # Market Intel
     "market_ccu": [],
     "market_fetched": False,
-    "market_genre": "Action",
+    "market_genre": "RPG",
     # AI
     "ai_report": "",
     "ai_chat_history": [],
@@ -818,6 +818,11 @@ def _render_chat(report_key: str, system_fn):
 # GENRE PRESETS
 # ─────────────────────────────────────────────────────────────
 GENRE_PRESETS = {
+    "RPG": {
+        "steam_tag": "RPG",
+        "subreddits": ["rpg", "JRPG", "Games", "gaming"],
+        "steamspy_genre": "RPG",
+    },
     "Action": {
         "steam_tag": "Action",
         "subreddits": ["gaming", "Games", "patientgamers"],
@@ -827,11 +832,6 @@ GENRE_PRESETS = {
         "steam_tag": "Shooter",
         "subreddits": ["FPS", "Games", "gaming", "competitivegaming"],
         "steamspy_genre": "Action",
-    },
-    "RPG": {
-        "steam_tag": "RPG",
-        "subreddits": ["rpg", "JRPG", "Games", "gaming"],
-        "steamspy_genre": "RPG",
     },
     "Strategy": {
         "steam_tag": "Strategy",
@@ -1184,10 +1184,12 @@ if active == "reddit":
     st.markdown('<div class="query-block">', unsafe_allow_html=True)
     r_col1, r_col2, r_col3 = st.columns([3, 2, 1])
     with r_col1:
-        r_genre = st.text_input(T("genre"), value="Sonic the Hedgehog", key="r_genre",
-                                 placeholder="e.g. Sonic, Persona, Like a Dragon")
+        r_genre = st.text_input(T("genre"), value="JRPG", key="r_genre",
+                                 placeholder="e.g. Persona, Like a Dragon, Final Fantasy")
     with r_col2:
-        genre_key = st.selectbox("Genre preset", list(GENRE_PRESETS.keys()), key="r_genre_preset")
+        genre_key = st.selectbox("Genre preset", list(GENRE_PRESETS.keys()),
+                                  index=list(GENRE_PRESETS.keys()).index("RPG"),
+                                  key="r_genre_preset")
         default_subs = ", ".join(GENRE_PRESETS[genre_key]["subreddits"])
     with r_col3:
         r_limit = st.number_input(T("posts_per_sub"), min_value=5, max_value=100, value=25, step=5, key="r_limit")
@@ -1410,7 +1412,7 @@ elif active == "twitter":
     tw_col1, tw_col2 = st.columns([3, 1])
     with tw_col1:
         tw_queries = st.text_area(T("queries_label"),
-                                   value="Sonic the Hedgehog\n#SEGA\nLike a Dragon game",
+                                   value="JRPG\n#RPG\nLike a Dragon game\nPersona game\nFinal Fantasy",
                                    height=100, key="tw_queries")
     with tw_col2:
         tw_max = st.number_input(T("max_tweets"), min_value=10, max_value=500, value=100, step=10, key="tw_max")
@@ -1690,7 +1692,7 @@ elif active == "steam_reviews":
     st.markdown('<div class="query-block">', unsafe_allow_html=True)
     sr_col1, sr_col2, sr_col3 = st.columns([3, 2, 1])
     with sr_col1:
-        sr_genre = st.text_input(T("genre"), value="Action RPG", key="sr_genre")
+        sr_genre = st.text_input(T("genre"), value="RPG", key="sr_genre")
     with sr_col2:
         sr_reviews_per = st.number_input("Reviews per game", min_value=20, max_value=500, value=100, step=20, key="sr_reviews_per")
     with sr_col3:
@@ -1843,7 +1845,7 @@ elif active == "steam_community":
     with sc_col1:
         sc_game = st.text_input(T("community_game"),
                                  value="Persona 5 Royal",
-                                 placeholder="e.g. Sonic Frontiers, Like a Dragon Infinite Wealth",
+                                 placeholder="e.g. Like a Dragon, Final Fantasy, Yakuza",
                                  key="sc_game")
     with sc_col2:
         sc_period = st.selectbox(T("time_period"),
@@ -1982,7 +1984,7 @@ elif active == "wishlist":
     wl_col1, wl_col2 = st.columns([3, 1])
     with wl_col1:
         wl_titles = st.text_area(T("compare_titles"),
-                                  value="Like a Dragon Infinite Wealth\nSonic Frontiers\nPersona 5 Royal\nYakuza 0",
+                                  value="Like a Dragon Infinite Wealth\nPersona 5 Royal\nFinal Fantasy XVI\nYakuza 0\nOctopath Traveler II",
                                   height=120, key="wl_titles",
                                   placeholder="One game title or App ID per line")
     with wl_col2:
@@ -2163,7 +2165,9 @@ elif active == "market_intel":
     st.markdown('<div class="query-block">', unsafe_allow_html=True)
     mi_col1, mi_col2, mi_col3 = st.columns([2, 2, 1])
     with mi_col1:
-        mi_genre = st.selectbox(T("select_genre_intel"), list(GENRE_PRESETS.keys()), key="mi_genre_sel")
+        mi_genre = st.selectbox(T("select_genre_intel"), list(GENRE_PRESETS.keys()),
+                                 index=list(GENRE_PRESETS.keys()).index("RPG"),
+                                 key="mi_genre_sel")
         if mi_genre == "Custom":
             mi_custom_tag = st.text_input("Custom Steam tag/genre", key="mi_custom_tag", placeholder="e.g. Metroidvania, Soulslike")
     with mi_col2:
