@@ -1695,57 +1695,9 @@ with st.sidebar:
     ⚙ Configuration</div>
     """, unsafe_allow_html=True)
 
-    # ── Genre filter ──────────────────────────────────────────────────────────
-    st.markdown("**🎮 Roster Filter**")
-    _genre = st.radio(
-        "Genre",
-        options=["FPS", "TPS"],
-        index=0 if st.session_state.roster_genre == "FPS" else 1,
-        horizontal=True,
-        label_visibility="collapsed",
-        key="genre_radio",
-    )
-    if _genre != st.session_state.roster_genre:
-        st.session_state.roster_genre  = _genre
-        st.session_state.roster_filter = []   # reset game selection on genre change
-        st.session_state.ccu_data      = []   # force re-fetch with new roster
-        st.rerun()
-
-    # Build the full roster for the selected genre
-    _full_roster = get_roster(st.session_state.roster_genre)
-    _all_names   = [g["name"] for g in _full_roster]
-    _all_ids     = [g["app_id"] for g in _full_roster]
-
-    # ── Per-game multiselect ──────────────────────────────────────────────────
-    st.caption(f"Top 25 {'First-Person' if _genre == 'FPS' else 'Third-Person'} Shooters · select to override")
-    _prev_filter = st.session_state.roster_filter
-    _filter_names = st.multiselect(
-        "Include games",
-        options=_all_names,
-        default=[g["name"] for g in _full_roster if g["app_id"] in _prev_filter] if _prev_filter else _all_names,
-        label_visibility="collapsed",
-        key="game_multiselect",
-    )
-    _new_filter = [_all_ids[_all_names.index(n)] for n in _filter_names]
-    if set(_new_filter) != set(_prev_filter):
-        st.session_state.roster_filter = _new_filter
-        st.session_state.ccu_data      = []   # force re-fetch
-        st.rerun()
-
-    # Apply filter to produce the active roster used everywhere below
-    _active_ids   = st.session_state.roster_filter or _all_ids
-    SHOOTER_ROSTER = [g for g in _full_roster if g["app_id"] in _active_ids]
-
-    _overlap = set(FPS_ROSTER_IDS) & set(TPS_ROSTER_IDS)
-    _overlap_shown = [GAME_CATALOG[a]["name"] for a in _overlap
-                      if a in _active_ids and a in GAME_CATALOG]
-    if _overlap_shown:
-        with st.expander(f"ℹ️ {len(_overlap_shown)} titles appear in both lists"):
-            for n in sorted(_overlap_shown):
-                st.caption(f"• {n}")
-
-    # Persist the active roster so fetch loop + dashboard can use it
-    st.session_state["_active_roster"] = SHOOTER_ROSTER
+    # Active roster is built in the main page genre toggle below;
+    # fall back to FPS if page hasn't rendered yet
+    SHOOTER_ROSTER = st.session_state.get("_active_roster", get_roster("FPS"))
 
     st.markdown("---")
 
@@ -1812,8 +1764,79 @@ with st.sidebar:
 
 st.markdown('<div class="query-block">', unsafe_allow_html=True)
 
+# ── Genre toggle + game picker ────────────────────────────────────────────────
 st.markdown(f"""
 <div class="section-header" style="margin-top:0">
+  <span class="dot"></span>DATASET
+</div>
+""", unsafe_allow_html=True)
+
+_g_col1, _g_col2, _g_spacer = st.columns([1, 1, 4])
+with _g_col1:
+    _fps_active = st.session_state.roster_genre == "FPS"
+    if st.button(
+        "🔫  First-Person",
+        key="btn_fps",
+        type="primary" if _fps_active else "secondary",
+        use_container_width=True,
+    ):
+        if not _fps_active:
+            st.session_state.roster_genre  = "FPS"
+            st.session_state.roster_filter = []
+            st.session_state.ccu_data      = []
+            st.rerun()
+
+with _g_col2:
+    _tps_active = st.session_state.roster_genre == "TPS"
+    if st.button(
+        "🎯  Third-Person",
+        key="btn_tps",
+        type="primary" if _tps_active else "secondary",
+        use_container_width=True,
+    ):
+        if not _tps_active:
+            st.session_state.roster_genre  = "TPS"
+            st.session_state.roster_filter = []
+            st.session_state.ccu_data      = []
+            st.rerun()
+
+# Build full roster for active genre
+_full_roster = get_roster(st.session_state.roster_genre)
+_all_names   = [g["name"] for g in _full_roster]
+_all_ids     = [g["app_id"] for g in _full_roster]
+_genre_label = "First-Person Shooters" if st.session_state.roster_genre == "FPS" else "Third-Person Shooters"
+
+# Game picker — compact multiselect below the toggle
+_prev_filter  = st.session_state.roster_filter
+_filter_names = st.multiselect(
+    f"Filter games  ·  Top 25 {_genre_label}",
+    options=_all_names,
+    default=[g["name"] for g in _full_roster if g["app_id"] in _prev_filter] if _prev_filter else _all_names,
+    key="game_multiselect",
+    help="Deselect titles to exclude them from CCU fetch and AI analysis",
+)
+_new_filter = [_all_ids[_all_names.index(n)] for n in _filter_names]
+if set(_new_filter) != set(_prev_filter):
+    st.session_state.roster_filter = _new_filter
+    st.session_state.ccu_data      = []
+    st.rerun()
+
+# Apply filter → active roster
+_active_ids    = st.session_state.roster_filter or _all_ids
+_active_roster = [g for g in _full_roster if g["app_id"] in _active_ids]
+st.session_state["_active_roster"] = _active_roster
+
+# Overlap info
+_overlap       = set(FPS_ROSTER_IDS) & set(TPS_ROSTER_IDS)
+_overlap_shown = [GAME_CATALOG[a]["name"] for a in _overlap
+                  if a in _active_ids and a in GAME_CATALOG]
+if _overlap_shown:
+    st.caption(f"ℹ️ {len(_overlap_shown)} titles also appear in the other list: {', '.join(sorted(_overlap_shown))}")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+st.markdown(f"""
+<div class="section-header">
   <span class="dot"></span>{T("select_analysis")}
 </div>
 """, unsafe_allow_html=True)
