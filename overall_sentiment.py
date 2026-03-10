@@ -99,7 +99,7 @@ TRANSLATIONS = {
         # Common
         "fetch": "Fetch",
         "analyse": "Analyse",
-        "generate_report": "✨ Generate AI Report",
+        "generate_report": "Generate AI Report",
         "no_data": "NO DATA YET",
         "loading": "Loading…",
         "genre": "Genre / Topic",
@@ -206,7 +206,7 @@ TRANSLATIONS = {
         # Common
         "fetch": "取得",
         "analyse": "分析",
-        "generate_report": "✨ AIレポート生成",
+        "generate_report": "AIレポート生成",
         "no_data": "データなし",
         "loading": "読み込み中…",
         "genre": "ジャンル / トピック",
@@ -706,14 +706,55 @@ def discord_fetch_messages(channel_id: str, token: str, limit: int = 100) -> lis
 # ─────────────────────────────────────────────────────────────
 ai_model = "claude-sonnet-4-20250514"
 
-def get_claude_key() -> str:
-    k = st.session_state.get("claude_key","").strip()
-    if k:
-        return k
+# ─────────────────────────────────────────────────────────────
+# SECRETS HELPERS — st.secrets takes priority, sidebar as fallback
+# ─────────────────────────────────────────────────────────────
+def get_secret(secret_key: str, session_key: str) -> str:
+    """Return API key: st.secrets first, then sidebar session state."""
     try:
-        return st.secrets.get("CLAUDE_KEY","")
+        val = st.secrets.get(secret_key, "")
+        if val:
+            return val.strip()
     except Exception:
-        return ""
+        pass
+    return st.session_state.get(session_key, "").strip()
+
+def get_claude_key() -> str:
+    return get_secret("CLAUDE_KEY", "claude_key")
+
+def get_twitter_bearer() -> str:
+    return get_secret("TWITTER_BEARER", "twitter_bearer")
+
+def get_discord_token() -> str:
+    return get_secret("DISCORD_TOKEN", "discord_token")
+
+# ─────────────────────────────────────────────────────────────
+# PREDEFINED RPG GAME LISTS
+# ─────────────────────────────────────────────────────────────
+# App IDs sourced from Steam store — edit freely to expand the list.
+RPG_GAMES_REVIEWS = [
+    {"appid": 1235140, "name": "Like a Dragon: Ishin!"},
+    {"appid": 2358720, "name": "Like a Dragon: Infinite Wealth"},
+    {"appid": 1942590, "name": "Like a Dragon: Gaiden"},
+    {"appid": 1284190, "name": "Persona 5 Royal"},
+    {"appid": 1732020, "name": "Persona 4 Golden"},
+    {"appid": 2161700, "name": "Persona 3 Reload"},
+    {"appid": 289650,  "name": "Yakuza 0"},
+    {"appid": 638970,  "name": "Yakuza Kiwami"},
+    {"appid": 1105510, "name": "Yakuza: Like a Dragon"},
+    {"appid": 2139460, "name": "Like a Dragon: Ishin! (alternate)"},
+]
+
+RPG_GAMES_COMMUNITY = [
+    {"appid": 2358720, "name": "Like a Dragon: Infinite Wealth"},
+    {"appid": 1284190, "name": "Persona 5 Royal"},
+    {"appid": 2161700, "name": "Persona 3 Reload"},
+    {"appid": 1732020, "name": "Persona 4 Golden"},
+    {"appid": 289650,  "name": "Yakuza 0"},
+    {"appid": 1942590, "name": "Like a Dragon: Gaiden"},
+    {"appid": 638970,  "name": "Yakuza Kiwami"},
+    {"appid": 1105510, "name": "Yakuza: Like a Dragon"},
+]
 
 def stream_ai_report(prompt: str, system: str = "") -> str:
     key = get_claude_key()
@@ -1072,25 +1113,61 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("**API Keys**")
-    key_input = st.text_input(T("api_key_hint"), type="password",
-                               value=st.session_state.claude_key, key="sidebar_claude_key")
-    if key_input != st.session_state.claude_key:
+    st.caption("Keys in `st.secrets` load automatically and override sidebar entries.")
+
+    # Claude
+    _claude_from_secrets = bool(get_secret("CLAUDE_KEY", "_none_"))
+    key_input = st.text_input(
+        T("api_key_hint") + (" (from secrets)" if _claude_from_secrets else ""),
+        type="password",
+        value="" if _claude_from_secrets else st.session_state.claude_key,
+        placeholder="Loaded from secrets" if _claude_from_secrets else "sk-ant-…",
+        disabled=_claude_from_secrets,
+        key="sidebar_claude_key",
+    )
+    if not _claude_from_secrets and key_input != st.session_state.claude_key:
         st.session_state.claude_key = key_input
 
-    bearer_input = st.text_input(T("twitter_bearer_hint"), type="password",
-                                  value=st.session_state.twitter_bearer, key="sidebar_bearer")
-    if bearer_input != st.session_state.twitter_bearer:
+    # Twitter / X
+    _tw_from_secrets = bool(get_secret("TWITTER_BEARER", "_none_"))
+    bearer_input = st.text_input(
+        T("twitter_bearer_hint") + (" (from secrets)" if _tw_from_secrets else ""),
+        type="password",
+        value="" if _tw_from_secrets else st.session_state.twitter_bearer,
+        placeholder="Loaded from secrets" if _tw_from_secrets else "AAAA…",
+        disabled=_tw_from_secrets,
+        key="sidebar_bearer",
+    )
+    if not _tw_from_secrets and bearer_input != st.session_state.twitter_bearer:
         st.session_state.twitter_bearer = bearer_input
 
-    discord_input = st.text_input(T("discord_token_hint"), type="password",
-                                   value=st.session_state.discord_token, key="sidebar_discord")
-    if discord_input != st.session_state.discord_token:
+    # Discord
+    _dc_from_secrets = bool(get_secret("DISCORD_TOKEN", "_none_"))
+    discord_input = st.text_input(
+        T("discord_token_hint") + (" (from secrets)" if _dc_from_secrets else ""),
+        type="password",
+        value="" if _dc_from_secrets else st.session_state.discord_token,
+        placeholder="Loaded from secrets" if _dc_from_secrets else "Bot token…",
+        disabled=_dc_from_secrets,
+        key="sidebar_discord",
+    )
+    if not _dc_from_secrets and discord_input != st.session_state.discord_token:
         st.session_state.discord_token = discord_input
+
+    st.markdown("---")
+    st.caption(
+        "Add keys to `.streamlit/secrets.toml`:\n"
+        "```toml\n"
+        "CLAUDE_KEY = \"sk-ant-…\"\n"
+        "TWITTER_BEARER = \"AAAA…\"\n"
+        "DISCORD_TOKEN = \"Bot …\"\n"
+        "```"
+    )
 
 # ─────────────────────────────────────────────────────────────
 # TOP BAR
 # ─────────────────────────────────────────────────────────────
-flag = "🇯🇵" if st.session_state.lang == "ja" else "🌐"
+flag = "JA" if st.session_state.lang == "ja" else "EN"
 st.markdown(f"""
 <div class="topbar">
   <div class="topbar-logo"><span class="seg">SEGA</span></div>
@@ -1104,13 +1181,13 @@ st.markdown(f"""
 # MODULE NAVIGATION — real Streamlit buttons
 # ─────────────────────────────────────────────────────────────
 TAB_DEFS = [
-    ("reddit",          "💬", T("nav_reddit"), "🚧 under construction"),
-    ("twitter",         "🐦", T("nav_twitter"), ""),
-    ("discord",         "🎮", T("nav_discord"), ""),
-    ("steam_reviews",   "⭐", T("nav_steam_reviews"), ""),
-    ("steam_community", "🏠", T("nav_steam_community"), ""),
-    ("wishlist",        "📈", T("nav_wishlist"), ""),
-    ("market_intel",    "🎯", T("nav_market_intel"), ""),
+    ("reddit",          "", T("nav_reddit"),        "under construction"),
+    ("twitter",         "", T("nav_twitter"),        ""),
+    ("discord",         "", T("nav_discord"),        "under construction"),
+    ("steam_reviews",   "", T("nav_steam_reviews"),  ""),
+    ("steam_community", "", T("nav_steam_community"),""),
+    ("wishlist",        "", T("nav_wishlist"),        ""),
+    ("market_intel",    "", T("nav_market_intel"),   ""),
 ]
 
 st.markdown("""
@@ -1161,7 +1238,7 @@ nav_cols = st.columns(len(TAB_DEFS))
 for col, (tab_id, icon, label, badge) in zip(nav_cols, TAB_DEFS):
     is_active = st.session_state.active_tab == tab_id
     wrap_cls = "nav-btn-active nav-btn-wrap" if is_active else "nav-btn-wrap"
-    btn_label = f"{icon} {label}" + (f"\n{badge}" if badge else "")
+    btn_label = label + (f"\n{badge}" if badge else "")
     with col:
         st.markdown(f'<div class="{wrap_cls}">', unsafe_allow_html=True)
         if st.button(btn_label, key=f"nav_{tab_id}", use_container_width=True):
@@ -1177,7 +1254,7 @@ active = st.session_state.active_tab
 if active == "reddit":
     st.markdown(f"""
     <div class="hero">
-      <div class="hero-title">💬 {T("reddit_title")}<span class="accent">.</span></div>
+      <div class="hero-title">{T("reddit_title")}<span class="accent">.</span></div>
       <div class="hero-sub">{T("reddit_sub")}</div>
     </div>""", unsafe_allow_html=True)
 
@@ -1275,8 +1352,8 @@ if active == "reddit":
         ])
 
         tab_overview, tab_posts, tab_comments, tab_ai = st.tabs([
-            "📊 Overview", f"📝 {T('posts_label')} ({n_posts})",
-            f"💬 {T('comments_label')} ({n_cmts})", "✨ AI Report"
+            "Overview", f"{T('posts_label')} ({n_posts})",
+            f"{T('comments_label')} ({n_cmts})", "AI Report"
         ])
 
         with tab_overview:
@@ -1330,7 +1407,7 @@ if active == "reddit":
                     f'{row["title"]}</div>'
                     f'<div class="post-excerpt">{str(row.get("selftext",""))[:200]}</div>'
                     f'<div class="post-meta">r/{row["subreddit"]} · ▲{row["score"]:,} · '
-                    f'💬{row.get("num_comments",0):,} · '
+                    f'{row.get("num_comments",0):,} comments · '
                     f'<a href="{row["permalink"]}" target="_blank" style="color:var(--blue)">view ↗</a></div>'
                     f'</div>', unsafe_allow_html=True)
             st.download_button(T("download_csv"), data=df_p.to_csv(index=False).encode(),
@@ -1404,7 +1481,7 @@ Use markdown. Be specific with numbers. Language: {"Japanese" if st.session_stat
 elif active == "twitter":
     st.markdown(f"""
     <div class="hero">
-      <div class="hero-title">🐦 {T("twitter_title")}<span class="accent">.</span></div>
+      <div class="hero-title">{T("twitter_title")}<span class="accent">.</span></div>
       <div class="hero-sub">{T("twitter_sub")}</div>
     </div>""", unsafe_allow_html=True)
 
@@ -1421,7 +1498,7 @@ elif active == "twitter":
 
     if tw_fetch:
         queries = [q.strip() for q in tw_queries.strip().split("\n") if q.strip()]
-        bearer = st.session_state.twitter_bearer.strip()
+        bearer = get_twitter_bearer()
         if not bearer:
             st.error("Enter your Twitter/X Bearer Token in the sidebar.")
         elif not TWEEPY_OK:
@@ -1475,7 +1552,7 @@ elif active == "twitter":
             {"label": "Queries", "value": df["query"].nunique(), "color": "var(--amber)"},
         ])
 
-        tab_ov, tab_feed, tab_ai_tw = st.tabs(["📊 Overview", "📰 Tweet Feed", "✨ AI Report"])
+        tab_ov, tab_feed, tab_ai_tw = st.tabs(["Overview", "Tweet Feed", "AI Report"])
 
         with tab_ov:
             c1, c2 = st.columns(2)
@@ -1518,7 +1595,7 @@ elif active == "twitter":
                     f'<span class="badge {s_cls}">{s_lbl} {sc:+.2f}</span>'
                     f'<span class="badge" style="background:var(--surface3);color:var(--text-dim)!important;font-size:.58rem">{row["query"]}</span>'
                     f'<div class="post-excerpt" style="margin-top:.4rem">{row["text"]}</div>'
-                    f'<div class="post-meta">❤️ {row["likes"]:,} · 🔁 {row["retweets"]:,} · 💬 {row["replies"]:,}</div>'
+                    f'<div class="post-meta">{row["likes"]:,} likes · {row["retweets"]:,} RTs · {row["replies"]:,} replies</div>'
                     f'</div>', unsafe_allow_html=True)
             st.download_button(T("download_csv"), data=df.to_csv(index=False).encode(),
                                file_name="twitter_data.csv", mime="text/csv")
@@ -1563,7 +1640,7 @@ Language: {"Japanese" if st.session_state.lang == "ja" else "English"}"""
 elif active == "discord":
     st.markdown(f"""
     <div class="hero">
-      <div class="hero-title">🎮 {T("discord_title")}<span class="accent">.</span></div>
+      <div class="hero-title">{T("discord_title")}<span class="accent">.</span></div>
       <div class="hero-sub">{T("discord_sub")}</div>
     </div>""", unsafe_allow_html=True)
 
@@ -1579,7 +1656,7 @@ elif active == "discord":
     st.markdown("</div>", unsafe_allow_html=True)
 
     if dc_fetch:
-        token = st.session_state.discord_token.strip()
+        token = get_discord_token()
         if not token:
             st.error("Enter your Discord Bot Token in the sidebar.")
         else:
@@ -1617,7 +1694,7 @@ elif active == "discord":
             {"label": "Avg Sentiment", "value": f"{avg_d:+.3f}", "color": "var(--cyan)"},
         ])
 
-        tab_ov_dc, tab_feed_dc, tab_ai_dc = st.tabs(["📊 Overview", "💬 Message Feed", "✨ AI Report"])
+        tab_ov_dc, tab_feed_dc, tab_ai_dc = st.tabs(["Overview", "Message Feed", "AI Report"])
 
         with tab_ov_dc:
             c1, c2 = st.columns(2)
@@ -1647,7 +1724,7 @@ elif active == "discord":
                     f'<div class="post-card">'
                     f'<span class="badge {s_cls}">{s_lbl} {sc_val:+.2f}</span>'
                     f'<span style="font-size:.84rem;color:var(--text-dim)">{str(row["content"])[:300]}</span>'
-                    f'<div class="post-meta" style="margin-top:.3rem">👤 {row["author"]} · ⭐ {row.get("reactions",0)}</div>'
+                    f'<div class="post-meta" style="margin-top:.3rem">{row["author"]} · {row.get("reactions",0)} reactions</div>'
                     f'</div>', unsafe_allow_html=True)
             st.download_button(T("download_csv"), data=ddf.to_csv(index=False).encode(),
                                file_name="discord_messages.csv", mime="text/csv")
@@ -1690,23 +1767,29 @@ elif active == "steam_reviews":
     </div>""", unsafe_allow_html=True)
 
     st.markdown('<div class="query-block">', unsafe_allow_html=True)
-    sr_col1, sr_col2, sr_col3 = st.columns([3, 2, 1])
+    sr_col1, sr_col2 = st.columns([3, 1])
     with sr_col1:
-        sr_genre = st.text_input(T("genre"), value="RPG", key="sr_genre")
+        _all_review_names = [g["name"] for g in RPG_GAMES_REVIEWS]
+        sr_selected_games = st.multiselect(
+            "Select games to analyse",
+            options=_all_review_names,
+            default=_all_review_names[:5],
+            key="sr_selected_games",
+        )
     with sr_col2:
         sr_reviews_per = st.number_input("Reviews per game", min_value=20, max_value=500, value=100, step=20, key="sr_reviews_per")
-    with sr_col3:
         sr_search = st.button(T("search_genre"), key="sr_search")
     st.markdown("</div>", unsafe_allow_html=True)
 
     if sr_search:
-        with st.spinner(T("loading")):
-            games = steam_search_game(sr_genre, max_results=8)
-            st.session_state.steam_games = games
-            if games:
+        selected_game_dicts = [g for g in RPG_GAMES_REVIEWS if g["name"] in sr_selected_games]
+        if not selected_game_dicts:
+            st.warning("Select at least one game.")
+        else:
+            with st.spinner(T("loading")):
                 all_reviews = []
                 prog = st.progress(0)
-                for i, g in enumerate(games[:5]):
+                for i, g in enumerate(selected_game_dicts):
                     revs = steam_reviews_fetch(g["appid"], sr_reviews_per)
                     for rv in revs:
                         txt = rv.get("review","")
@@ -1721,8 +1804,9 @@ elif active == "steam_reviews":
                             "votes_helpful": rv.get("votes_helpful",0),
                             "timestamp": datetime.utcfromtimestamp(rv.get("timestamp_created",0)),
                         })
-                    prog.progress((i+1)/min(len(games),5))
+                    prog.progress((i+1)/len(selected_game_dicts))
                     time.sleep(0.4)
+                st.session_state.steam_games = selected_game_dicts
                 st.session_state.steam_reviews_df = pd.DataFrame(all_reviews) if all_reviews else None
                 st.session_state.steam_fetched = True
                 st.session_state.ai_report_steam = ""
@@ -1742,7 +1826,7 @@ elif active == "steam_reviews":
             {"label": f"% {T('negative')}", "value": f"{100*len(neg_r)/max(n_r,1):.1f}%", "color": "var(--neg)"},
         ])
 
-        tab_ov_sr, tab_games_sr, tab_ai_sr = st.tabs(["📊 Overview", "🎮 By Game", "✨ AI Report"])
+        tab_ov_sr, tab_games_sr, tab_ai_sr = st.tabs(["Overview", "By Game", "AI Report"])
 
         with tab_ov_sr:
             c1, c2 = st.columns(2)
@@ -1784,7 +1868,7 @@ elif active == "steam_reviews":
             for _, row in game_df.head(30).iterrows():
                 sc_val = row["sent_score"]
                 s_cls = "badge-pos" if sc_val >= 0.05 else ("badge-neg" if sc_val <= -0.05 else "badge-neu")
-                thumb = "👍" if row["voted_up"] else "👎"
+                thumb = "[+]" if row["voted_up"] else "[-]"
                 st.markdown(
                     f'<div class="post-card">'
                     f'<span class="badge {s_cls}">{sc_val:+.2f}</span>'
@@ -1836,17 +1920,20 @@ Language: {"Japanese" if st.session_state.lang == "ja" else "English"}"""
 elif active == "steam_community":
     st.markdown(f"""
     <div class="hero">
-      <div class="hero-title">🏠 {T("steam_community_title")}<span class="accent">.</span></div>
+      <div class="hero-title">{T("steam_community_title")}<span class="accent">.</span></div>
       <div class="hero-sub">{T("steam_community_sub")}</div>
     </div>""", unsafe_allow_html=True)
 
     st.markdown('<div class="query-block">', unsafe_allow_html=True)
     sc_col1, sc_col2, sc_col3 = st.columns([3, 2, 1])
     with sc_col1:
-        sc_game = st.text_input(T("community_game"),
-                                 value="Persona 5 Royal",
-                                 placeholder="e.g. Like a Dragon, Final Fantasy, Yakuza",
-                                 key="sc_game")
+        _all_community_names = [g["name"] for g in RPG_GAMES_COMMUNITY]
+        sc_selected = st.multiselect(
+            "Select games to track",
+            options=_all_community_names,
+            default=_all_community_names[:4],
+            key="sc_selected",
+        )
     with sc_col2:
         sc_period = st.selectbox(T("time_period"),
                                   [T("period_7d"), T("period_30d"), T("period_90d"), T("period_1y"), T("period_all")],
@@ -1856,24 +1943,27 @@ elif active == "steam_community":
     st.markdown("</div>", unsafe_allow_html=True)
 
     if sc_fetch_btn:
-        with st.spinner(T("loading")):
-            results = steam_search_game(sc_game, max_results=5)
-            community_results = []
-            prog = st.progress(0)
-            for i, g in enumerate(results[:5]):
-                stats = steam_community_stats(g["appid"])
-                stats["appid"] = g["appid"]
-                stats["name"] = g["name"]
-                community_results.append(stats)
-                prog.progress((i+1)/len(results[:5]))
-                time.sleep(0.5)
-            st.session_state.community_data = {
-                "results": community_results,
-                "period": sc_period,
-                "query": sc_game,
-            }
-            st.session_state.community_fetched = True
-            st.rerun()
+        selected_community_games = [g for g in RPG_GAMES_COMMUNITY if g["name"] in sc_selected]
+        if not selected_community_games:
+            st.warning("Select at least one game.")
+        else:
+            with st.spinner(T("loading")):
+                community_results = []
+                prog = st.progress(0)
+                for i, g in enumerate(selected_community_games):
+                    stats = steam_community_stats(g["appid"])
+                    stats["appid"] = g["appid"]
+                    stats["name"] = g["name"]
+                    community_results.append(stats)
+                    prog.progress((i+1)/len(selected_community_games))
+                    time.sleep(0.5)
+                st.session_state.community_data = {
+                    "results": community_results,
+                    "period": sc_period,
+                    "query": ", ".join(sc_selected),
+                }
+                st.session_state.community_fetched = True
+                st.rerun()
 
     if st.session_state.community_fetched and st.session_state.community_data.get("results"):
         cdata = st.session_state.community_data
@@ -1955,12 +2045,12 @@ elif active == "steam_community":
 
         # Note on time-series data
         st.info(
-            "📊 **Note on time-series community data**: Steam's public API provides current snapshots. "
+            "Note on time-series community data: Steam's public API provides current snapshots. "
             "For historical member/follower counts across time periods, integrate with SteamDB.info "
             "API (paid tier) or archive your own snapshots using the `steam_community_stats()` "
             "function on a scheduled basis (e.g. daily cron job storing to a database)."
             if st.session_state.lang == "en" else
-            "📊 **時系列データについて**: Steam公開APIは現在のスナップショットを提供します。"
+            "時系列データについて: Steam公開APIは現在のスナップショットを提供します。"
             "過去のメンバー数・フォロワー数の推移を取得するには、SteamDB.info API（有料プラン）との連携か、"
             "`steam_community_stats()`関数を定期実行（例：毎日のcronジョブ）してデータベースに蓄積することをお勧めします。"
         )
@@ -1976,7 +2066,7 @@ elif active == "steam_community":
 elif active == "wishlist":
     st.markdown(f"""
     <div class="hero">
-      <div class="hero-title">📈 {T("wishlist_title")}<span class="accent">.</span></div>
+      <div class="hero-title">{T("wishlist_title")}<span class="accent">.</span></div>
       <div class="hero-sub">{T("wishlist_sub")}</div>
     </div>""", unsafe_allow_html=True)
 
@@ -2090,12 +2180,12 @@ elif active == "wishlist":
             """, unsafe_allow_html=True)
 
         st.info(
-            "💡 **Wishlist Counts**: Steam does not expose wishlist data via public API. "
+            "Wishlist Counts: Steam does not expose wishlist data via public API. "
             "Exact wishlist numbers require SteamDB Pro (steamdb.info) or Valve's Steamworks partner dashboard. "
             "For competitive title wishlists, use SteamSpy's `/api.php?request=appdetails` — it occasionally surfaces "
             "relative wishlist rank for public tracking."
             if st.session_state.lang == "en" else
-            "💡 **ウィッシュリスト数について**: Steamは公開APIでウィッシュリストデータを公開していません。"
+            "ウィッシュリスト数について: Steamは公開APIでウィッシュリストデータを公開していません。"
             "正確なウィッシュリスト数にはSteamDB Pro（steamdb.info）またはValveのSteamworksパートナーダッシュボードが必要です。"
         )
 
@@ -2120,7 +2210,7 @@ elif active == "wishlist":
         st.download_button(T("download_csv"), data=cdf.to_csv(index=False).encode(),
                            file_name="wishlist_traffic.csv", mime="text/csv")
 
-        tab_ai_wl, = st.tabs(["✨ AI Report"])
+        tab_ai_wl, = st.tabs(["AI Report"])
         with tab_ai_wl:
             def wishlist_prompt():
                 lines = "\n".join(
@@ -2158,7 +2248,7 @@ Language: {"Japanese" if st.session_state.lang == "ja" else "English"}"""
 elif active == "market_intel":
     st.markdown(f"""
     <div class="hero">
-      <div class="hero-title">🎯 {T("market_title")}<span class="accent">.</span></div>
+      <div class="hero-title">{T("market_title")}<span class="accent">.</span></div>
       <div class="hero-sub">{T("market_sub")}</div>
     </div>""", unsafe_allow_html=True)
 
@@ -2245,7 +2335,7 @@ elif active == "market_intel":
         ])
 
         tab_ccu_live, tab_charts, tab_ai_mi = st.tabs([
-            f"📡 Live CCU ({len(ccu_df)})", "📊 Charts", "✨ AI Report"
+            f"Live CCU ({len(ccu_df)})", "Charts", "AI Report"
         ])
 
         with tab_ccu_live:
