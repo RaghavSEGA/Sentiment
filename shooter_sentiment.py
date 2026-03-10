@@ -436,21 +436,99 @@ PLOTLY_BASE = dict(
 )
 
 # Top 10 shooters on Steam (source: SteamDB live charts, March 2026)
-SHOOTER_ROSTER = [
-    {"app_id": 730,     "name": "Counter-Strike 2",    "sub": "Tactical / Competitive", "publisher": "Valve",            "f2p": True},
-    {"app_id": 578080,  "name": "PUBG: Battlegrounds", "sub": "Battle Royale",          "publisher": "Krafton",          "f2p": True},
-    {"app_id": 1808500, "name": "ARC Raiders",         "sub": "Extraction Shooter",     "publisher": "Embark Studios",   "f2p": False},
-    {"app_id": 252490,  "name": "Rust",                "sub": "Open World / PvP",       "publisher": "Facepunch",        "f2p": False},
-    {"app_id": 2767030, "name": "Marvel Rivals",       "sub": "Hero Shooter",           "publisher": "NetEase Games",    "f2p": True},
-    {"app_id": 271590,  "name": "Grand Theft Auto V",  "sub": "Open World / Action",    "publisher": "Rockstar Games",   "f2p": False},
-    {"app_id": 236390,  "name": "War Thunder",         "sub": "Vehicle Combat / MMO",   "publisher": "Gaijin",           "f2p": True},
-    {"app_id": 1172470, "name": "Apex Legends",        "sub": "Battle Royale / Hero",   "publisher": "EA / Respawn",     "f2p": True},
-    {"app_id": 230410,  "name": "Warframe",            "sub": "Looter Shooter / Co-op", "publisher": "Digital Extremes", "f2p": True},
-    {"app_id": 3240220, "name": "GTA V Enhanced",      "sub": "Open World / Action",    "publisher": "Rockstar Games",   "f2p": False},
+# ─── Roster data — all unique titles across both lists ────────────────────────
+# Sub-genre and publisher are looked up by app_id; the two ranked lists
+# below reference these by ID only to avoid duplication.
+GAME_CATALOG = {
+    730:     {"name": "Counter-Strike 2",             "sub": "Tactical / Competitive",   "publisher": "Valve",                  "f2p": True},
+    578080:  {"name": "PUBG: Battlegrounds",          "sub": "Battle Royale",            "publisher": "Krafton",                "f2p": True},
+    252490:  {"name": "Rust",                         "sub": "Open World / Survival",    "publisher": "Facepunch",              "f2p": False},
+    1172470: {"name": "Apex Legends",                 "sub": "Battle Royale / Hero",     "publisher": "EA / Respawn",           "f2p": True},
+    3764200: {"name": "Monster Hunter Wilds",         "sub": "Action / Co-op",           "publisher": "Capcom",                 "f2p": False},
+    2357570: {"name": "Overwatch 2",                  "sub": "Hero Shooter",             "publisher": "Blizzard",               "f2p": True},
+    2507950: {"name": "Delta Force",                  "sub": "Military FPS / Extraction","publisher": "Team Jade",              "f2p": True},
+    359550:  {"name": "Rainbow Six Siege",            "sub": "Tactical / Competitive",   "publisher": "Ubisoft",                "f2p": False},
+    440:     {"name": "Team Fortress 2",              "sub": "Arena / Class FPS",        "publisher": "Valve",                  "f2p": True},
+    221100:  {"name": "DayZ",                         "sub": "Survival / Open World",    "publisher": "Bohemia Interactive",    "f2p": False},
+    2767030: {"name": "Marvel Rivals",                "sub": "Hero Shooter",             "publisher": "NetEase Games",          "f2p": True},
+    1366800: {"name": "Crosshair X",                  "sub": "Aim Trainer / Utility",    "publisher": "Vanguard",               "f2p": False},
+    2807960: {"name": "Battlefield 6",                "sub": "Military FPS",             "publisher": "EA / DICE",              "f2p": False},
+    3065800: {"name": "Marathon",                     "sub": "Extraction Shooter",       "publisher": "Bungie / Sony",          "f2p": False},
+    4465480: {"name": "CS:GO",                        "sub": "Tactical / Competitive",   "publisher": "Valve",                  "f2p": True},
+    1938090: {"name": "Call of Duty",                 "sub": "Military FPS",             "publisher": "Activision",             "f2p": True},
+    1174180: {"name": "Red Dead Redemption 2",        "sub": "Open World / TPS",         "publisher": "Rockstar Games",         "f2p": False},
+    4000:    {"name": "Garry's Mod",                  "sub": "Sandbox / Shooter",        "publisher": "Facepunch",              "f2p": False},
+    1091500: {"name": "Cyberpunk 2077",               "sub": "FPS / RPG",                "publisher": "CD Projekt Red",         "f2p": False},
+    2073620: {"name": "Arena Breakout: Infinite",     "sub": "Extraction Shooter",       "publisher": "Level Infinite",         "f2p": True},
+    251570:  {"name": "7 Days to Die",                "sub": "Survival / FPS",           "publisher": "The Fun Pimps",          "f2p": False},
+    1818450: {"name": "The Finals",                   "sub": "Arena / Team FPS",         "publisher": "Embark Studios",         "f2p": True},
+    377160:  {"name": "Fallout 4",                    "sub": "Open World FPS / RPG",     "publisher": "Bethesda",               "f2p": False},
+    550:     {"name": "Left 4 Dead 2",                "sub": "Co-op / Survival FPS",     "publisher": "Valve",                  "f2p": False},
+    1151340: {"name": "Fallout 76",                   "sub": "Online FPS / RPG",         "publisher": "Bethesda",               "f2p": False},
+    1808500: {"name": "ARC Raiders",                  "sub": "Extraction Shooter",       "publisher": "Embark Studios",         "f2p": False},
+    271590:  {"name": "GTA V Legacy",                 "sub": "Open World / Action",      "publisher": "Rockstar Games",         "f2p": False},
+    236390:  {"name": "War Thunder",                  "sub": "Vehicle Combat / MMO",     "publisher": "Gaijin",                 "f2p": True},
+    1422450: {"name": "Deadlock",                     "sub": "Hero Shooter / MOBA",      "publisher": "Valve",                  "f2p": True},
+    230410:  {"name": "Warframe",                     "sub": "Looter Shooter / Co-op",   "publisher": "Digital Extremes",       "f2p": True},
+    3240220: {"name": "GTA V Enhanced",               "sub": "Open World / Action",      "publisher": "Rockstar Games",         "f2p": False},
+    553850:  {"name": "Helldivers 2",                 "sub": "Co-op / Third-Person",     "publisher": "PlayStation Studios",    "f2p": False},
+    1623730: {"name": "Palworld",                     "sub": "Survival / Action",        "publisher": "Pocketpair",             "f2p": False},
+    2050650: {"name": "Resident Evil 4 Remake",       "sub": "Survival Horror / TPS",    "publisher": "Capcom",                 "f2p": False},
+    2221490: {"name": "Tom Clancy's The Division 2",  "sub": "Cover Shooter / MMO",      "publisher": "Ubisoft",                "f2p": False},
+    2183900: {"name": "Warhammer 40K: Space Marine 2","sub": "TPS / Co-op Action",       "publisher": "Saber Interactive",      "f2p": False},
+    107410:  {"name": "Arma 3",                       "sub": "Tactical / Mil-Sim",       "publisher": "Bohemia Interactive",    "f2p": False},
+    1407200: {"name": "World of Tanks",               "sub": "Vehicle Combat / MMO",     "publisher": "Wargaming",              "f2p": True},
+    3405340: {"name": "Split Fiction",                "sub": "Co-op / Action",           "publisher": "Hazelight / EA",         "f2p": False},
+    3659280: {"name": "Atomfall",                     "sub": "Open World FPS / RPG",     "publisher": "Rebellion",              "f2p": False},
+    552990:  {"name": "Borderlands 3",                "sub": "Looter Shooter",           "publisher": "2K / Gearbox",           "f2p": False},
+    240:     {"name": "Counter-Strike: Source",        "sub": "Tactical / Competitive",   "publisher": "Valve",                  "f2p": False},
+    1659040: {"name": "HITMAN World of Assassination",  "sub": "Stealth / TPS",            "publisher": "IO Interactive",         "f2p": False},
+}
+
+# Ranked list of top 25 FPS titles (by Steam CCU, Mar 2026)
+# Locked to the 42 SteamDB CSVs in /data — 1818450 removed (no CSV), 240 added
+FPS_ROSTER_IDS = [
+    730, 578080, 252490, 1172470, 3764200, 2357570, 2507950, 359550, 440,
+    221100, 2767030, 1366800, 2807960, 3065800, 4465480, 1938090, 1174180,
+    4000, 1091500, 2073620, 251570, 377160, 550, 1151340, 240,
 ]
 
-# Folder containing SteamDB CSVs, named steamdb_chart_{appid}.csv
-DATA_DIR = Path(__file__).parent / "data"
+# Ranked list of top 25 TPS titles (by Steam CCU, Mar 2026)
+# Locked to the 42 SteamDB CSVs in /data — 1329410 removed (no CSV), 1659040 added
+TPS_ROSTER_IDS = [
+    578080, 1808500, 271590, 3764200, 2357570, 236390, 1422450, 230410,
+    2767030, 3240220, 553850, 1366800, 1938090, 1623730, 1174180, 2050650,
+    377160, 2221490, 2183900, 107410, 1407200, 3405340, 3659280, 552990,
+    1659040,
+]
+
+def get_roster(genre: str = "FPS") -> list[dict]:
+    """Return roster list for given genre, merging catalog metadata."""
+    ids = FPS_ROSTER_IDS if genre == "FPS" else TPS_ROSTER_IDS
+    result = []
+    for app_id in ids:
+        if app_id in GAME_CATALOG:
+            result.append({"app_id": app_id, **GAME_CATALOG[app_id]})
+    return result
+
+# Default active roster (overridden by sidebar filter at runtime)
+SHOOTER_ROSTER = get_roster("FPS")
+
+# Folder containing SteamDB CSVs — checks several locations in priority order
+def _find_data_dir() -> Path | None:
+    candidates = [
+        Path(__file__).parent / "data",          # local dev & Streamlit Cloud repo
+        Path(__file__).parent,                    # CSVs alongside the .py file
+        Path("/mount/src") / Path(__file__).stem / "data",  # Streamlit Cloud alt mount
+        Path("/data"),                            # Docker / custom deploy
+    ]
+    for p in candidates:
+        if p.exists() and any(p.glob("steamdb_chart_*.csv")):
+            return p
+    # Return the default even if empty — loaders will handle it gracefully
+    return Path(__file__).parent / "data"
+
+DATA_DIR = _find_data_dir()
 
 # Steam CCU endpoint
 CCU_URL = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/"
@@ -460,14 +538,57 @@ CCU_URL = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayer
 # ─────────────────────────────────────────────────────────────
 
 @st.cache_data(show_spinner=False)
+def _parse_steamdb_bytes(raw_bytes: bytes, app_id: int) -> pd.DataFrame | None:
+    """Parse raw SteamDB CSV bytes into a monthly peak/avg DataFrame."""
+    try:
+        import io
+        df = pd.read_csv(io.BytesIO(raw_bytes), encoding="utf-8-sig")
+        df.columns = [c.strip().strip('"') for c in df.columns]
+        df["DateTime"] = pd.to_datetime(df["DateTime"], errors="coerce")
+        df = df.dropna(subset=["DateTime"])
+        df["Players"] = pd.to_numeric(df["Players"], errors="coerce")
+        df["Average Players"] = pd.to_numeric(df.get("Average Players", pd.Series()), errors="coerce")
+        df["month"] = df["DateTime"].dt.to_period("M")
+        monthly = (
+            df.groupby("month")
+            .agg(peak_ccu=("Players", "max"), avg_ccu=("Average Players", "mean"))
+            .reset_index()
+        )
+        return monthly.sort_values("month")
+    except Exception:
+        return None
+
+
+def _parse_steamdb_bytes_raw(raw_bytes: bytes) -> pd.DataFrame | None:
+    """Parse raw SteamDB CSV bytes into a raw (10-min interval) DataFrame."""
+    try:
+        import io
+        df = pd.read_csv(io.BytesIO(raw_bytes), encoding="utf-8-sig")
+        df.columns = [c.strip().strip('"') for c in df.columns]
+        df["DateTime"] = pd.to_datetime(df["DateTime"], errors="coerce", utc=True)
+        df = df.dropna(subset=["DateTime"])
+        df["Players"] = pd.to_numeric(df["Players"], errors="coerce")
+        df = df.dropna(subset=["Players"])
+        return df[["DateTime", "Players"]].sort_values("DateTime").reset_index(drop=True)
+    except Exception:
+        return None
+
+
+@st.cache_data(show_spinner=False)
 def load_all_historical() -> dict[int, pd.DataFrame]:
     """
-    Loads all SteamDB CSVs from the /data folder at startup.
-    Files must be named steamdb_chart_{appid}.csv
-    Returns a dict of {app_id: monthly_df} where monthly_df has columns:
-        month (Period), peak_ccu, avg_ccu
+    Loads all SteamDB CSVs — from /data folder AND from sidebar-uploaded files.
+    Returns a dict of {app_id: monthly_df} with columns: month (Period), peak_ccu, avg_ccu
     """
     historical: dict[int, pd.DataFrame] = {}
+
+    # Priority 1: sidebar-uploaded files (in session state)
+    for app_id, raw_bytes in st.session_state.get("uploaded_csvs", {}).items():
+        mdf = _parse_steamdb_bytes(raw_bytes, app_id)
+        if mdf is not None and not mdf.empty:
+            historical[app_id] = mdf
+
+    # Priority 2: files on disk
     if not DATA_DIR.exists():
         return historical
 
@@ -577,8 +698,17 @@ def get_historical_summary(monthly_df: pd.DataFrame) -> dict:
 
 @st.cache_data(ttl=600, show_spinner=False)
 def load_all_raw() -> dict[int, pd.DataFrame]:
-    """Load raw 10-minute interval CSV data (no aggregation) for WoW diff."""
+    """Load raw 10-minute interval CSV data (no aggregation) for WoW diff.
+    Also reads from sidebar-uploaded session-state files."""
     raw: dict[int, pd.DataFrame] = {}
+
+    # Priority 1: sidebar-uploaded files
+    for app_id, rb in st.session_state.get("uploaded_csvs", {}).items():
+        rdf = _parse_steamdb_bytes_raw(rb)
+        if rdf is not None and not rdf.empty:
+            raw[app_id] = rdf
+
+    # Priority 2: disk
     if not DATA_DIR.exists():
         return raw
     for csv_path in sorted(DATA_DIR.glob("steamdb_chart_*.csv")):
@@ -643,6 +773,12 @@ def compute_period_diff(
             "ref_dt":      ref_dt,
         }
     return result
+
+def data_hash(ccu_data: list[dict]) -> str:
+    """Stable hash of CCU values for cache-key purposes."""
+    import hashlib, json
+    payload = json.dumps([{"id": r["app_id"], "ccu": r["ccu"]} for r in ccu_data], sort_keys=True)
+    return hashlib.md5(payload.encode()).hexdigest()[:12]
 
 PRESET_QUERIES = [
     {
@@ -1213,6 +1349,9 @@ defaults = {
     "custom_query": "",
     "report_language": "English",
     "report_cache": {},
+    "uploaded_csvs": {},   # app_id -> bytes, from sidebar uploader
+    "roster_genre":  "FPS",             # "FPS" or "TPS"
+    "roster_filter": [],                # list of app_ids to include (empty = all)
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -1556,6 +1695,60 @@ with st.sidebar:
     ⚙ Configuration</div>
     """, unsafe_allow_html=True)
 
+    # ── Genre filter ──────────────────────────────────────────────────────────
+    st.markdown("**🎮 Roster Filter**")
+    _genre = st.radio(
+        "Genre",
+        options=["FPS", "TPS"],
+        index=0 if st.session_state.roster_genre == "FPS" else 1,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="genre_radio",
+    )
+    if _genre != st.session_state.roster_genre:
+        st.session_state.roster_genre  = _genre
+        st.session_state.roster_filter = []   # reset game selection on genre change
+        st.session_state.ccu_data      = []   # force re-fetch with new roster
+        st.rerun()
+
+    # Build the full roster for the selected genre
+    _full_roster = get_roster(st.session_state.roster_genre)
+    _all_names   = [g["name"] for g in _full_roster]
+    _all_ids     = [g["app_id"] for g in _full_roster]
+
+    # ── Per-game multiselect ──────────────────────────────────────────────────
+    st.caption(f"Top 25 {'First-Person' if _genre == 'FPS' else 'Third-Person'} Shooters · select to override")
+    _prev_filter = st.session_state.roster_filter
+    _filter_names = st.multiselect(
+        "Include games",
+        options=_all_names,
+        default=[g["name"] for g in _full_roster if g["app_id"] in _prev_filter] if _prev_filter else _all_names,
+        label_visibility="collapsed",
+        key="game_multiselect",
+    )
+    _new_filter = [_all_ids[_all_names.index(n)] for n in _filter_names]
+    if set(_new_filter) != set(_prev_filter):
+        st.session_state.roster_filter = _new_filter
+        st.session_state.ccu_data      = []   # force re-fetch
+        st.rerun()
+
+    # Apply filter to produce the active roster used everywhere below
+    _active_ids   = st.session_state.roster_filter or _all_ids
+    SHOOTER_ROSTER = [g for g in _full_roster if g["app_id"] in _active_ids]
+
+    _overlap = set(FPS_ROSTER_IDS) & set(TPS_ROSTER_IDS)
+    _overlap_shown = [GAME_CATALOG[a]["name"] for a in _overlap
+                      if a in _active_ids and a in GAME_CATALOG]
+    if _overlap_shown:
+        with st.expander(f"ℹ️ {len(_overlap_shown)} titles appear in both lists"):
+            for n in sorted(_overlap_shown):
+                st.caption(f"• {n}")
+
+    # Persist the active roster so fetch loop + dashboard can use it
+    st.session_state["_active_roster"] = SHOOTER_ROSTER
+
+    st.markdown("---")
+
     _cl_ok = bool(st.session_state.claude_key)
     if _cl_ok:
         st.success("\u2713 Anthropic API key loaded", icon="\U0001f511")
@@ -1583,7 +1776,35 @@ with st.sidebar:
     if missing:
         missing_names = [g["name"] for g in SHOOTER_ROSTER if g["app_id"] in missing]
         st.caption("⚠️ Missing: " + ", ".join(missing_names))
-    st.caption("Drop steamdb_chart_{{appid}}.csv into /data to update")
+    st.caption("Drop steamdb_chart_{appid}.csv into /data to update")
+    st.markdown("---")
+    st.markdown("**📂 Upload SteamDB CSVs**", unsafe_allow_html=False)
+    st.caption("Upload steamdb_chart_{appid}.csv files directly — no repo access needed.")
+    _uploaded = st.file_uploader(
+        "SteamDB CSVs",
+        type="csv",
+        accept_multiple_files=True,
+        label_visibility="collapsed",
+        key="csv_uploader",
+    )
+    if _uploaded:
+        _changed = False
+        for _f in _uploaded:
+            _m = __import__("re").search(r"(\d+)", _f.name)
+            if _m:
+                _aid = int(_m.group(1))
+                _bytes = _f.read()
+                if st.session_state.uploaded_csvs.get(_aid) != _bytes:
+                    st.session_state.uploaded_csvs[_aid] = _bytes
+                    _changed = True
+        if _changed:
+            st.cache_data.clear()
+            st.session_state.ccu_data = []
+            st.rerun()
+    if st.session_state.uploaded_csvs:
+        _names = [g["name"] for g in SHOOTER_ROSTER
+                  if g["app_id"] in st.session_state.uploaded_csvs]
+        st.success(f"✓ {len(st.session_state.uploaded_csvs)} CSV(s) loaded: {', '.join(_names)}")
 
 # ─────────────────────────────────────────────────────────────
 # QUERY BLOCK
@@ -1597,10 +1818,11 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Preset cards
+# Preset cards — top-left (index 0) and bottom-right (index 3) only
+_shown_presets = [PRESET_QUERIES[0], PRESET_QUERIES[3]]
 col1, col2 = st.columns(2)
-for i, preset in enumerate(PRESET_QUERIES):
-    col = col1 if i % 2 == 0 else col2
+for i, preset in enumerate(_shown_presets):
+    col = col1 if i == 0 else col2
     with col:
         _pid   = preset["id"]
         _label = T("preset_labels")[_pid]
@@ -1659,10 +1881,11 @@ if not st.session_state.ccu_data:
         with st.spinner(T("fetch_spinner")):
             # Load historical SteamDB data from /data folder
             historical = load_all_historical()
+            raw_data   = load_all_raw()
             results = []
             prog = st.progress(0.0)
             status = st.empty()
-            for idx, game in enumerate(SHOOTER_ROSTER):
+            for idx, game in enumerate(st.session_state.get("_active_roster", get_roster("FPS"))):
                 status.caption(T("fetching_game", name=game["name"]))
 
                 # Live CCU from Steam API
@@ -1689,9 +1912,16 @@ if not st.session_state.ccu_data:
                 total_rev  = pos_reviews + neg_reviews
                 review_pct = round(pos_reviews / total_rev * 100, 1) if total_rev else None
 
+                # Fall back to latest CSV row if Steam API returns 0 (e.g. Deadlock)
+                ccu_from_csv = False
+                if not ccu and game["app_id"] in raw_data and not raw_data[game["app_id"]].empty:
+                    ccu = int(raw_data[game["app_id"]].dropna(subset=["Players"])["Players"].iloc[-1])
+                    ccu_from_csv = True
+
                 results.append({
                     **game,
                     "ccu":          ccu if ccu else 0,
+                    "ccu_from_csv": ccu_from_csv,
                     "ccu_live":     ccu is not None,
                     "yoy":          yoy_str,
                     "yoy_val":      yoy_pct,
@@ -1703,7 +1933,7 @@ if not st.session_state.ccu_data:
                     "pos_reviews":  pos_reviews,
                     "neg_reviews":  neg_reviews,
                 })
-                prog.progress((idx + 1) / len(SHOOTER_ROSTER))
+                prog.progress((idx + 1) / len(st.session_state.get("_active_roster", get_roster("FPS"))))
                 time.sleep(0.4)  # polite rate limiting for SteamSpy
 
             status.empty()
