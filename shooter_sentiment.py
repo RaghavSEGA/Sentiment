@@ -1806,20 +1806,36 @@ _all_names   = [g["name"] for g in _full_roster]
 _all_ids     = [g["app_id"] for g in _full_roster]
 _genre_label = "First-Person Shooters" if st.session_state.roster_genre == "FPS" else "Third-Person Shooters"
 
-# Game picker — compact multiselect below the toggle
-_prev_filter  = st.session_state.roster_filter
-_filter_names = st.multiselect(
-    f"Filter games  ·  Top 25 {_genre_label}",
-    options=_all_names,
-    default=[g["name"] for g in _full_roster if g["app_id"] in _prev_filter] if _prev_filter else _all_names,
-    key="game_multiselect",
-    help="Deselect titles to exclude them from CCU fetch and AI analysis",
-)
-_new_filter = [_all_ids[_all_names.index(n)] for n in _filter_names]
-if set(_new_filter) != set(_prev_filter):
-    st.session_state.roster_filter = _new_filter
-    st.session_state.ccu_data      = []
-    st.rerun()
+# Game picker — inside expander to keep UI clean
+_prev_filter = st.session_state.roster_filter
+_active_count = len(_prev_filter) if _prev_filter else len(_all_names)
+_expander_label = f"🎮 Games included: {_active_count} / {len(_all_names)}"
+
+with st.expander(_expander_label, expanded=False):
+    _col_a, _col_b = st.columns([1, 1])
+    with _col_a:
+        if st.button("Select all", key="picker_all", use_container_width=True):
+            st.session_state.roster_filter = []
+            st.session_state.ccu_data      = []
+            st.rerun()
+    with _col_b:
+        if st.button("Clear all", key="picker_clear", use_container_width=True):
+            st.session_state.roster_filter = [_all_ids[0]]  # keep at least 1
+            st.session_state.ccu_data      = []
+            st.rerun()
+
+    _filter_names = st.multiselect(
+        "Select games",
+        options=_all_names,
+        default=[g["name"] for g in _full_roster if g["app_id"] in _prev_filter] if _prev_filter else _all_names,
+        key="game_multiselect",
+        label_visibility="collapsed",
+    )
+    _new_filter = [_all_ids[_all_names.index(n)] for n in _filter_names]
+    if set(_new_filter) != set(_prev_filter):
+        st.session_state.roster_filter = _new_filter
+        st.session_state.ccu_data      = []
+        st.rerun()
 
 # Apply filter → active roster
 _active_ids    = st.session_state.roster_filter or _all_ids
@@ -1893,75 +1909,68 @@ st.markdown("</div>", unsafe_allow_html=True)
 # LIVE CCU PANEL
 # ─────────────────────────────────────────────────────────────
 
-st.markdown(f"""
-<div class="section-header">
-  <span class="dot"></span>{T("live_ccu_header")}
-</div>
-""", unsafe_allow_html=True)
-
 if not st.session_state.ccu_data:
-    if st.button(T("fetch_ccu_btn"), key="fetch_ccu"):
-        with st.spinner(T("fetch_spinner")):
-            # Load historical SteamDB data from /data folder
-            historical = load_all_historical()
-            raw_data   = load_all_raw()
-            results = []
-            prog = st.progress(0.0)
-            status = st.empty()
-            for idx, game in enumerate(st.session_state.get("_active_roster", get_roster("FPS"))):
-                status.caption(T("fetching_game", name=game["name"]))
+    with st.spinner(T("fetch_spinner")):
+        # Load historical SteamDB data from /data folder
+        historical = load_all_historical()
+        raw_data   = load_all_raw()
+        results = []
+        prog = st.progress(0.0)
+        status = st.empty()
+        for idx, game in enumerate(st.session_state.get("_active_roster", get_roster("FPS"))):
+            status.caption(T("fetching_game", name=game["name"]))
 
-                # Live CCU from Steam API
-                ccu = fetch_ccu(game["app_id"])
+            # Live CCU from Steam API
+            ccu = fetch_ccu(game["app_id"])
 
-                # Real YoY from SteamDB historical CSV (if available)
-                hist_df  = historical.get(game["app_id"])
-                has_hist = hist_df is not None and not hist_df.empty
-                if has_hist:
-                    yoy_str, yoy_pct = compute_yoy(hist_df)
-                    hist_summary = get_historical_summary(hist_df)
-                else:
-                    # Fall back to SteamSpy proxy
-                    ss = fetch_steamspy(game["app_id"])
-                    yoy_str, yoy_pct = parse_yoy_from_steamspy(ss)
-                    hist_summary = {}
-
-                # SteamSpy for owner/review data (still useful supplemental)
+            # Real YoY from SteamDB historical CSV (if available)
+            hist_df  = historical.get(game["app_id"])
+            has_hist = hist_df is not None and not hist_df.empty
+            if has_hist:
+                yoy_str, yoy_pct = compute_yoy(hist_df)
+                hist_summary = get_historical_summary(hist_df)
+            else:
+                # Fall back to SteamSpy proxy
                 ss = fetch_steamspy(game["app_id"])
-                owners     = ss.get("owners", "Unknown")
-                avg_2w_hrs = round((ss.get("average_2weeks", 0) or 0) / 60, 1)
-                pos_reviews= ss.get("positive", 0) or 0
-                neg_reviews= ss.get("negative", 0) or 0
-                total_rev  = pos_reviews + neg_reviews
-                review_pct = round(pos_reviews / total_rev * 100, 1) if total_rev else None
+                yoy_str, yoy_pct = parse_yoy_from_steamspy(ss)
+                hist_summary = {}
 
-                # Fall back to latest CSV row if Steam API returns 0 (e.g. Deadlock)
-                ccu_from_csv = False
-                if not ccu and game["app_id"] in raw_data and not raw_data[game["app_id"]].empty:
-                    ccu = int(raw_data[game["app_id"]].dropna(subset=["Players"])["Players"].iloc[-1])
-                    ccu_from_csv = True
+            # SteamSpy for owner/review data (still useful supplemental)
+            ss = fetch_steamspy(game["app_id"])
+            owners     = ss.get("owners", "Unknown")
+            avg_2w_hrs = round((ss.get("average_2weeks", 0) or 0) / 60, 1)
+            pos_reviews= ss.get("positive", 0) or 0
+            neg_reviews= ss.get("negative", 0) or 0
+            total_rev  = pos_reviews + neg_reviews
+            review_pct = round(pos_reviews / total_rev * 100, 1) if total_rev else None
 
-                results.append({
-                    **game,
-                    "ccu":          ccu if ccu else 0,
-                    "ccu_from_csv": ccu_from_csv,
-                    "ccu_live":     ccu is not None,
-                    "yoy":          yoy_str,
-                    "yoy_val":      yoy_pct,
-                    "has_hist":     has_hist,
-                    "hist_summary": hist_summary,
-                    "owners":       owners,
-                    "avg_2w_hrs":   avg_2w_hrs,
-                    "review_pct":   review_pct,
-                    "pos_reviews":  pos_reviews,
-                    "neg_reviews":  neg_reviews,
-                })
-                prog.progress((idx + 1) / len(st.session_state.get("_active_roster", get_roster("FPS"))))
-                time.sleep(0.4)  # polite rate limiting for SteamSpy
+            # Fall back to latest CSV row if Steam API returns 0 (e.g. Deadlock)
+            ccu_from_csv = False
+            if not ccu and game["app_id"] in raw_data and not raw_data[game["app_id"]].empty:
+                ccu = int(raw_data[game["app_id"]].dropna(subset=["Players"])["Players"].iloc[-1])
+                ccu_from_csv = True
 
-            status.empty()
-            results.sort(key=lambda x: x["ccu"], reverse=True)
-            st.session_state.ccu_data = results
+            results.append({
+                **game,
+                "ccu":          ccu if ccu else 0,
+                "ccu_from_csv": ccu_from_csv,
+                "ccu_live":     ccu is not None,
+                "yoy":          yoy_str,
+                "yoy_val":      yoy_pct,
+                "has_hist":     has_hist,
+                "hist_summary": hist_summary,
+                "owners":       owners,
+                "avg_2w_hrs":   avg_2w_hrs,
+                "review_pct":   review_pct,
+                "pos_reviews":  pos_reviews,
+                "neg_reviews":  neg_reviews,
+            })
+            prog.progress((idx + 1) / len(st.session_state.get("_active_roster", get_roster("FPS"))))
+            time.sleep(0.4)  # polite rate limiting for SteamSpy
+
+        status.empty()
+        results.sort(key=lambda x: x["ccu"], reverse=True)
+        st.session_state.ccu_data = results
         st.rerun()
 else:
     ccu_data = st.session_state.ccu_data
