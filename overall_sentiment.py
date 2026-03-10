@@ -1101,39 +1101,73 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
-# MODULE NAVIGATION
+# MODULE NAVIGATION — real Streamlit buttons
 # ─────────────────────────────────────────────────────────────
 TAB_DEFS = [
-    ("reddit",          "💬", T("nav_reddit")),
-    ("twitter",         "🐦", T("nav_twitter")),
-    ("discord",         "🎮", T("nav_discord")),
-    ("steam_reviews",   "⭐", T("nav_steam_reviews")),
-    ("steam_community", "🏠", T("nav_steam_community")),
-    ("wishlist",        "📈", T("nav_wishlist")),
-    ("market_intel",    "🎯", T("nav_market_intel")),
+    ("reddit",          "💬", T("nav_reddit"), "🚧 under construction"),
+    ("twitter",         "🐦", T("nav_twitter"), ""),
+    ("discord",         "🎮", T("nav_discord"), ""),
+    ("steam_reviews",   "⭐", T("nav_steam_reviews"), ""),
+    ("steam_community", "🏠", T("nav_steam_community"), ""),
+    ("wishlist",        "📈", T("nav_wishlist"), ""),
+    ("market_intel",    "🎯", T("nav_market_intel"), ""),
 ]
 
-nav_html = '<div class="module-nav">'
-for tab_id, icon, label in TAB_DEFS:
-    active_cls = "active" if st.session_state.active_tab == tab_id else ""
-    nav_html += f'<span class="mod-btn {active_cls}" id="nav_{tab_id}"><span class="mod-icon">{icon}</span>{label}</span>'
-nav_html += "</div>"
-st.markdown(nav_html, unsafe_allow_html=True)
+st.markdown("""
+<style>
+/* Nav button row */
+div[data-testid="stHorizontalBlock"].nav-row > div { padding: 0 3px !important; }
 
-# Since HTML buttons can't fire Python events directly, use selectbox hidden behind buttons
-tab_options = [t[0] for t in TAB_DEFS]
-tab_labels = [f"{t[1]} {t[2]}" for t in TAB_DEFS]
-selected_tab_label = st.selectbox(
-    "Module",
-    tab_labels,
-    index=tab_options.index(st.session_state.active_tab),
-    label_visibility="collapsed",
-    key="tab_selector",
-)
-new_tab = tab_options[tab_labels.index(selected_tab_label)]
-if new_tab != st.session_state.active_tab:
-    st.session_state.active_tab = new_tab
-    st.rerun()
+/* Base nav button style — overrides the global .stButton */
+.nav-btn-wrap .stButton > button {
+    background: var(--surface) !important;
+    color: var(--text-dim) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 6px !important;
+    font-family: 'Inter Tight', sans-serif !important;
+    font-size: .7rem !important;
+    font-weight: 700 !important;
+    letter-spacing: .08em !important;
+    text-transform: uppercase !important;
+    padding: .42rem .75rem !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    white-space: nowrap !important;
+    transition: all .15s !important;
+}
+.nav-btn-wrap .stButton > button:hover {
+    border-color: var(--blue) !important;
+    color: var(--text) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+/* Active tab */
+.nav-btn-active .stButton > button {
+    background: var(--blue-glow) !important;
+    border-color: var(--blue) !important;
+    color: var(--blue) !important;
+    box-shadow: 0 0 0 1px rgba(64,128,255,.18) !important;
+}
+/* Under-construction badge on Reddit button */
+.nav-btn-wrap .stButton > button .uc-badge {
+    font-size: .5rem;
+    opacity: .7;
+    font-style: italic;
+}
+</style>
+""", unsafe_allow_html=True)
+
+nav_cols = st.columns(len(TAB_DEFS))
+for col, (tab_id, icon, label, badge) in zip(nav_cols, TAB_DEFS):
+    is_active = st.session_state.active_tab == tab_id
+    wrap_cls = "nav-btn-active nav-btn-wrap" if is_active else "nav-btn-wrap"
+    btn_label = f"{icon} {label}" + (f"\n{badge}" if badge else "")
+    with col:
+        st.markdown(f'<div class="{wrap_cls}">', unsafe_allow_html=True)
+        if st.button(btn_label, key=f"nav_{tab_id}", use_container_width=True):
+            st.session_state.active_tab = tab_id
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
 active = st.session_state.active_tab
 
