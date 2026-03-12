@@ -1352,6 +1352,9 @@ defaults = {
     "uploaded_csvs": {},   # app_id -> bytes, from sidebar uploader
     "roster_genre":  "FPS",             # "FPS" or "TPS"
     "roster_filter": [],                # list of app_ids to include (empty = all)
+    "drilldown_game":   None,           # app_id of selected game
+    "drilldown_report": "",             # cached drilldown report
+    "drilldown_cache":  {},             # {app_id: report_text}
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -1647,6 +1650,76 @@ def T(key: str, **kwargs) -> str:
         lang = "English"
     text = TRANSLATIONS[lang].get(key, TRANSLATIONS["English"].get(key, key))
     return text.format(**kwargs) if kwargs else text
+
+# ─────────────────────────────────────────────────────────────
+# GAME DRILL-DOWN PROMPT
+# ─────────────────────────────────────────────────────────────
+
+def build_drilldown_prompt(game: dict, historical: dict, language: str = "English") -> str:
+    hs   = game.get("hist_summary", {})
+    mdf  = historical.get(game["app_id"])
+    src  = "SteamDB CSV" if game.get("has_hist") else "SteamSpy proxy"
+
+    # Last 12 months table
+    history_table = ""
+    if mdf is not None and not mdf.empty:
+        last12 = mdf.sort_values("month").tail(12)
+        rows = []
+        for _, row in last12.iterrows():
+            rows.append(f"  {row['month'].strftime('%Y-%m')}  peak={int(row['peak_ccu']):,}  avg={int(row['avg_ccu']):,}")
+        history_table = "\n".join(rows)
+    else:
+        history_table = "  (no CSV data available)"
+
+    lang_instruction = (
+        " IMPORTANT: Write the entire analysis in Japanese (日本語). "
+        "Use professional business Japanese suitable for senior management. "
+        "All section headers, bullet points, and analysis must be in Japanese. "
+        "Game titles may be kept in their original English/romanised form."
+    ) if language == "Japanese" else ""
+
+    return f"""You are a senior games market analyst at SEGA's internal strategy team.{lang_instruction}
+
+Produce a focused deep-dive intelligence report on ONE game for SEGA's competitive analysis team.
+
+GAME: {game['name']}
+Sub-genre: {game.get('sub', 'N/A')}
+Publisher: {game.get('publisher', 'N/A')}
+F2P: {'Yes' if game.get('f2p') else 'No'}
+Current CCU: {game.get('ccu', 0):,}
+YoY trend: {game.get('yoy', 'N/A')} (source: {src})
+Est. owners: {game.get('owners', 'N/A')}
+Avg playtime (2 weeks): {game.get('avg_2w_hrs', 0)} hrs
+Review score: {f"{game.get('review_pct')}%" if game.get('review_pct') else 'N/A'}
+All-time peak CCU: {hs.get('peak_ever', 'N/A'):,} (if int, else {hs.get('peak_ever', 'N/A')})
+12-month peak CCU: {hs.get('peak_12m', 'N/A')}
+12-month avg CCU:  {hs.get('avg_12m', 'N/A')}
+MoM trend:         {hs.get('mom_trend', 'N/A')}
+
+MONTHLY CCU HISTORY (last 12 months, SteamDB):
+{history_table}
+
+Write a structured report with these sections:
+## 1. Executive Summary
+One paragraph — current health, trajectory, key risk or opportunity for SEGA.
+
+## 2. CCU Trend Analysis
+Interpret the monthly history. Identify growth phases, declines, seasonal patterns, notable spikes/drops. Quantify where possible.
+
+## 3. Player Engagement & Retention Signals
+Use playtime, review score, and ownership estimates to assess engagement depth and churn risk.
+
+## 4. Competitive Position
+How does this title's CCU and trajectory compare to its sub-genre peers? Is it gaining or losing share?
+
+## 5. Monetisation Model Assessment
+Evaluate the F2P vs premium model in context of this title's performance. What does it signal about player willingness-to-pay in this sub-genre?
+
+## 6. Strategic Implications for SEGA
+3–5 concrete, actionable bullet points for SEGA's product / publishing strategy based on this data.
+
+Be specific, data-driven, and concise. Avoid generic observations. Attribute data sources inline."""
+
 
 # ─────────────────────────────────────────────────────────────
 # TOP NAV
@@ -2402,6 +2475,82 @@ elif not st.session_state.active_query:
       </div>
     </div>
     """, unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────
+# GAME DEEP DIVE
+# ─────────────────────────────────────────────────────────────
+
+st.markdown(f"""
+<div class="section-header">
+  <span class="dot"></span>{T("drilldown_header")}
+</div>
+""", unsafe_allow_html=True)
+
+if not st.session_state.ccu_data:
+    st.caption(T("drilldown_no_data"))
+else:
+    _dd_names  = [g["name"] for g in st.session_state.ccu_data]
+    _dd_ids    = [g["app_id"] for g in st.session_state.ccu_data]
+    _dd_prev   = st.session_state.drilldown_game
+
+    _dd_default_idx = _dd_ids.index(_dd_prev) if _dd_prev in _dd_ids else 0
+    _dd_col1, _dd_col2 = st.columns([4, 1])
+    with _dd_col1:
+        _dd_selected_name = st.selectbox(
+            T("drilldown_select"),
+            options=_dd_names,
+            index=_dd_default_idx,
+            key="drilldown_selectbox",
+            label_visibility="collapsed",
+        )
+    with _dd_col2:
+        _dd_btn = st.button(T("drilldown_btn"), key="drilldown_run", use_container_width=True)
+
+    _dd_selected_id = _dd_ids[_dd_names.index(_dd_selected_name)]
+
+    # If game changed, clear old report so new one is generated fresh
+    if _dd_selected_id != st.session_state.drilldown_game:
+        st.session_state.drilldown_game   = _dd_selected_id
+        st.session_state.drilldown_report = st.session_state.drilldown_cache.get(_dd_selected_id, "")
+
+    if _dd_btn or st.session_state.drilldown_report:
+        if _dd_btn and not st.session_state.drilldown_cache.get(_dd_selected_id):
+            # Generate fresh report
+            if not st.session_state.claude_key:
+                st.warning(T("drilldown_no_key"))
+            else:
+                _dd_game = next((g for g in st.session_state.ccu_data if g["app_id"] == _dd_selected_id), None)
+                if _dd_game:
+                    with st.spinner(T("drilldown_spinner")):
+                        try:
+                            import anthropic as _ant
+                            _dd_hist = load_all_historical()
+                            _dd_prompt = build_drilldown_prompt(
+                                _dd_game, _dd_hist, st.session_state.report_language
+                            )
+                            _dd_client = _ant.Anthropic(api_key=st.session_state.claude_key)
+                            _dd_resp = _dd_client.messages.create(
+                                model="claude-sonnet-4-20250514",
+                                max_tokens=2000,
+                                system=build_system_prompt(st.session_state.report_language),
+                                messages=[{"role": "user", "content": _dd_prompt}],
+                            )
+                            _dd_text = _dd_resp.content[0].text
+                            st.session_state.drilldown_report = _dd_text
+                            st.session_state.drilldown_cache[_dd_selected_id] = _dd_text
+                        except Exception as _dd_err:
+                            st.error(f"Deep dive failed: {_dd_err}")
+
+        if st.session_state.drilldown_report:
+            st.markdown(st.session_state.drilldown_report)
+            _dd_fname = _dd_selected_name.lower().replace(" ", "_").replace(":", "")
+            st.download_button(
+                T("drilldown_dl"),
+                data=st.session_state.drilldown_report,
+                file_name=f"deepdive_{_dd_fname}.md",
+                mime="text/markdown",
+                key="drilldown_download",
+            )
 
 # ─────────────────────────────────────────────────────────────
 # FOOTER
