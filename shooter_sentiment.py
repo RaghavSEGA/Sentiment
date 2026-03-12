@@ -2604,13 +2604,13 @@ else:
             ev_match = next((x for x in x_vals if x.startswith(ev_date[:7])), None)
             if ev_match:
                 fig_dd.add_vline(
-                    x=x_vals.index(ev_match),
+                    x=ev_match,
                     line_width=1,
                     line_dash="dash",
                     line_color="rgba(255,200,50,0.5)",
                 )
                 fig_dd.add_annotation(
-                    x=x_vals.index(ev_match),
+                    x=ev_match,
                     y=1.0,
                     yref="paper",
                     text=ev_label,
