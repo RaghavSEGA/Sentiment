@@ -502,6 +502,56 @@ TPS_ROSTER_IDS = [
     1659040,
 ]
 
+# ─────────────────────────────────────────────────────────────
+# NOTABLE EVENTS PER GAME  (date → label for chart annotations)
+# ─────────────────────────────────────────────────────────────
+
+GAME_EVENTS: dict[int, list[tuple[str, str]]] = {
+    730:     [("2023-09", "CS2 launch"), ("2022-11", "CS:GO F2P peak")],
+    578080:  [("2018-01", "PUBG peak"), ("2022-06", "F2P launch")],
+    252490:  [("2021-05", "Console launch"), ("2023-03", "Pop. peak")],
+    1172470: [("2020-11", "Season 7"), ("2023-02", "Season 16 peak")],
+    3764200: [("2025-02", "MH Wilds launch")],
+    2357570: [("2022-10", "OW2 launch"), ("2023-08", "PvE cancelled")],
+    2507950: [("2024-12", "Delta Force launch")],
+    359550:  [("2020-03", "Y5 F2P"), ("2021-06", "Crimson Heist peak")],
+    440:     [("2020-04", "COVID peak"), ("2023-07", "Valve update")],
+    221100:  [("2021-10", "1.0 release"), ("2022-12", "Frostline DLC")],
+    2767030: [("2024-12", "Marvel Rivals launch")],
+    2807960: [("2025-06", "BF6 (projected)")],
+    1938090: [("2023-11", "MW3 launch"), ("2022-11", "MW2 launch")],
+    1174180: [("2023-12", "RDR2 sale peak")],
+    4000:    [("2020-04", "COVID peak")],
+    1091500: [("2023-09", "2.0 + Phantom Liberty")],
+    2073620: [("2024-07", "ABI launch")],
+    251570:  [("2024-06", "1.0 release")],
+    377160:  [("2024-04", "Next-Gen + mod surge")],
+    550:     [("2020-04", "COVID peak")],
+    1151340: [("2022-04", "Steel Reign free"), ("2023-10", "Atlantic City")],
+    1808500: [("2025-04", "ARC Raiders launch")],
+    271590:  [("2022-03", "GTA+ launch"), ("2023-05", "Online update")],
+    236390:  [("2022-02", "Naval peak"), ("2024-01", "Air superiority patch")],
+    1422450: [("2024-09", "Deadlock access")],
+    230410:  [("2021-09", "New War"), ("2023-04", "Cross-save launch")],
+    3240220: [("2025-03", "GTA V Enhanced")],
+    553850:  [("2024-02", "HD2 launch")],
+    1623730: [("2024-01", "Palworld launch")],
+    2050650: [("2023-03", "RE4R launch")],
+    2221490: [("2023-04", "Season 10"), ("2024-03", "F2P base game")],
+    2183900: [("2024-09", "SM2 launch")],
+    107410:  [("2021-05", "Arma 3 peak"), ("2024-03", "Dev shift A4")],
+    1407200: [("2022-11", "WoT console peak")],
+    3405340: [("2025-03", "Split Fiction launch")],
+    3659280: [("2025-03", "Atomfall launch")],
+    552990:  [("2020-10", "BL3 free EGS"), ("2021-03", "DLC3 peak")],
+    1329410: [("2022-11", "Deep Rock peak"), ("2024-01", "Season 4")],
+    240:     [("2020-04", "COVID peak")],
+    1659040: [("2023-11", "WoA free upgrade")],
+}
+
+def get_game_events(app_id: int) -> list[tuple[str, str]]:
+    return GAME_EVENTS.get(app_id, [])
+
 def get_roster(genre: str = "FPS") -> list[dict]:
     """Return roster list for given genre, merging catalog metadata."""
     ids = FPS_ROSTER_IDS if genre == "FPS" else TPS_ROSTER_IDS
@@ -2508,25 +2558,121 @@ else:
 
     _dd_selected_id = _dd_ids[_dd_names.index(_dd_selected_name)]
 
-    # If game changed, clear old report so new one is generated fresh
+    # If game changed, clear cached report (but keep chart visible)
     if _dd_selected_id != st.session_state.drilldown_game:
         st.session_state.drilldown_game   = _dd_selected_id
         st.session_state.drilldown_report = st.session_state.drilldown_cache.get(_dd_selected_id, "")
 
+    # ── Per-game CCU history chart (always shown when a game is selected) ──
+    _dd_hist_all = load_all_historical()
+    _dd_mdf = _dd_hist_all.get(_dd_selected_id)
+    _dd_game_data = next((g for g in st.session_state.ccu_data if g["app_id"] == _dd_selected_id), None)
+
+    if _dd_mdf is not None and not _dd_mdf.empty:
+        _dd_plot_df = _dd_mdf.sort_values("month")
+        _dd_events  = get_game_events(_dd_selected_id)
+
+        fig_dd = go.Figure()
+
+        # Area fill + line
+        fig_dd.add_trace(go.Scatter(
+            x=[str(p) for p in _dd_plot_df["month"]],
+            y=_dd_plot_df["peak_ccu"],
+            mode="lines",
+            name="Peak CCU",
+            line=dict(color="#0057FF", width=2.5),
+            fill="tozeroy",
+            fillcolor="rgba(0,87,255,0.10)",
+            hovertemplate="<b>%{x}</b><br>Peak CCU: %{y:,}<extra></extra>",
+        ))
+
+        # Avg CCU line
+        if "avg_ccu" in _dd_plot_df.columns:
+            fig_dd.add_trace(go.Scatter(
+                x=[str(p) for p in _dd_plot_df["month"]],
+                y=_dd_plot_df["avg_ccu"],
+                mode="lines",
+                name="Avg CCU",
+                line=dict(color="#5588ff", width=1.5, dash="dot"),
+                hovertemplate="<b>%{x}</b><br>Avg CCU: %{y:,}<extra></extra>",
+            ))
+
+        # Annotated vertical lines for notable events
+        x_vals = [str(p) for p in _dd_plot_df["month"]]
+        for ev_date, ev_label in _dd_events:
+            # Find nearest month in data
+            ev_match = next((x for x in x_vals if x.startswith(ev_date[:7])), None)
+            if ev_match:
+                fig_dd.add_vline(
+                    x=x_vals.index(ev_match),
+                    line_width=1,
+                    line_dash="dash",
+                    line_color="rgba(255,200,50,0.5)",
+                )
+                fig_dd.add_annotation(
+                    x=x_vals.index(ev_match),
+                    y=1.0,
+                    yref="paper",
+                    text=ev_label,
+                    showarrow=False,
+                    font=dict(size=9, color="#ffc832"),
+                    textangle=-60,
+                    xanchor="left",
+                    yanchor="bottom",
+                    bgcolor="rgba(5,8,24,0.7)",
+                )
+
+        # Live CCU dot
+        if _dd_game_data and _dd_game_data.get("ccu"):
+            fig_dd.add_trace(go.Scatter(
+                x=["Live"],
+                y=[_dd_game_data["ccu"]],
+                mode="markers",
+                name="Live CCU",
+                marker=dict(color="#00ff99", size=10, symbol="circle"),
+                hovertemplate=f"<b>Live now</b><br>CCU: {_dd_game_data['ccu']:,}<extra></extra>",
+            ))
+
+        fig_dd.update_layout(
+            **PLOTLY_BASE,
+            title=dict(
+                text=f"{_dd_selected_name} — Monthly Peak CCU",
+                font=dict(size=13, color="#b8bcd4"), x=0,
+            ),
+            xaxis=dict(showgrid=False, tickangle=-45, tickfont=dict(size=9)),
+            yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
+            height=360,
+            legend=dict(font=dict(size=10), bgcolor="rgba(0,0,0,0)"),
+            margin=dict(t=60, b=40),
+        )
+        st.plotly_chart(fig_dd, use_container_width=True)
+
+        # Quick stat pills beneath the chart
+        _hs = _dd_game_data.get("hist_summary", {}) if _dd_game_data else {}
+        _pill_cols = st.columns(4)
+        _pills = [
+            ("All-time peak", f"{_hs.get('peak_ever', '—'):,}" if isinstance(_hs.get('peak_ever'), int) else "—"),
+            ("12m peak",      f"{_hs.get('peak_12m', '—'):,}"  if isinstance(_hs.get('peak_12m'),  int) else "—"),
+            ("12m avg CCU",   f"{_hs.get('avg_12m', '—'):,}"   if isinstance(_hs.get('avg_12m'),   int) else "—"),
+            ("MoM trend",     _hs.get('mom_trend', '—')),
+        ]
+        for col, (label, val) in zip(_pill_cols, _pills):
+            col.metric(label, val)
+    else:
+        st.info(f"No SteamDB CSV for {_dd_selected_name}. Drop steamdb_chart_{_dd_selected_id}.csv into /data to enable the history chart.")
+
+    # ── AI deep-dive report ──
     if _dd_btn or st.session_state.drilldown_report:
         if _dd_btn and not st.session_state.drilldown_cache.get(_dd_selected_id):
-            # Generate fresh report
             if not st.session_state.claude_key:
                 st.warning(T("drilldown_no_key"))
             else:
-                _dd_game = next((g for g in st.session_state.ccu_data if g["app_id"] == _dd_selected_id), None)
-                if _dd_game:
+                if _dd_game_data:
                     with st.spinner(T("drilldown_spinner")):
                         try:
                             import anthropic as _ant
-                            _dd_hist = load_all_historical()
                             _dd_prompt = build_drilldown_prompt(
-                                _dd_game, _dd_hist, st.session_state.report_language
+                                _dd_game_data, _dd_hist_all, st.session_state.report_language
                             )
                             _dd_client = _ant.Anthropic(api_key=st.session_state.claude_key)
                             _dd_resp = _dd_client.messages.create(
