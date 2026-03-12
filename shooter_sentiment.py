@@ -2634,7 +2634,7 @@ else:
             ))
 
         fig_dd.update_layout(
-            **PLOTLY_BASE,
+            **{**PLOTLY_BASE, "margin": dict(l=10, r=10, t=60, b=40)},
             title=dict(
                 text=f"{_dd_selected_name} — Monthly Peak CCU",
                 font=dict(size=13, color="#b8bcd4"), x=0,
@@ -2643,7 +2643,6 @@ else:
             yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
             height=360,
             legend=dict(font=dict(size=10), bgcolor="rgba(0,0,0,0)"),
-            margin=dict(t=60, b=40),
         )
         st.plotly_chart(fig_dd, use_container_width=True)
 
