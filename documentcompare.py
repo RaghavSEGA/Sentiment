@@ -707,15 +707,9 @@ HARD RULES:
         ) as stream:
             for delta in stream.text_stream:
                 full_text += delta
-                result_placeholder.markdown(
-                    f'<div class="result-card">{full_text}▌</div>',
-                    unsafe_allow_html=True,
-                )
+                result_placeholder.markdown(full_text + "▌")
 
-        result_placeholder.markdown(
-            f'<div class="result-card">{full_text}</div>',
-            unsafe_allow_html=True,
-        )
+        result_placeholder.markdown(full_text)
         st.session_state.comparison_result = full_text
 
     except _anthropic.AuthenticationError:
@@ -733,10 +727,7 @@ HARD RULES:
 
 elif st.session_state.comparison_result:
     st.markdown('<div class="section-header"><span class="dot"></span>COMPARISON RESULT</div>', unsafe_allow_html=True)
-    st.markdown(
-        f'<div class="result-card">{st.session_state.comparison_result}</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(st.session_state.comparison_result)
 
 # ─────────────────────────────────────────────────────────────
 # DOWNLOAD + CHAT (shown when result exists)
@@ -752,8 +743,9 @@ if st.session_state.comparison_result:
         'DOWNLOAD REPORT</div>',
         unsafe_allow_html=True,
     )
-    _dl1, _dl2, _ = st.columns([1, 1, 4])
+    _dl1, _dl2, _dl3 = st.columns([1, 1, 1])
     _fname = f"comparison_{st.session_state.doc_a_name[:20]}_{st.session_state.doc_b_name[:20]}".replace(" ", "_")
+
     with _dl1:
         st.download_button(
             "⬇ Markdown (.md)",
@@ -763,26 +755,40 @@ if st.session_state.comparison_result:
             width="stretch",
             key="dl_md",
         )
+
     with _dl2:
-        _html_body = st.session_state.comparison_result.replace("\n", "<br>")
-        _html_doc  = f"""<!DOCTYPE html>
+        try:
+            import markdown as _mdlib
+            _html_body = _mdlib.markdown(
+                st.session_state.comparison_result,
+                extensions=["extra", "nl2br", "tables"]
+            )
+        except ImportError:
+            import re as _re
+            _html_body = st.session_state.comparison_result.replace("\n", "<br>")
+        _html_doc = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/>
 <title>Document Comparison</title>
 <style>
 body{{font-family:'Segoe UI',Arial,sans-serif;max-width:860px;margin:40px auto;padding:0 24px;color:#1a1a2e;line-height:1.7;}}
+h1{{font-size:1.7rem;color:#1e3a8a;margin-top:2rem;}}
 h2{{font-size:1.35rem;color:#1e3a8a;margin-top:1.8rem;border-left:4px solid #3b82f6;padding-left:.6rem;}}
 h3{{font-size:1.1rem;color:#1e40af;margin-top:1.3rem;}}
-p{{margin:.6rem 0 1rem;}} ul,ol{{margin:.4rem 0 1rem 1.4rem;}}
-li{{margin-bottom:.3rem;}} strong{{color:#0f172a;}}
+p{{margin:.6rem 0 1rem;}}ul,ol{{margin:.4rem 0 1rem 1.4rem;}}
+li{{margin-bottom:.3rem;}}strong{{color:#0f172a;font-weight:700;}}
+table{{border-collapse:collapse;width:100%;margin:1rem 0;}}
+th{{background:#1e3a8a;color:#fff;padding:8px 12px;text-align:left;}}
+td{{padding:7px 12px;border:1px solid #dde;}}
+tr:nth-child(even){{background:#f0f4ff;}}
 .header{{background:linear-gradient(135deg,#1e3a8a,#1d4ed8);color:#fff;padding:2rem 2.5rem;border-radius:8px;margin-bottom:2rem;}}
-.header h1{{color:#fff;font-size:1.5rem;margin:0 0 .3rem;}}
+.header h1{{color:#fff;font-size:1.5rem;margin:0 0 .3rem;border:none;}}
 .header p{{color:rgba(255,255,255,.75);margin:0;font-size:.88rem;}}
 </style></head><body>
 <div class="header">
   <h1>Document Comparison Report</h1>
   <p>{st.session_state.doc_a_name}  ⇄  {st.session_state.doc_b_name}</p>
 </div>
-{st.session_state.comparison_result}
+{_html_body}
 </body></html>"""
         st.download_button(
             "⬇ HTML (.html)",
@@ -792,6 +798,160 @@ li{{margin-bottom:.3rem;}} strong{{color:#0f172a;}}
             width="stretch",
             key="dl_html",
         )
+
+    with _dl3:
+        def _make_pdf(md_text, doc_a, doc_b):
+            try:
+                from reportlab.lib.pagesizes import letter
+                from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                from reportlab.lib.units import cm
+                from reportlab.lib import colors
+                from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
+                                                HRFlowable, Table, TableStyle)
+                from reportlab.lib.enums import TA_LEFT, TA_CENTER
+                import io as _io, re as _re
+
+                buf = _io.BytesIO()
+                doc = SimpleDocTemplate(buf, pagesize=letter,
+                    leftMargin=2*cm, rightMargin=2*cm,
+                    topMargin=2*cm, bottomMargin=2*cm)
+
+                styles = getSampleStyleSheet()
+                s_h1   = ParagraphStyle("h1", parent=styles["Normal"],
+                    fontSize=14, fontName="Helvetica-Bold", spaceBefore=14,
+                    spaceAfter=4, textColor=colors.HexColor("#1e3a8a"))
+                s_h2   = ParagraphStyle("h2", parent=styles["Normal"],
+                    fontSize=12, fontName="Helvetica-Bold", spaceBefore=10,
+                    spaceAfter=3, textColor=colors.HexColor("#1e40af"))
+                s_h3   = ParagraphStyle("h3", parent=styles["Normal"],
+                    fontSize=11, fontName="Helvetica-Bold", spaceBefore=8,
+                    spaceAfter=2, textColor=colors.HexColor("#374151"))
+                s_body = ParagraphStyle("body", parent=styles["Normal"],
+                    fontSize=9.5, fontName="Helvetica", leading=14, spaceAfter=5)
+                s_bull = ParagraphStyle("bull", parent=s_body,
+                    leftIndent=14, bulletIndent=4)
+                s_note = ParagraphStyle("note", parent=styles["Normal"],
+                    fontSize=8, fontName="Helvetica-Oblique",
+                    textColor=colors.HexColor("#6b7280"))
+
+                def inline(text):
+                    # Convert **bold** and *italic* to reportlab tags
+                    text = _re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+                    text = _re.sub(r'\*(.+?)\*',     r'<i>\1</i>', text)
+                    text = _re.sub(r'`(.+?)`', r'<font name="Courier">\1</font>', text)
+                    return text
+
+                story = []
+
+                # Header banner
+                hdr_data = [[
+                    Paragraph('<b><font color="white" size="14">Document Comparison Report</font></b>', styles["Normal"]),
+                ],[
+                    Paragraph(f'<font color="#cbd5e1" size="9">{doc_a}  ⇄  {doc_b}</font>', styles["Normal"]),
+                ]]
+                hdr_tbl = Table(hdr_data, colWidths=["100%"])
+                hdr_tbl.setStyle(TableStyle([
+                    ("BACKGROUND", (0,0), (-1,-1), colors.HexColor("#1e3a8a")),
+                    ("TOPPADDING",    (0,0), (-1,-1), 10),
+                    ("BOTTOMPADDING",(0,0), (-1,-1), 10),
+                    ("LEFTPADDING",  (0,0), (-1,-1), 14),
+                    ("RIGHTPADDING", (0,0), (-1,-1), 14),
+                    ("ROUNDEDCORNERS", [6]),
+                ]))
+                story.append(hdr_tbl)
+                story.append(Spacer(1, 14))
+
+                lines = md_text.split("\n")
+                i = 0
+                while i < len(lines):
+                    line = lines[i]
+
+                    # Table detection
+                    if "|" in line and i + 1 < len(lines) and "|" in lines[i+1] and "---" in lines[i+1]:
+                        tbl_lines = []
+                        while i < len(lines) and "|" in lines[i]:
+                            tbl_lines.append(lines[i])
+                            i += 1
+                        # Parse rows (skip separator)
+                        rows = []
+                        for tl in tbl_lines:
+                            if _re.match(r"^\s*\|[-: |]+\|\s*$", tl):
+                                continue
+                            cells = [c.strip() for c in tl.strip().strip("|").split("|")]
+                            rows.append(cells)
+                        if rows:
+                            max_cols = max(len(r) for r in rows)
+                            for r in rows:
+                                while len(r) < max_cols: r.append("")
+                            col_w = (17 * cm) / max_cols
+                            para_rows = []
+                            for ri, row in enumerate(rows):
+                                para_row = []
+                                for ci, cell in enumerate(row):
+                                    txt = inline(cell)
+                                    sty = ParagraphStyle("tc",
+                                        parent=styles["Normal"],
+                                        fontSize=8.5, fontName="Helvetica-Bold" if ri==0 else "Helvetica",
+                                        textColor=colors.white if ri==0 else colors.HexColor("#1a1a2e"),
+                                        leading=12)
+                                    para_row.append(Paragraph(txt, sty))
+                                para_rows.append(para_row)
+                            t = Table(para_rows, colWidths=[col_w]*max_cols)
+                            t.setStyle(TableStyle([
+                                ("BACKGROUND",    (0,0), (-1,0),  colors.HexColor("#1e3a8a")),
+                                ("BACKGROUND",    (0,1), (-1,-1), colors.white),
+                                ("ROWBACKGROUNDS",(0,1), (-1,-1),
+                                 [colors.HexColor("#f0f4ff"), colors.white]),
+                                ("GRID",          (0,0), (-1,-1), 0.4, colors.HexColor("#c7d2fe")),
+                                ("TOPPADDING",    (0,0), (-1,-1), 4),
+                                ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+                                ("LEFTPADDING",   (0,0), (-1,-1), 6),
+                                ("RIGHTPADDING",  (0,0), (-1,-1), 6),
+                            ]))
+                            story.append(t)
+                            story.append(Spacer(1, 6))
+                        continue
+
+                    if line.startswith("### "):
+                        story.append(Paragraph(inline(line[4:]), s_h3))
+                    elif line.startswith("## "):
+                        story.append(HRFlowable(width="100%", thickness=0.5,
+                            color=colors.HexColor("#c7d2fe"), spaceAfter=2))
+                        story.append(Paragraph(inline(line[3:]), s_h2))
+                    elif line.startswith("# "):
+                        story.append(Paragraph(inline(line[2:]), s_h1))
+                    elif line.startswith("- ") or line.startswith("* "):
+                        story.append(Paragraph("• " + inline(line[2:]), s_bull))
+                    elif _re.match(r"^\d+\.\s", line):
+                        txt = _re.sub(r"^\d+\.\s*", "", line)
+                        story.append(Paragraph("• " + inline(txt), s_bull))
+                    elif line.strip() == "" or line.strip() == "---":
+                        story.append(Spacer(1, 4))
+                    else:
+                        story.append(Paragraph(inline(line), s_body))
+                    i += 1
+
+                doc.build(story)
+                return buf.getvalue()
+            except Exception as e:
+                return None
+
+        _pdf_bytes = _make_pdf(
+            st.session_state.comparison_result,
+            st.session_state.doc_a_name,
+            st.session_state.doc_b_name,
+        )
+        if _pdf_bytes:
+            st.download_button(
+                "⬇ PDF (.pdf)",
+                data=_pdf_bytes,
+                file_name=f"{_fname}.pdf",
+                mime="application/pdf",
+                width="stretch",
+                key="dl_pdf",
+            )
+        else:
+            st.warning("PDF generation failed — install `reportlab`")
 
     # ── Follow-up Chat ────────────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
