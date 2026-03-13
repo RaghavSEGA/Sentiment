@@ -518,7 +518,7 @@ with col_b:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── Options row ───────────────────────────────────────────────
-opt1, opt2, opt3 = st.columns([3, 2, 2])
+opt1, opt2 = st.columns([3, 2])
 
 with opt1:
     st.markdown('<div class="field-label">Comparison Focus</div>', unsafe_allow_html=True)
@@ -556,9 +556,7 @@ with opt2:
         "Legal / formal",
     ], label_visibility="collapsed")
 
-with opt3:
-    st.markdown('<div class="field-label">Model</div>', unsafe_allow_html=True)
-    model = st.selectbox("model", ["claude-sonnet-4-6", "claude-opus-4-6"], label_visibility="collapsed")
+model = "claude-sonnet-4-6"
 
 # Custom focus text area (conditional)
 custom_focus = ""
