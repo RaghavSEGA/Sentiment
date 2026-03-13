@@ -96,6 +96,14 @@ h1, h2, h3, h4, h5, h6,
 
 code { background: var(--surface3) !important; color: var(--blue) !important; padding: 0.1em 0.4em; border-radius: 3px; }
 
+/* Ensure markdown bold/italic render correctly and are never overridden */
+[data-testid="stMarkdownContainer"] strong,
+[data-testid="stMarkdownContainer"] b { font-weight: 700 !important; font-style: normal !important; }
+[data-testid="stMarkdownContainer"] em,
+[data-testid="stMarkdownContainer"] i { font-style: italic !important; font-weight: normal !important; }
+[data-testid="stMarkdownContainer"] strong em,
+[data-testid="stMarkdownContainer"] em strong { font-weight: 700 !important; font-style: italic !important; }
+
 #MainMenu, footer, header { visibility: hidden; }
 .block-container { padding: 0 2.5rem 4rem !important; max-width: 1440px !important; }
 
@@ -701,7 +709,13 @@ HARD RULES:
             system=(
                 "You are a senior document analyst. "
                 "Respond only with your analysis in well-structured markdown. "
-                "No preamble, no sign-off."
+                "No preamble, no sign-off. "
+                "IMPORTANT FORMATTING RULES: "
+                "1. Use **bold** only for standalone words or short phrases — never wrap text containing $, numbers, or punctuation in * or ** as this breaks rendering. "
+                "2. When quoting values or figures (e.g. $49.6M), write them as plain text, not inside asterisks. "
+                "3. For inline quotes from documents use double quotes (\") not asterisk-italic. "
+                "4. Use ## for section headers and ### for sub-headers. "
+                "5. Use markdown tables for any comparative data."
             ),
             messages=[{"role": "user", "content": prompt}],
         ) as stream:
@@ -974,7 +988,7 @@ DOCUMENT B ({st.session_state.doc_b_name}):
 COMPARISON REPORT ALREADY PRODUCED:
 {st.session_state.comparison_result[:3000]}{"…[truncated]" if len(st.session_state.comparison_result) > 3000 else ""}
 
-Answer follow-up questions concisely and specifically. Reference the actual document content. Use markdown where it adds clarity."""
+Answer follow-up questions concisely and specifically. Reference the actual document content. Use markdown where it adds clarity. Do not wrap text containing $, numbers, or punctuation inside * or ** — write figures as plain text and use double quotes for inline document quotes."""
 
     # Render chat history
     for _msg in st.session_state.chat_history:
