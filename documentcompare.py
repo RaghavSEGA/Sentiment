@@ -518,7 +518,7 @@ with col_b:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ── Options row ───────────────────────────────────────────────
-opt1, opt2 = st.columns([3, 2])
+opt1, opt2, opt3 = st.columns([3, 2, 1.5])
 
 with opt1:
     st.markdown('<div class="field-label">Comparison Focus</div>', unsafe_allow_html=True)
@@ -556,6 +556,14 @@ with opt2:
         "Legal / formal",
     ], label_visibility="collapsed")
 
+with opt3:
+    st.markdown('<div class="field-label">&nbsp;</div>', unsafe_allow_html=True)
+    compare_clicked = st.button(
+        "COMPARE DOCUMENTS",
+        disabled=not (file_a and file_b and claude_key and ANTHROPIC_AVAILABLE),
+        width="stretch",
+    )
+
 model = "claude-sonnet-4-6"
 
 # Custom focus text area (conditional)
@@ -566,15 +574,6 @@ if focus == "Custom (describe below)":
         "custom_focus", label_visibility="collapsed",
         placeholder="e.g. Compare the pricing structures and payment terms in both documents...",
         height=80,
-    )
-
-st.markdown("<br>", unsafe_allow_html=True)
-btn_col, _ = st.columns([1, 5])
-with btn_col:
-    compare_clicked = st.button(
-        "COMPARE DOCUMENTS",
-        disabled=not (file_a and file_b and claude_key and ANTHROPIC_AVAILABLE),
-        width="stretch",
     )
 
 st.markdown("</div>", unsafe_allow_html=True)  # close upload-block
