@@ -55,6 +55,61 @@ st.set_page_config(
 )
 
 # 
+# HTML TABLE HELPER
+# 
+
+def html_table(rows: list[dict], col_order: list[str] = None) -> str:
+    """Render a list of dicts as a dark-themed HTML table with conditional
+    colour formatting on cells ending in % (green=positive, red=negative)."""
+    if not rows:
+        return ""
+    cols = col_order or list(rows[0].keys())
+
+    BG1   = "#0f1120"   # odd rows
+    BG2   = "#141728"   # even rows
+    HDR   = "#0a0c1a"
+    BORD  = "#232640"
+    TXT   = "#eef0fa"
+    DIM   = "#b8bcd4"
+    POS   = "#20c65a"
+    NEG   = "#ff4d4d"
+    MUTED = "#5a5f82"
+
+    def cell_color(val: str) -> str:
+        s = str(val)
+        if s.startswith("+") and s.endswith("%"): return POS
+        if s.startswith("-") and s.endswith("%"): return NEG
+        return ""
+
+    th_style = (f"padding:8px 12px;text-align:left;font-size:0.72rem;"
+                f"font-weight:700;letter-spacing:0.1em;text-transform:uppercase;"
+                f"color:{MUTED};background:{HDR};border-bottom:2px solid {BORD};"
+                f"white-space:nowrap;")
+    td_base  = (f"padding:7px 12px;font-size:0.82rem;border-bottom:1px solid {BORD};"
+                f"white-space:nowrap;")
+
+    head = "".join(f"<th style='{th_style}'>{c}</th>" for c in cols)
+    body_rows = []
+    for i, row in enumerate(rows):
+        bg = BG1 if i % 2 == 0 else BG2
+        cells = []
+        for c in cols:
+            val = row.get(c, "")
+            cc  = cell_color(str(val))
+            color = f"color:{cc};" if cc else f"color:{TXT};"
+            fw = "font-weight:700;" if cc else ""
+            td = f"<td style='{td_base}background:{bg};{color}{fw}'>{val}</td>"
+            cells.append(td)
+        body_rows.append(f"<tr>{''.join(cells)}</tr>")
+
+    table = f"""<div style='overflow-x:auto;border:1px solid {BORD};border-radius:8px;'>
+<table style='width:100%;border-collapse:collapse;font-family:Poppins,sans-serif;'>
+<thead><tr>{head}</tr></thead>
+<tbody>{''.join(body_rows)}</tbody>
+</table></div>"""
+    return table
+
+# 
 # SEGA BRAND STYLES
 # 
 
@@ -2390,14 +2445,14 @@ else:
         <div class="metric-sub">{T("kpi_health_sub")}</div>
         </div>""", unsafe_allow_html=True)
     with s3:
-        bm_pct = f"+{best_mover[1]:.1f}%" if best_mover[1] >= 0 else f"{best_mover[1]:.1f}%"
+        bm_pct = f"+{round(best_mover[1])}%" if best_mover[1] >= 0 else f"{round(best_mover[1])}%"
         st.markdown(f"""<div class="metric-card pos-top">
         <div class="metric-label">{T("kpi_best_grower")}</div>
         <div class="metric-value" style="font-size:1rem;color:var(--pos)">{best_mover[0][:18]}</div>
         <div class="metric-sub">{T("kpi_best_sub", pct=bm_pct)}</div>
         </div>""", unsafe_allow_html=True)
     with s4:
-        wm_pct = f"{worst_mover[1]:.1f}%"
+        wm_pct = f"{round(worst_mover[1])}%"
         st.markdown(f"""<div class="metric-card purple-top">
         <div class="metric-label">{T("kpi_worst_decline")}</div>
         <div class="metric-value" style="font-size:1rem;color:var(--neg)">{worst_mover[0][:18]}</div>
@@ -2427,13 +2482,13 @@ else:
                         "Weekly Change":  round(d["delta_pct"]),
                     })
             if wow_rows:
-                wow_df = pd.DataFrame(
-                    sorted(wow_rows, key=lambda x: x["Weekly Change"], reverse=True)
-                )
-                wow_df["Weekly Change"] = wow_df["Weekly Change"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
-                wow_df["Change (CCU)"]  = wow_df["Change (CCU)"].apply(lambda v: f"+{v:,}" if v > 0 else f"{v:,}")
-                st.dataframe(wow_df, use_container_width=True, hide_index=True,
-                    height=(len(wow_df) + 1) * 35 + 3)
+                wow_rows_sorted = sorted(wow_rows, key=lambda x: x["Weekly Change"], reverse=True)
+                for r2 in wow_rows_sorted:
+                    r2["Change (CCU)"] = f"+{r2['Change (CCU)']:,}" if r2["Change (CCU)"] > 0 else f"{r2['Change (CCU)']:,}"
+                    r2["Weekly Change"] = f"+{r2['Weekly Change']}%" if r2["Weekly Change"] > 0 else f"{r2['Weekly Change']}%"
+                st.markdown(html_table(wow_rows_sorted,
+                    ["Title", "Live CCU", "7 Days Ago", "Change (CCU)", "Weekly Change"]),
+                    unsafe_allow_html=True)
         else:
             st.info(T("wow_none"))
 
@@ -2459,9 +2514,11 @@ else:
             mom_df = pd.DataFrame(
                 sorted(mom_rows, key=lambda x: x["Month Change"], reverse=True)
             )
-            mom_df["Month Change"] = mom_df["Month Change"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
-            st.dataframe(mom_df, use_container_width=True, hide_index=True,
-                height=(len(mom_df) + 1) * 35 + 3)
+            mom_rows_sorted = mom_df.to_dict("records")
+            for r2 in mom_rows_sorted:
+                r2["Month Change"] = f"+{r2['Month Change']}%" if r2["Month Change"] > 0 else f"{r2['Month Change']}%"
+            st.markdown(html_table(mom_rows_sorted, ["Title", "Live CCU", "Month Change"]),
+                unsafe_allow_html=True)
         else:
             st.info(T("yoy_none"))
 
@@ -2492,9 +2549,12 @@ else:
                 yoy_df = pd.DataFrame(
                     sorted(yoy_rows, key=lambda x: x["Annual Change"] if isinstance(x["Annual Change"], (int, float)) else 0, reverse=True)
                 )
-                yoy_df["Annual Change"] = yoy_df["Annual Change"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
-                st.dataframe(yoy_df, use_container_width=True, hide_index=True,
-                    height=(len(yoy_df) + 1) * 35 + 3)
+                yoy_rows_sorted = yoy_df.to_dict("records")
+                for r2 in yoy_rows_sorted:
+                    r2["Annual Change"] = f"+{r2['Annual Change']}%" if r2["Annual Change"] > 0 else f"{r2['Annual Change']}%"
+                st.markdown(html_table(yoy_rows_sorted,
+                    ["Title", "Live CCU", "1 Year Ago", "Annual Change"]),
+                    unsafe_allow_html=True)
         else:
             st.info(T("yoy_none"))
 
@@ -2607,8 +2667,10 @@ else:
             "Review":          f"{r['review_pct']}%" if r.get("review_pct") else "—",
         } for i, r in enumerate(ccu_data)])
 
-        st.dataframe(df, use_container_width=True, hide_index=True,
-            height=(len(df) + 1) * 35 + 3)
+        st.markdown(html_table(df.to_dict("records"),
+            ["#", "Title", "Sub-Genre", "Publisher", "F2P",
+             "Live CCU", "YoY", "All-Time Peak", "12m Peak", "12m Avg", "MoM", "Review"]),
+            unsafe_allow_html=True)
         st.caption("Review = all-time positive ÷ total reviews (Steam/SteamSpy).  — = no data available.  * = live API returned 0, using latest CSV value instead.")
 
     #  Monthly history chart 
