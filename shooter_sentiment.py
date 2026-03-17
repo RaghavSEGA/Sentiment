@@ -489,7 +489,7 @@ GAME_CATALOG = {
 # Locked to the 42 SteamDB CSVs in /data — 1818450 removed (no CSV), 240 added
 FPS_ROSTER_IDS = [
     730, 578080, 252490, 1172470, 3764200, 2357570, 2507950, 359550, 440,
-    221100, 2767030, 1366800, 2807960, 3065800, 4465480, 1938090, 1174180,
+    221100, 2767030, 2807960, 3065800, 4465480, 1938090, 1174180,
     4000, 1091500, 2073620, 251570, 377160, 550, 1151340, 240,
 ]
 
@@ -497,7 +497,7 @@ FPS_ROSTER_IDS = [
 # Locked to the 42 SteamDB CSVs in /data — 1329410 removed (no CSV), 1659040 added
 TPS_ROSTER_IDS = [
     578080, 1808500, 271590, 3764200, 2357570, 236390, 1422450, 230410,
-    2767030, 3240220, 553850, 1366800, 1938090, 1623730, 1174180, 2050650,
+    2767030, 3240220, 553850, 1938090, 1623730, 1174180, 2050650,
     377160, 2221490, 2183900, 107410, 1407200, 3405340, 3659280, 552990,
     1659040,
 ]
@@ -723,7 +723,7 @@ def compute_yoy(monthly_df: pd.DataFrame) -> tuple[str, float]:
     pct = (val_now - val_prev) / val_prev * 100
     pct_capped = max(-999.0, min(999.0, pct))
     sign = "+" if pct_capped >= 0 else ""
-    return f"{sign}{pct_capped:.1f}%", pct_capped
+    return f"{sign}{round(pct_capped)}%", pct_capped
 
 
 def get_historical_summary(monthly_df: pd.DataFrame) -> dict:
@@ -750,7 +750,7 @@ def get_historical_summary(monthly_df: pd.DataFrame) -> dict:
         if v1 and v1 > 0 and not pd.isna(v1) and not pd.isna(v2):
             mom_pct = (v2 - v1) / v1 * 100
             sign = "+" if mom_pct >= 0 else ""
-            mom_trend = f"{sign}{mom_pct:.1f}%"
+            mom_trend = f"{sign}{round(mom_pct)}%"
     # 1-year-ago peak CCU (for live vs 1yr comparison)
     yoy_ccu = None
     if len(monthly_df) >= 12:
@@ -901,6 +901,25 @@ def fetch_ccu(app_id: int) -> int | None:
         r = requests.get(CCU_URL, params={"appid": app_id}, timeout=8)
         if r.ok:
             return r.json().get("response", {}).get("player_count")
+    except Exception:
+        pass
+    return None
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_steam_reviews(app_id: int) -> int | None:
+    """Fallback: fetch all-time review score from Steam store API."""
+    try:
+        r = requests.get(
+            f"https://store.steampowered.com/appreviews/{app_id}",
+            params={"json": 1, "language": "all", "review_type": "all", "purchase_type": "all"},
+            timeout=8,
+        )
+        if r.ok:
+            qs = r.json().get("query_summary", {})
+            total = qs.get("total_reviews", 0) or 0
+            pos   = qs.get("total_positive", 0) or 0
+            if total > 0:
+                return round(pos / total * 100)
     except Exception:
         pass
     return None
@@ -1508,7 +1527,7 @@ TRANSLATIONS = {
         "wow_none":               "No CSV data loaded yet. Add steamdb_chart_{appid}.csv files to the /data folder.",
         "heatmap_expander":       "Sub-Genre CCU Heat Map",
         "heatmap_caption":        "Source: Aggregated from Steam API live CCU, grouped by sub-genre tag in roster.",
-        "table_expander":         "Full Data Table — All Tracked Titles",
+        "table_expander":         "Top Shooter CCU Stack-Ranked — {genre}",
         "history_expander":       "Monthly Peak CCU History — SteamDB Data",
         "history_caption":        "Source: SteamDB 10-min interval CSVs, aggregated to monthly peak. Annotations mark key events.",
         # Table columns
@@ -1647,7 +1666,7 @@ TRANSLATIONS = {
         "wow_none":               "CSVsteamdb_chart_{{appid}}.csv  /data ",
         "heatmap_expander":       "CCU",
         "heatmap_caption":        ": Steam API CCU",
-        "table_expander":         " — ",
+        "table_expander":         "CCU — {genre}",
         "history_expander":       "CCU — SteamDB",
         "history_caption":        ": SteamDB 10CSV",
         "col_title":              "",
@@ -1930,15 +1949,11 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-_g_col1, _g_col2, _g_spacer = st.columns([1, 1, 4])
+_g_col1, _g_col2, _g_col3, _g_spacer = st.columns([1, 1, 1, 3])
 with _g_col1:
     _fps_active = st.session_state.roster_genre == "FPS"
-    if st.button(
-        " First-Person",
-        key="btn_fps",
-        type="primary" if _fps_active else "secondary",
-        use_container_width=True,
-    ):
+    if st.button("First-Person", key="btn_fps",
+        type="primary" if _fps_active else "secondary", use_container_width=True):
         if not _fps_active:
             st.session_state.roster_genre  = "FPS"
             st.session_state.roster_filter = []
@@ -1946,15 +1961,10 @@ with _g_col1:
             st.session_state.active_query  = None
             st.session_state.ai_report     = ""
             st.rerun()
-
 with _g_col2:
     _tps_active = st.session_state.roster_genre == "TPS"
-    if st.button(
-        " Third-Person",
-        key="btn_tps",
-        type="primary" if _tps_active else "secondary",
-        use_container_width=True,
-    ):
+    if st.button("Third-Person", key="btn_tps",
+        type="primary" if _tps_active else "secondary", use_container_width=True):
         if not _tps_active:
             st.session_state.roster_genre  = "TPS"
             st.session_state.roster_filter = []
@@ -1962,12 +1972,27 @@ with _g_col2:
             st.session_state.active_query  = None
             st.session_state.ai_report     = ""
             st.rerun()
+with _g_col3:
+    _both_active = st.session_state.roster_genre == "BOTH"
+    if st.button("FPS + TPS", key="btn_both",
+        type="primary" if _both_active else "secondary", use_container_width=True):
+        if not _both_active:
+            st.session_state.roster_genre  = "BOTH"
+            st.session_state.roster_filter = []
+            st.session_state.ccu_data      = []
+            st.session_state.active_query  = None
+            st.session_state.ai_report     = ""
+            st.rerun()
 
 # Build full roster for active genre
-_full_roster = get_roster(st.session_state.roster_genre)
+if st.session_state.roster_genre == "BOTH":
+    _both_ids    = list(dict.fromkeys(FPS_ROSTER_IDS + TPS_ROSTER_IDS))
+    _full_roster = [{"app_id": a, **GAME_CATALOG[a]} for a in _both_ids if a in GAME_CATALOG]
+else:
+    _full_roster = get_roster(st.session_state.roster_genre)
 _all_names   = [g["name"] for g in _full_roster]
 _all_ids     = [g["app_id"] for g in _full_roster]
-_genre_label = "First-Person Shooters" if st.session_state.roster_genre == "FPS" else "Third-Person Shooters"
+_genre_label = "First-Person Shooters" if st.session_state.roster_genre == "FPS" else ("Third-Person Shooters" if st.session_state.roster_genre == "TPS" else "FPS + TPS Combined")
 
 # Game picker — inside expander to keep UI clean
 _prev_filter = st.session_state.roster_filter
@@ -2048,7 +2073,9 @@ if not st.session_state.ccu_data:
             pos_reviews= ss.get("positive", 0) or 0
             neg_reviews= ss.get("negative", 0) or 0
             total_rev  = pos_reviews + neg_reviews
-            review_pct = round(pos_reviews / total_rev * 100, 1) if total_rev else None
+            review_pct = round(pos_reviews / total_rev * 100) if total_rev else None
+            if review_pct is None:
+                review_pct = fetch_steam_reviews(game["app_id"])
 
             # Fall back to latest CSV row if Steam API returns 0 (e.g. Deadlock)
             ccu_from_csv = False
@@ -2089,6 +2116,7 @@ else:
     # AI ANALYSIS — shown above dashboard
     if st.session_state.active_query:
         _genre_lbl = st.session_state.get("roster_genre", "FPS")
+        if _genre_lbl == "BOTH": _genre_lbl = "FPS"
         st.markdown(f"""
 <div class="section-header">
   <span class="dot"></span>AI ANALYSIS — {st.session_state.report_label.upper()}
@@ -2220,12 +2248,6 @@ else:
                     st.session_state.ai_chat_history.append({"role": "assistant", "content": _reply})
                 except Exception as _ce:
                     st.error(f"Chat error: {type(_ce).__name__}: {_ce}")
-
-            _user_msg = st.chat_input("Ask a follow-up question…", key="ai_chat_input_top")
-            if _user_msg:
-                st.session_state.ai_chat_history.append({"role": "user", "content": _user_msg})
-                st.session_state.ai_chat_pending = True
-                st.rerun()
 
             if st.session_state.ai_chat_history:
                 if st.button("Clear chat history", key="clear_chat_top"):
@@ -2493,7 +2515,7 @@ else:
             st.caption(T("heatmap_caption"))
 
     # ── Top 10 bar chart (active roster, sorted by live CCU) ──
-    _genre_label_chart = "FPS" if st.session_state.roster_genre == "FPS" else "TPS"
+    _genre_label_chart = {"FPS":"FPS","TPS":"TPS","BOTH":"FPS+TPS"}.get(st.session_state.roster_genre,"FPS")
     top_n = ccu_data[:25]
     rest_n = []  # all 25 in main chart
 
@@ -2558,33 +2580,60 @@ else:
         st.caption(f"Green = WoW up  |  Red = WoW down  |  Grey = no CSV data  |  {_genre_label_chart} roster")
 
     #  Full data table 
-    with st.expander(T("table_expander")):
+    _tbl_genre = st.session_state.get("roster_genre", "FPS")
+    with st.expander(f"Top Shooter CCU Stack-Ranked — {_tbl_genre}"):
         df = pd.DataFrame([{
+            "#":                 i + 1,
             T("col_title"):      r["name"],
             T("col_subgenre"):   r["sub"],
             T("col_publisher"):  r["publisher"],
             T("col_f2p"):        T("yes") if r["f2p"] else T("no"),
-            T("col_live_ccu"):   f"{r['ccu']:,} *" if r.get("ccu_from_csv") else r["ccu"],
+            T("col_live_ccu"):   f"{r['ccu']:,} *" if r.get("ccu_from_csv") else f"{r['ccu']:,}",
             T("col_yoy"):        r.get("yoy", "N/A"),
-            T("col_data_source"): "SteamDB CSV" if r.get("has_hist") else "SteamSpy proxy",
             T("col_peak_ever"):  f"{r['hist_summary']['peak_ever']:,}" if r.get("hist_summary", {}).get("peak_ever") else "—",
             T("col_peak_12m"):   f"{r['hist_summary']['peak_12m']:,}" if r.get("hist_summary", {}).get("peak_12m")  else "—",
             T("col_avg_ccu_12m"):f"{r['hist_summary']['avg_12m']:,}" if r.get("hist_summary", {}).get("avg_12m")   else "—",
             T("col_mom"):        r.get("hist_summary", {}).get("mom_trend", "—"),
             T("col_review"):     f"{r['review_pct']}%" if r.get("review_pct") else "—",
-        } for r in ccu_data])
-        _num_cols_tbl = [T("col_live_ccu"), T("col_peak_ever"), T("col_peak_12m"), T("col_avg_ccu_12m")]
-        _present_num  = [c for c in _num_cols_tbl if c in df.columns]
-        _tbl_styler   = df.style.set_properties(
-            subset=_present_num, **{"text-align": "right"}
-        ) if _present_num else df
+        } for i, r in enumerate(ccu_data)])
+
+        # Raw numeric cols for styling
+        _mom_raw_tbl = []
+        _yoy_raw_tbl = []
+        for r in ccu_data:
+            mom_p = (r.get("hist_summary") or {}).get("mom_pct")
+            _mom_raw_tbl.append(mom_p if mom_p is not None else 0)
+            _yoy_raw_tbl.append(r.get("yoy_val") or 0)
+
+        def _style_table(df):
+            styles = pd.DataFrame("", index=df.index, columns=df.columns)
+            mom_col = T("col_mom")
+            yoy_col = T("col_yoy")
+            num_cols = [T("col_live_ccu"), T("col_peak_ever"), T("col_peak_12m"), T("col_avg_ccu_12m")]
+            for i in df.index:
+                # MoM: green/red + centre
+                if mom_col in df.columns:
+                    v = _mom_raw_tbl[i] if i < len(_mom_raw_tbl) else 0
+                    c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
+                    styles.iloc[i, df.columns.get_loc(mom_col)] = c + "; text-align: center"
+                # YoY: green/red
+                if yoy_col in df.columns:
+                    v = _yoy_raw_tbl[i] if i < len(_yoy_raw_tbl) else 0
+                    c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
+                    styles.iloc[i, df.columns.get_loc(yoy_col)] = c
+                # Numeric cols: right-align
+                for nc in num_cols:
+                    if nc in df.columns:
+                        styles.iloc[i, df.columns.get_loc(nc)] = "text-align: right"
+            return styles
+
         st.dataframe(
-            _tbl_styler,
+            df.style.apply(_style_table, axis=None),
             use_container_width=True,
             hide_index=True,
             height=(len(df) + 1) * 35 + 3,
         )
-        st.caption(f"{hist_count}/{len(ccu_data)} titles with SteamDB CSV · Peak/Avg from 10-min interval data")
+        st.caption(f"Review score = all-time positive reviews ÷ total reviews (SteamSpy). 'None%' = no review data returned by SteamSpy for that title. * = CCU from CSV fallback.")
 
     #  Monthly history chart 
     hist_titles = [r for r in ccu_data if r.get("has_hist")]
@@ -2872,6 +2921,17 @@ else:
                 mime="text/markdown",
                 key="drilldown_download",
             )
+
+# 
+# FOLLOW-UP CHAT INPUT (must be top-level for Streamlit)
+# 
+
+if st.session_state.get("ai_report") and st.session_state.get("claude_key"):
+    _user_msg = st.chat_input("Ask a follow-up question about this report…", key="ai_chat_input_top")
+    if _user_msg:
+        st.session_state.ai_chat_history.append({"role": "user", "content": _user_msg})
+        st.session_state.ai_chat_pending = True
+        st.rerun()
 
 # 
 # FOOTER
