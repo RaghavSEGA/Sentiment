@@ -240,18 +240,6 @@ div[data-baseweb="menu"] [aria-selected="true"] { background: var(--surface3) !i
     color: var(--text) !important;
 }
 
-/* FOCUS CHIP ROW */
-.focus-chip > button {
-    background: var(--surface) !important; color: var(--text-dim) !important;
-    border: 1px solid var(--border) !important; border-radius: 6px !important;
-    font-family: 'Inter Tight', sans-serif !important; font-size: .78rem !important;
-    font-weight: 700 !important; letter-spacing: .1em !important; text-transform: uppercase !important;
-    padding: .4rem 1.1rem !important; min-height: unset !important; height: auto !important;
-    line-height: 1.5 !important; transition: border-color .15s, color .15s, background .15s !important;
-    box-shadow: none !important; width: 100% !important;
-}
-.focus-chip > button:hover { background: var(--surface2) !important; border-color: var(--blue) !important; color: var(--text) !important; transform: none !important; box-shadow: none !important; }
-
 /* PROGRESS */
 .stProgress > div > div { background: var(--blue) !important; }
 
@@ -469,22 +457,6 @@ else:
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
-# QUICK FOCUS CHIPS
-# ─────────────────────────────────────────────────────────────
-
-QUICK_FOCUSES = ["Key Differences", "Risk & Compliance", "Tone & Style", "Data & Numbers", "Agreements & Gaps"]
-
-st.markdown('<div style="margin-bottom:.35rem;font-size:.6rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);">Quick focus</div>', unsafe_allow_html=True)
-_chip_cols = st.columns(len(QUICK_FOCUSES))
-_chip_clicked = None
-for _ci, _label in enumerate(QUICK_FOCUSES):
-    with _chip_cols[_ci]:
-        st.markdown('<div class="focus-chip">', unsafe_allow_html=True)
-        if st.button(_label, key=f"chip_{_ci}"):
-            _chip_clicked = _label
-        st.markdown('</div>', unsafe_allow_html=True)
-
-# ─────────────────────────────────────────────────────────────
 # UPLOAD BLOCK
 # ─────────────────────────────────────────────────────────────
 
@@ -540,20 +512,7 @@ with opt1:
         "Executive Summary",
         "Custom (describe below)",
     ]
-    # Pre-fill from chip click
     _focus_idx = 0
-    if _chip_clicked:
-        _label_map = {
-            "Key Differences":    "Key Differences & Similarities",
-            "Risk & Compliance":  "Risk & Compliance",
-            "Tone & Style":       "Tone & Writing Style",
-            "Data & Numbers":     "Data & Numbers",
-            "Agreements & Gaps":  "Agreements & Gaps",
-        }
-        _mapped = _label_map.get(_chip_clicked, "")
-        if _mapped in focus_options:
-            _focus_idx = focus_options.index(_mapped)
-
     focus = st.selectbox("focus", focus_options, index=_focus_idx, label_visibility="collapsed")
 
 with opt2:
