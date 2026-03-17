@@ -531,6 +531,7 @@ opt1, opt2, opt3 = st.columns([3, 2, 1.5])
 with opt1:
     st.markdown('<div class="field-label">Comparison Focus</div>', unsafe_allow_html=True)
     focus_options = [
+        "Comprehensive Assessment",
         "Key Differences & Similarities",
         "Risk & Compliance",
         "Tone & Writing Style",
@@ -587,6 +588,17 @@ if focus == "Custom (describe below)":
 st.markdown("</div>", unsafe_allow_html=True)  # close upload-block
 
 # ─────────────────────────────────────────────────────────────
+# MARKDOWN RENDER HELPER
+# ─────────────────────────────────────────────────────────────
+
+import re as _re
+
+def _escape_dollars(text: str) -> str:
+    """Escape bare $ signs so Streamlit doesn't treat them as LaTeX delimiters."""
+    # Replace $ not already escaped, not inside code blocks
+    return _re.sub(r'(?<!\\)\$', r'\\$', text)
+
+# ─────────────────────────────────────────────────────────────
 # COMPARISON LOGIC
 # ─────────────────────────────────────────────────────────────
 
@@ -613,6 +625,28 @@ if compare_clicked and file_a and file_b:
     actual_focus = custom_focus.strip() if focus == "Custom (describe below)" and custom_focus.strip() else focus
 
     focus_instructions = {
+        "Comprehensive Assessment": """Deliver a full, structured comparison across every meaningful dimension:
+
+## 1. Most Significant Differences
+Identify and explain the 4-6 most impactful differences between the documents. For each: state what changed, quote the specific language from both documents, and explain the significance.
+
+## 2. Numerical & Data Comparison
+List every figure, metric, date, percentage, and statistic that appears in both documents. Present them in a table (Metric | Document A | Document B | Delta). Flag any discrepancies or contradictions.
+
+## 3. Comprehensiveness Assessment
+Which document is more complete? For each major topic area, state whether Document A, Document B, or both cover it — and note anything present in one that is entirely absent from the other.
+
+## 4. Tone & Framing
+How does the language and framing differ? Note any tonal shifts, changes in confidence or hedging, or differences in how key facts are presented.
+
+## 5. Agreements & Alignment
+Where do the documents agree, reinforce, or directly echo each other? Quote matching language where relevant.
+
+## 6. Summary Verdict
+One paragraph: which document is more authoritative / complete / reliable, and why? What is the single most important thing a reader should know about the difference between these two documents?
+
+Be exhaustive. Quote directly. Use tables for any comparative data.""",
+
         "Key Differences & Similarities": """Compare the two documents thoroughly:
 1. List the 5-7 most significant differences — be specific, cite sections or values
 2. List 3-5 meaningful similarities or areas of alignment
@@ -671,6 +705,10 @@ Provide a thorough, structured analysis addressing the user's stated focus. Use 
             "Write in formal, precise language suitable for legal or contractual review. Use structured numbered sections. Flag ambiguities and obligations explicitly.",
     }
 
+    _xlsx_rule = ""
+    if type_a == "xlsx" or type_b == "xlsx":
+        _xlsx_rule = "\n- EXCEL FILES: For every difference found in a spreadsheet, state the exact sheet name and cell reference (e.g. Sheet1!B4, Financial Model!C12). Do not describe a change without citing its precise location."
+
     prompt = f"""You are a senior document analyst. You will compare two documents in depth.
 
 ═══════════════════════════════════
@@ -694,7 +732,7 @@ HARD RULES:
 - Every observation must be grounded in specific content from the documents
 - Quote directly from the documents when making claims about language or tone
 - Use clear markdown headers (##) for sections
-- Do not add generic preamble or sign-off — go straight into the analysis"""
+- Do not add generic preamble or sign-off — go straight into the analysis{_xlsx_rule}"""
 
     # Stream the response
     st.markdown('<div class="section-header"><span class="dot"></span>COMPARISON RESULT</div>', unsafe_allow_html=True)
@@ -721,9 +759,9 @@ HARD RULES:
         ) as stream:
             for delta in stream.text_stream:
                 full_text += delta
-                result_placeholder.markdown(full_text + "▌")
+                result_placeholder.markdown(_escape_dollars(full_text) + "▌")
 
-        result_placeholder.markdown(full_text)
+        result_placeholder.markdown(_escape_dollars(full_text))
         st.session_state.comparison_result = full_text
 
     except _anthropic.AuthenticationError:
@@ -741,7 +779,7 @@ HARD RULES:
 
 elif st.session_state.comparison_result:
     st.markdown('<div class="section-header"><span class="dot"></span>COMPARISON RESULT</div>', unsafe_allow_html=True)
-    st.markdown(st.session_state.comparison_result)
+    st.markdown(_escape_dollars(st.session_state.comparison_result))
 
 # ─────────────────────────────────────────────────────────────
 # DOWNLOAD + CHAT (shown when result exists)
@@ -993,7 +1031,7 @@ Answer follow-up questions concisely and specifically. Reference the actual docu
     # Render chat history
     for _msg in st.session_state.chat_history:
         with st.chat_message(_msg["role"]):
-            st.markdown(_msg["content"])
+            st.markdown(_escape_dollars(_msg["content"]))
 
     # Stream pending reply
     if st.session_state.chat_pending and claude_key:
@@ -1015,8 +1053,8 @@ Answer follow-up questions concisely and specifically. Reference the actual docu
                 ) as _stream:
                     for _delta in _stream.text_stream:
                         _reply += _delta
-                        _ph.markdown(_reply + "▌")
-                _ph.markdown(_reply)
+                        _ph.markdown(_escape_dollars(_reply) + "▌")
+                _ph.markdown(_escape_dollars(_reply))
             st.session_state.chat_history.append({"role": "assistant", "content": _reply})
         except _anthropic.AuthenticationError:
             st.error("Invalid API key.")
