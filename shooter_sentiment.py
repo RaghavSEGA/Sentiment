@@ -58,56 +58,74 @@ st.set_page_config(
 # HTML TABLE HELPER
 # 
 
-def html_table(rows: list[dict], col_order: list[str] = None) -> str:
-    """Render a list of dicts as a dark-themed HTML table with conditional
-    colour formatting on cells ending in % (green=positive, red=negative)."""
+# Columns where a + prefix (even without %) means green, - means red
+_DELTA_COLS = {
+    "YoY", "MoM", "Annual Change", "Month Change", "Weekly Change",
+    "Change (CCU)", "Review",
+}
+
+def html_table(rows: list[dict], col_order: list[str] = None,
+               green_cols: set[str] = None, red_cols: set[str] = None) -> str:
+    """Render a list of dicts as a fully styled dark HTML table.
+    Conditional colouring rules (applied in order):
+      1. Cells containing a value that starts with + → green
+      2. Cells containing a value that starts with - → red
+      3. Columns in green_cols override → always green
+      4. Columns in red_cols override → always red
+    """
     if not rows:
         return ""
     cols = col_order or list(rows[0].keys())
 
-    BG1   = "#0f1120"   # odd rows
-    BG2   = "#141728"   # even rows
+    BG1   = "#0f1120"
+    BG2   = "#141728"
     HDR   = "#0a0c1a"
     BORD  = "#232640"
     TXT   = "#eef0fa"
-    DIM   = "#b8bcd4"
     POS   = "#20c65a"
+    POS_BG= "rgba(32,198,90,0.08)"
     NEG   = "#ff4d4d"
+    NEG_BG= "rgba(255,77,77,0.08)"
     MUTED = "#5a5f82"
 
-    def cell_color(val: str) -> str:
-        s = str(val)
-        if s.startswith("+") and s.endswith("%"): return POS
-        if s.startswith("-") and s.endswith("%"): return NEG
-        return ""
+    def cell_style(col: str, val) -> tuple[str, str]:
+        """Return (text_color, bg_tint) for a cell."""
+        s = str(val).strip()
+        # explicit column overrides
+        if green_cols and col in green_cols: return POS, POS_BG
+        if red_cols   and col in red_cols:   return NEG, NEG_BG
+        # value-based: any delta-style column or any value starting with +/-
+        is_delta = col in _DELTA_COLS
+        if s.startswith("+") and s not in ("", "+"): return POS, POS_BG if is_delta else ""
+        if s.startswith("-") and s not in ("", "-"): return NEG, NEG_BG if is_delta else ""
+        return TXT, ""
 
-    th_style = (f"padding:8px 12px;text-align:left;font-size:0.72rem;"
-                f"font-weight:700;letter-spacing:0.1em;text-transform:uppercase;"
-                f"color:{MUTED};background:{HDR};border-bottom:2px solid {BORD};"
-                f"white-space:nowrap;")
-    td_base  = (f"padding:7px 12px;font-size:0.82rem;border-bottom:1px solid {BORD};"
-                f"white-space:nowrap;")
+    th = (f"padding:9px 14px;text-align:left;font-size:0.7rem;font-weight:700;"
+          f"letter-spacing:0.1em;text-transform:uppercase;color:{MUTED};"
+          f"background:{HDR};border-bottom:2px solid {BORD};white-space:nowrap;")
+    td_base = "padding:7px 14px;font-size:0.83rem;border-bottom:1px solid {bord};white-space:nowrap;"
 
-    head = "".join(f"<th style='{th_style}'>{c}</th>" for c in cols)
+    head = "".join(f"<th style='{th}'>{c}</th>" for c in cols)
     body_rows = []
     for i, row in enumerate(rows):
-        bg = BG1 if i % 2 == 0 else BG2
+        row_bg = BG1 if i % 2 == 0 else BG2
         cells = []
         for c in cols:
             val = row.get(c, "")
-            cc  = cell_color(str(val))
-            color = f"color:{cc};" if cc else f"color:{TXT};"
-            fw = "font-weight:700;" if cc else ""
-            td = f"<td style='{td_base}background:{bg};{color}{fw}'>{val}</td>"
-            cells.append(td)
+            txt_col, bg_tint = cell_style(c, val)
+            bg = bg_tint if bg_tint else row_bg
+            fw = "font-weight:600;" if txt_col in (POS, NEG) else ""
+            td_style = td_base.format(bord=BORD) + f"background:{bg};color:{txt_col};{fw}"
+            cells.append(f"<td style='{td_style}'>{val}</td>")
         body_rows.append(f"<tr>{''.join(cells)}</tr>")
 
-    table = f"""<div style='overflow-x:auto;border:1px solid {BORD};border-radius:8px;'>
-<table style='width:100%;border-collapse:collapse;font-family:Poppins,sans-serif;'>
-<thead><tr>{head}</tr></thead>
-<tbody>{''.join(body_rows)}</tbody>
-</table></div>"""
-    return table
+    return (f"<div style='overflow-x:auto;border:1px solid {BORD};"
+            f"border-radius:8px;margin-bottom:0.5rem;'>"
+            f"<table style='width:100%;border-collapse:collapse;"
+            f"font-family:Poppins,sans-serif;'>"
+            f"<thead><tr>{head}</tr></thead>"
+            f"<tbody>{''.join(body_rows)}</tbody>"
+            f"</table></div>")
 
 # 
 # SEGA BRAND STYLES
