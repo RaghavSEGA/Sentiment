@@ -2606,14 +2606,6 @@ if st.session_state.ccu_data:
 # 
 
 if st.session_state.active_query:
-    _genre_tag = st.session_state.get("roster_genre", "FPS")
-    _report_title = f"{st.session_state.report_label.upper()} — {_genre_tag}"
-    st.markdown(f"""
-    <div class="section-header">
-      <span class="dot"></span>AI ANALYSIS — {_report_title}
-    </div>
-    """, unsafe_allow_html=True)
-
     if not st.session_state.claude_key:
         st.warning(T("no_key_warning"), icon="")
     elif not ANTHROPIC_AVAILABLE:
@@ -2644,7 +2636,6 @@ if st.session_state.active_query:
         ai_model = "claude-sonnet-4-20250514"
 
         with st.spinner(T("spinner_generating")):
-            ph = st.empty()
             report_text = ""
             try:
                 client = _anthropic.Anthropic(api_key=st.session_state.claude_key)
@@ -2656,9 +2647,8 @@ if st.session_state.active_query:
                 ) as stream:
                     for delta in stream.text_stream:
                         report_text += delta
-                        ph.markdown(report_text + "")
-                ph.markdown(report_text)
                 st.session_state.ai_report = report_text
+                st.rerun()
             except _anthropic.AuthenticationError:
                 st.error(T("auth_error"))
             except _anthropic.RateLimitError:
@@ -2667,9 +2657,6 @@ if st.session_state.active_query:
                 st.error(f"Could not reach Anthropic API: {e}")
             except Exception as e:
                 st.error(f"Unexpected error: {type(e).__name__}: {e}")
-
-    elif st.session_state.ai_report:
-        st.markdown(st.session_state.ai_report)
 
     #  Download options 
     if st.session_state.ai_report:
