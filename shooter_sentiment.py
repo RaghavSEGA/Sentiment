@@ -2059,6 +2059,12 @@ with st.expander(_expander_label, expanded=False):
         st.session_state.ccu_data      = []
         st.rerun()
 
+# Clear stale filter IDs that don't belong to the current roster
+if st.session_state.roster_filter:
+    _valid = [i for i in st.session_state.roster_filter if i in _all_ids]
+    if _valid != st.session_state.roster_filter:
+        st.session_state.roster_filter = _valid
+
 # Apply filter → active roster
 _active_ids    = st.session_state.roster_filter or _all_ids
 _active_roster = [g for g in _full_roster if g["app_id"] in _active_ids]
