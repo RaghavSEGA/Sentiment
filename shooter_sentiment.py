@@ -43,9 +43,9 @@ try:
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
-# ─────────────────────────────────────────────────────────────
+# 
 # PAGE CONFIG
-# ─────────────────────────────────────────────────────────────
+# 
 
 st.set_page_config(
     page_title="SEGA Shooter Intel",
@@ -54,9 +54,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ─────────────────────────────────────────────────────────────
+# 
 # SEGA BRAND STYLES
-# ─────────────────────────────────────────────────────────────
+# 
 
 st.markdown("""
 <style>
@@ -136,7 +136,7 @@ code { background: var(--surface3) !important; color: var(--blue) !important; pa
 ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-/* ══ TOP NAV ══ */
+/*  TOP NAV  */
 .topbar {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
@@ -159,13 +159,13 @@ code { background: var(--surface3) !important; color: var(--blue) !important; pa
 .topbar-label { font-size: 0.6rem; font-weight: 600; color: var(--muted) !important; letter-spacing: 0.2em; text-transform: uppercase; }
 .topbar-pill { margin-left: auto; background: var(--blue-glow); border: 1px solid rgba(64,128,255,0.28); border-radius: 20px; padding: 0.18rem 0.7rem; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--blue) !important; }
 
-/* ══ HERO ══ */
+/*  HERO  */
 .hero { padding: 1.5rem 0 0.75rem; }
 .hero-title { font-family: 'Inter Tight', sans-serif; font-size: 2.4rem; font-weight: 900; line-height: 1.05; color: var(--text) !important; letter-spacing: -0.03em; margin-bottom: 0.5rem; }
 .hero-title .accent { color: var(--blue); }
 .hero-sub { font-size: 0.87rem; font-weight: 300; color: var(--muted) !important; max-width: 580px; line-height: 1.65; }
 
-/* ══ QUERY BLOCK ══ */
+/*  QUERY BLOCK  */
 .query-block {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -176,7 +176,7 @@ code { background: var(--surface3) !important; color: var(--blue) !important; pa
 }
 .field-label { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted) !important; margin-bottom: 0.3rem; }
 
-/* ══ FORM CONTROLS ══ */
+/*  FORM CONTROLS  */
 .stTextInput > div > div > input,
 .stTextArea > div > div > textarea {
     background: var(--bg) !important;
@@ -220,7 +220,7 @@ div[data-baseweb="menu"] [aria-selected="true"] { background: var(--surface3) !i
 [data-testid="stCheckbox"] span,
 [data-testid="stCheckbox"] p { color: var(--text) !important; font-size: 0.84rem !important; }
 
-/* ══ BUTTONS ══ */
+/*  BUTTONS  */
 .stButton > button {
     background: var(--blue) !important;
     color: #fff !important;
@@ -261,7 +261,7 @@ div[data-baseweb="menu"] [aria-selected="true"] { background: var(--surface3) !i
     transform: none !important;
 }
 
-/* ══ METRIC CARDS ══ */
+/*  METRIC CARDS  */
 .metric-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -289,7 +289,7 @@ div[data-baseweb="menu"] [aria-selected="true"] { background: var(--surface3) !i
 .metric-value { font-family: 'Inter Tight', sans-serif; font-size: 2.1rem; font-weight: 900; color: var(--text) !important; line-height: 1; margin-bottom: 0.25rem; letter-spacing: -0.025em; }
 .metric-sub { font-size: 0.69rem; color: var(--muted) !important; font-weight: 300; }
 
-/* ══ SECTION HEADER ══ */
+/*  SECTION HEADER  */
 .section-header {
     font-family: 'Inter Tight', sans-serif;
     font-size: 0.68rem;
@@ -306,13 +306,13 @@ div[data-baseweb="menu"] [aria-selected="true"] { background: var(--surface3) !i
 }
 .section-header .dot { width: 5px; height: 5px; background: var(--blue); border-radius: 1px; display: inline-block; flex-shrink: 0; box-shadow: 0 0 5px var(--blue); }
 
-/* ══ PROGRESS BARS ══ */
+/*  PROGRESS BARS  */
 .stProgress > div > div > div > div {
     background: linear-gradient(90deg, var(--blue) 0%, #7ab0ff 100%) !important;
     border-radius: 4px !important;
 }
 
-/* ══ TABS ══ */
+/*  TABS  */
 .stTabs [data-baseweb="tab-list"] {
     gap: 0 !important;
     border-bottom: 1px solid var(--border) !important;
@@ -335,7 +335,7 @@ div[data-baseweb="menu"] [aria-selected="true"] { background: var(--surface3) !i
 .stTabs [aria-selected="true"] { color: var(--text) !important; border-bottom-color: var(--blue) !important; }
 .stTabs [data-baseweb="tab-panel"] { padding-top: 0.5rem !important; }
 
-/* ══ EXPANDERS ══ */
+/*  EXPANDERS  */
 [data-testid="stExpander"],
 details[data-testid="stExpander"] {
     background: var(--surface) !important;
@@ -350,7 +350,7 @@ details[data-testid="stExpander"] {
 [data-testid="stExpanderDetails"],
 [data-testid="stExpanderDetails"] > div { background: var(--surface) !important; color: var(--text) !important; }
 
-/* ══ DATA TABLE ══ */
+/*  DATA TABLE  */
 [data-testid="stDataFrame"] {
     background: var(--surface) !important;
     border: 1px solid var(--border) !important;
@@ -358,7 +358,7 @@ details[data-testid="stExpander"] {
     overflow: hidden;
 }
 
-/* ══ ALERTS ══ */
+/*  ALERTS  */
 [data-testid="stAlert"],
 div[data-baseweb="notification"] {
     background: var(--surface2) !important;
@@ -369,10 +369,10 @@ div[data-baseweb="notification"] {
 [data-testid="stAlert"] p,
 [data-testid="stAlert"] span { color: var(--text) !important; }
 
-/* ══ SPINNER ══ */
+/*  SPINNER  */
 [data-testid="stSpinner"] p { color: var(--text) !important; }
 
-/* ══ INSIGHT CARD (query preset) ══ */
+/*  INSIGHT CARD (query preset)  */
 .insight-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -387,13 +387,13 @@ div[data-baseweb="notification"] {
 .insight-card-title { font-family: 'Inter Tight', sans-serif; font-weight: 800; font-size: 0.82rem; color: var(--text) !important; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
 .insight-card-desc { font-size: 0.74rem; color: var(--muted) !important; line-height: 1.55; }
 
-/* ══ TAG BADGE ══ */
+/*  TAG BADGE  */
 .tag { display: inline-block; background: var(--blue-glow); border: 1px solid rgba(64,128,255,0.28); border-radius: 4px; padding: 0.1rem 0.5rem; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--blue) !important; margin-right: 0.35rem; }
 .tag.amber { background: var(--amber-dim); border-color: rgba(255,185,56,0.28); color: var(--amber) !important; }
 .tag.pos   { background: var(--pos-dim);   border-color: rgba(32,198,90,0.28);  color: var(--pos)   !important; }
 .tag.purple{ background: var(--purple-dim);border-color: rgba(168,85,247,0.28); color: var(--purple)!important; }
 
-/* ══ EMPTY STATE ══ */
+/*  EMPTY STATE  */
 .empty-state {
     margin-top: 3.5rem;
     text-align: center;
@@ -405,7 +405,7 @@ div[data-baseweb="notification"] {
 .empty-title { font-family: 'Inter Tight', sans-serif; font-size: 2rem; font-weight: 900; color: var(--border-hi) !important; letter-spacing: -0.02em; margin-bottom: 0.7rem; }
 .empty-sub { font-size: 0.86rem; color: var(--muted) !important; max-width: 380px; margin: 0 auto; line-height: 1.75; }
 
-/* ══ FOOTER ══ */
+/*  FOOTER  */
 .footer {
     margin-top: 4rem;
     padding-top: 1.25rem;
@@ -417,16 +417,16 @@ div[data-baseweb="notification"] {
 .footer-brand { font-family: 'Inter Tight', sans-serif; font-weight: 900; font-size: 0.7rem; color: var(--border-hi) !important; letter-spacing: 0.14em; text-transform: uppercase; }
 .footer-note { font-size: 0.63rem; color: var(--muted) !important; }
 
-/* ══ CHAT ══ */
+/*  CHAT  */
 [data-testid="stChatMessage"] { background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: 8px !important; }
 [data-testid="stChatInput"] > div { background: var(--surface2) !important; border-color: var(--border-hi) !important; }
 [data-testid="stChatInput"] textarea { color: var(--text) !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────────────────────
+# 
 # CONSTANTS & DATA
-# ─────────────────────────────────────────────────────────────
+# 
 
 PLOTLY_BASE = dict(
     paper_bgcolor="rgba(0,0,0,0)",
@@ -436,7 +436,7 @@ PLOTLY_BASE = dict(
 )
 
 # Top 10 shooters on Steam (source: SteamDB live charts, March 2026)
-# ─── Roster data — all unique titles across both lists ────────────────────────
+#  Roster data — all unique titles across both lists 
 # Sub-genre and publisher are looked up by app_id; the two ranked lists
 # below reference these by ID only to avoid duplication.
 GAME_CATALOG = {
@@ -502,55 +502,70 @@ TPS_ROSTER_IDS = [
     1659040,
 ]
 
-# ─────────────────────────────────────────────────────────────
+# 
 # NOTABLE EVENTS PER GAME  (date → label for chart annotations)
-# ─────────────────────────────────────────────────────────────
+# 
 
-GAME_EVENTS: dict[int, list[tuple[str, str]]] = {
-    730:     [("2023-09", "CS2 launch"), ("2022-11", "CS:GO F2P peak")],
-    578080:  [("2018-01", "PUBG peak"), ("2022-06", "F2P launch")],
-    252490:  [("2021-05", "Console launch"), ("2023-03", "Pop. peak")],
-    1172470: [("2020-11", "Season 7"), ("2023-02", "Season 16 peak")],
-    3764200: [("2025-02", "MH Wilds launch")],
-    2357570: [("2022-10", "OW2 launch"), ("2023-08", "PvE cancelled")],
-    2507950: [("2024-12", "Delta Force launch")],
-    359550:  [("2020-03", "Y5 F2P"), ("2021-06", "Crimson Heist peak")],
-    440:     [("2020-04", "COVID peak"), ("2023-07", "Valve update")],
-    221100:  [("2021-10", "1.0 release"), ("2022-12", "Frostline DLC")],
-    2767030: [("2024-12", "Marvel Rivals launch")],
-    2807960: [("2025-06", "BF6 (projected)")],
-    1938090: [("2023-11", "MW3 launch"), ("2022-11", "MW2 launch")],
-    1174180: [("2023-12", "RDR2 sale peak")],
-    4000:    [("2020-04", "COVID peak")],
-    1091500: [("2023-09", "2.0 + Phantom Liberty")],
-    2073620: [("2024-07", "ABI launch")],
-    251570:  [("2024-06", "1.0 release")],
-    377160:  [("2024-04", "Next-Gen + mod surge")],
-    550:     [("2020-04", "COVID peak")],
-    1151340: [("2022-04", "Steel Reign free"), ("2023-10", "Atlantic City")],
-    1808500: [("2025-04", "ARC Raiders launch")],
-    271590:  [("2022-03", "GTA+ launch"), ("2023-05", "Online update")],
-    236390:  [("2022-02", "Naval peak"), ("2024-01", "Air superiority patch")],
-    1422450: [("2024-09", "Deadlock access")],
-    230410:  [("2021-09", "New War"), ("2023-04", "Cross-save launch")],
-    3240220: [("2025-03", "GTA V Enhanced")],
-    553850:  [("2024-02", "HD2 launch")],
-    1623730: [("2024-01", "Palworld launch")],
-    2050650: [("2023-03", "RE4R launch")],
-    2221490: [("2023-04", "Season 10"), ("2024-03", "F2P base game")],
-    2183900: [("2024-09", "SM2 launch")],
-    107410:  [("2021-05", "Arma 3 peak"), ("2024-03", "Dev shift A4")],
-    1407200: [("2022-11", "WoT console peak")],
-    3405340: [("2025-03", "Split Fiction launch")],
-    3659280: [("2025-03", "Atomfall launch")],
-    552990:  [("2020-10", "BL3 free EGS"), ("2021-03", "DLC3 peak")],
-    1329410: [("2022-11", "Deep Rock peak"), ("2024-01", "Season 4")],
-    240:     [("2020-04", "COVID peak")],
-    1659040: [("2023-11", "WoA free upgrade")],
-}
+# Steam News API — replaces hardcoded GAME_EVENTS
+STEAM_NEWS_URL = "https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/"
+
+# Keywords that suggest a meaningful update (patch notes, seasons, DLC, major releases)
+_NEWS_KEYWORDS = [
+    "update", "patch", "season", "dlc", "expansion", "launch", "release",
+    "major", "anniversary", "free", "wipe", "reset", "event", "content",
+    "chapter", "operation", "overhaul", "rework", "battle pass", "new map",
+    "new mode", "hotfix", "balance", "2.0", "3.0",
+]
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_steam_news(app_id: int, count: int = 100) -> list[tuple[str, str]]:
+    """
+    Fetch latest news for a game from the Steam News API.
+    Returns list of (YYYY-MM, title) tuples filtered to meaningful update events,
+    deduplicated to one event per month (the most prominent).
+    """
+    try:
+        r = requests.get(
+            STEAM_NEWS_URL,
+            params={
+                "appid":     app_id,
+                "count":     count,
+                "maxlength": 0,       # titles only, no body content
+                "format":    "json",
+            },
+            timeout=10,
+        )
+        if not r.ok:
+            return []
+        items = r.json().get("appnews", {}).get("newsitems", [])
+    except Exception:
+        return []
+
+    events: dict[str, str] = {}  # month -> best label (dedup to 1 per month)
+    for item in items:
+        title = item.get("title", "").strip()
+        ts    = item.get("date", 0)
+        if not title or not ts:
+            continue
+        title_lower = title.lower()
+        if not any(kw in title_lower for kw in _NEWS_KEYWORDS):
+            continue
+        from datetime import datetime, timezone
+        dt    = datetime.fromtimestamp(ts, tz=timezone.utc)
+        month = dt.strftime("%Y-%m")
+        # Truncate long titles for annotation legibility
+        label = title[:40].rstrip() + ("…" if len(title) > 40 else "")
+        # Keep shortest/clearest label per month (prefer patch notes)
+        if month not in events or len(label) < len(events[month]):
+            events[month] = label
+
+    # Return sorted oldest → newest
+    return sorted(events.items())
+
 
 def get_game_events(app_id: int) -> list[tuple[str, str]]:
-    return GAME_EVENTS.get(app_id, [])
+    """Wrapper — fetches from Steam News API with caching."""
+    return fetch_steam_news(app_id)
 
 def get_roster(genre: str = "FPS") -> list[dict]:
     """Return roster list for given genre, merging catalog metadata."""
@@ -583,9 +598,9 @@ DATA_DIR = _find_data_dir()
 # Steam CCU endpoint
 CCU_URL = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/"
 
-# ─────────────────────────────────────────────────────────────
+# 
 # STEAMDB HISTORICAL CSV LOADER
-# ─────────────────────────────────────────────────────────────
+# 
 
 @st.cache_data(show_spinner=False)
 def _parse_steamdb_bytes(raw_bytes: bytes, app_id: int) -> pd.DataFrame | None:
@@ -736,6 +751,13 @@ def get_historical_summary(monthly_df: pd.DataFrame) -> dict:
             mom_pct = (v2 - v1) / v1 * 100
             sign = "+" if mom_pct >= 0 else ""
             mom_trend = f"{sign}{mom_pct:.1f}%"
+    # 1-year-ago peak CCU (for live vs 1yr comparison)
+    yoy_ccu = None
+    if len(monthly_df) >= 12:
+        yr_ago_row = monthly_df.iloc[-12]
+        v = yr_ago_row.get("peak_ccu") or yr_ago_row.get("avg_ccu")
+        if v and not pd.isna(v):
+            yoy_ccu = int(v)
     return {
         "peak_ever":  int(peak_ever) if not pd.isna(peak_ever) else None,
         "peak_12m":   int(peak_12m)  if not pd.isna(peak_12m)  else None,
@@ -743,6 +765,7 @@ def get_historical_summary(monthly_df: pd.DataFrame) -> dict:
         "mom_trend":  mom_trend,
         "mom_pct":    mom_pct,
         "months_data": len(monthly_df),
+        "yoy_ccu":    yoy_ccu,
     }
 
 
@@ -865,9 +888,9 @@ PRESET_QUERIES = [
     },
 ]
 
-# ─────────────────────────────────────────────────────────────
+# 
 # STEAM LIVE CCU FETCH
-# ─────────────────────────────────────────────────────────────
+# 
 
 STEAMSPY_URL = "https://steamspy.com/api.php"
 
@@ -927,9 +950,9 @@ def parse_yoy_from_steamspy(ss: dict) -> tuple[str, int]:
     sign = "+" if pct >= 0 else ""
     return f"{sign}{pct}%", pct
 
-# ─────────────────────────────────────────────────────────────
+# 
 # REPORT HELPERS (HTML + PDF)
-# ─────────────────────────────────────────────────────────────
+# 
 
 def report_to_html(md_text: str) -> str:
     body = _md_lib.markdown(md_text, extensions=["tables", "fenced_code"]) if MARKDOWN_AVAILABLE else md_text.replace("\n", "<br>")
@@ -1023,13 +1046,13 @@ def report_to_pdf(md_text: str) -> bytes | None:
     doc.build(story)
     return buf.getvalue()
 
-# ─────────────────────────────────────────────────────────────
+# 
 # CLAUDE PROMPTS
-# ─────────────────────────────────────────────────────────────
+# 
 
 def build_system_prompt(language: str = "English") -> str:
     lang_instruction = (
-        " IMPORTANT: Write your entire response in Japanese (日本語). "
+        " IMPORTANT: Write your entire response in Japanese (). "
         "Use professional business Japanese suitable for senior management. "
         "All section headers, bullet points, tables, and analysis must be in Japanese. "
         "Game titles may be kept in their original English/romanised form where commonly known."
@@ -1044,17 +1067,17 @@ def build_system_prompt(language: str = "English") -> str:
         + lang_instruction
     )
 
-def build_ccu_mecha_prompt(ccu_data: list[dict]) -> str:
+def build_ccu_mecha_prompt(ccu_data: list[dict], genre: str = "FPS") -> str:
     rows = []
     for r in ccu_data:
         hs = r.get("hist_summary", {})
-        src = "SteamDB CSV" if r.get("has_hist") else "SteamSpy proxy"
+        data_src = "SteamDB CSV" if r.get("has_hist") else "SteamSpy proxy"
         row = (
             f"- **{r['name']}** ({r['sub']}): {r['ccu']:,} live CCU | "
-            f"YoY {r.get('yoy','N/A')} [{src}] | "
+            f"YoY {r.get('yoy','N/A')} [{data_src}] | "
             f"Peak ever {hs.get('peak_ever', '?'):,} | " if hs.get('peak_ever') else
             f"- **{r['name']}** ({r['sub']}): {r['ccu']:,} live CCU | "
-            f"YoY {r.get('yoy','N/A')} [{src}] | "
+            f"YoY {r.get('yoy','N/A')} [{data_src}] | "
         )
         if hs:
             row += (
@@ -1063,23 +1086,50 @@ def build_ccu_mecha_prompt(ccu_data: list[dict]) -> str:
                 f"MoM {hs.get('mom_trend','—')} | "
                 f"{hs.get('months_data',0)} months of data"
             )
-        row += f" | Review score {r.get('review_pct','?')}% | Est. owners {r.get('owners','Unknown')}"
+        row += f" | Review score {r.get('review_pct','?')}%"
         rows.append(row)
     rows_str = "\n".join(rows)
-    return f"""## Task: CCU Trend Analysis — Top Shooters on Steam
 
-You have been provided with **live Steam CCU data** and **real historical SteamDB data** (where available) for the top shooter titles as of today. YoY comparisons marked [SteamDB CSV] are genuine same-month comparisons from raw data; those marked [SteamSpy proxy] are engagement-based estimates.
+    if genre == "TPS":
+        genre_label    = "Third-Person Shooter (TPS)"
+        genre_context  = "third-person perspective, cover mechanics, and over-the-shoulder combat"
+        mecha_section  = (
+            "3. **Mecha-Shooter Demand (TPS)** — Assess demand for third-person mecha titles "
+            "(e.g. Armored Core VI in TPS mode, MechWarrior, Daemon X Machina). "
+            "What does the TPS CCU data imply about player appetite for mech-based third-person action?"
+        )
+        sega_question  = (
+            "4. **Strategic Implications** — If SEGA were to greenlight a new third-person mecha-shooter today, "
+            "what CCU targets are realistic for Year 1 based on comparable TPS titles? "
+            "What monetisation and player-acquisition strategies are implied by this data?"
+        )
+    else:
+        genre_label    = "First-Person Shooter (FPS)"
+        genre_context  = "first-person perspective and direct gunplay"
+        mecha_section  = (
+            "3. **Mecha-Shooter Demand (FPS)** — Focus on titles with mech/robot/exosuit themes "
+            "(e.g. Titanfall 2, Armored Core VI). What does the FPS CCU data say about current demand "
+            "for mecha-shooters in first-person? Is the sub-genre growing or niche?"
+        )
+        sega_question  = (
+            "4. **Strategic Implications** — If SEGA were to greenlight a new first-person mecha-shooter today, "
+            "what CCU targets are realistic for Year 1? What player acquisition strategies are implied by the data?"
+        )
 
-### Live CCU Snapshot + Historical Context
+    return f"""## Task: CCU Trend Analysis — Top {genre_label} Titles on Steam
+
+You have been provided with **live Steam CCU data** and **real historical SteamDB data** (where available) for the top {genre_label} titles as of today. This roster focuses on games with {genre_context}. YoY comparisons marked [SteamDB CSV] are genuine same-month comparisons from raw data; those marked [SteamSpy proxy] are engagement-based estimates.
+
+### Live CCU Snapshot + Historical Context ({genre_label})
 {rows_str}
 
 ### Questions to answer (structure your report with these sections):
 
-1. **CCU Overview** — Rank the titles. Which are growing YoY? Which are declining? Identify clear winners and losers.
-2. **Genre Health** — What do these numbers collectively say about shooter genre health on Steam in 2026?
-3. **Mecha-Shooter Demand** — Focus specifically on titles with mech/robot/exosuit themes (e.g. Armored Core VI, Titanfall 2). What does the data say about current demand for mecha-shooters? Is the sub-genre growing or niche?
-4. **Strategic Implications** — If SEGA were to greenlight a new mecha-shooter today, what CCU targets are realistic for Year 1? What player acquisition strategies are implied by the data?
-5. **Recommended Watch List** — List 3 titles to monitor closely over the next 90 days and why.
+1. **CCU Overview** — Rank the titles. Which are growing YoY? Which are declining? Identify clear winners and losers within the {genre_label} space.
+2. **{genre_label} Genre Health** — What do these numbers collectively say about {genre_label} health on Steam in 2026? Are players migrating between sub-genres?
+{mecha_section}
+{sega_question}
+5. **Recommended Watch List** — List 3 {genre_label} titles to monitor closely over the next 90 days and why.
 
 Be quantitative. Use tables where useful."""
 
@@ -1218,13 +1268,13 @@ For each of the top 10 titles, estimate or track:
 
 The output should be a complete, copy-paste-ready template that the analytics team can fill in each Monday in under 2 hours."""
 
-# ─────────────────────────────────────────────────────────────
+# 
 # PPTX EXPORT  (pure python-pptx)
-# ─────────────────────────────────────────────────────────────
+# 
 
-# ─────────────────────────────────────────────────────────────
+# 
 # PPTX EXPORT  (pure python-pptx — no Node.js / npm required)
-# ─────────────────────────────────────────────────────────────
+# 
 
 def generate_pptx_bytes(report_md: str, ccu_data: list[dict], label: str) -> bytes | None:
     try:
@@ -1384,9 +1434,9 @@ def generate_pptx_bytes(report_md: str, ccu_data: list[dict], label: str) -> byt
     return buf.getvalue()
 
 
-# ─────────────────────────────────────────────────────────────
+# 
 # SESSION STATE
-# ─────────────────────────────────────────────────────────────
+# 
 
 defaults = {
     "claude_key": st.secrets.get("CLAUDE_KEY", os.environ.get("CLAUDE_KEY", "")),
@@ -1410,9 +1460,9 @@ for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ─────────────────────────────────────────────────────────────
+# 
 # TRANSLATIONS  (EN / JP)
-# ─────────────────────────────────────────────────────────────
+# 
 
 TRANSLATIONS = {
     "English": {
@@ -1431,7 +1481,7 @@ TRANSLATIONS = {
         "watchlist_header":       "My Watchlist",
         "watchlist_max":          "Max 5 pinned titles",
         "lang_header":            "Report Language",
-        "last_fetched":           "⏱ CCU last fetched: {time}",
+        "last_fetched":           " CCU last fetched: {time}",
         # Hero
         "hero_line1":             "SHOOTER MARKET",
         "hero_line2":             "INTELLIGENCE",
@@ -1465,8 +1515,8 @@ TRANSLATIONS = {
         "kpi_worst_decline":      "Biggest YoY Decline",
         "kpi_worst_sub":          "{pct} YoY (SteamDB)",
         # Expanders
-        "yoy_expander":           "YoY Growth Breakdown — {up} growing, {down} declining",
-        "wow_expander":           "Week-over-Week CCU Change ({n} titles with CSV data)",
+        "yoy_expander":           "YoY CCU Change — {up} growing, {down} declining",
+        "wow_expander":           "WoW CCU Change ({n} titles)",
         "wow_caption":            "Comparing latest CSV value vs. the row closest to exactly 7 days prior. Source: SteamDB 10-minute interval data.",
         "wow_none":               "No CSV data loaded yet. Add steamdb_chart_{appid}.csv files to the /data folder.",
         "heatmap_expander":       "Sub-Genre CCU Heat Map",
@@ -1562,134 +1612,134 @@ TRANSLATIONS = {
         "flat":"Flat",
     },
     "Japanese": {
-        "topbar_subtitle":        "市場・テクノロジー分析",
-        "sidebar_config":         "設定",
-        "api_loaded":             "Anthropic APIキー 読み込み済み",
-        "api_missing":            "Anthropic APIキー が見つかりません",
-        "model_caption":          "モデル: claude-sonnet-4-20250514",
-        "ccu_caption":            "CCU: Steam公開API（5分キャッシュ）",
-        "engagement_caption":     "エンゲージメント: SteamSpy API（1時間キャッシュ）",
-        "csvs_loaded":            "SteamDB CSV: {n}/{total} 読み込み済み",
-        "csv_missing":            "未取得: {names}",
-        "csv_drop_hint":          "steamdb_chart_{{appid}}.csv を /data に追加してください",
-        "watchlist_header":       "ウォッチリスト",
-        "watchlist_max":          "最大5タイトルまで",
-        "lang_header":            "レポート言語",
-        "last_fetched":           "⏱ CCU最終取得: {time}",
-        "hero_line1":             "シューター市場",
-        "hero_line2":             "インテリジェンス",
-        "hero_sub":               "Steam CCUライブデータ · AI搭載分析 · 競合ベンチマーク · 週次レポートテンプレート — SEGAのパブリッシング・戦略チーム向け統合ツール",
-        "select_analysis":        "分析タイプを選択",
-        "live_ccu_header":        "Steam CCU ライブスナップショット",
-        "ai_analysis_header":     "AI分析 — {label}",
-        "fetch_ccu_btn":          "ライブCCUデータを取得",
-        "fetch_spinner":          "Steam / SteamSpy からCCUを取得中…",
-        "fetching_game":          "取得中: {name}…",
-        "fetch_done":             "{n} タイトル取得完了",
-        "kpi_total_ccu":          "総CCU（追跡中）",
-        "kpi_total_sub":          "{n} シュータータイトルの合計",
-        "kpi_wow":                "週次成長バランス（WoW）",
-        "kpi_wow_sub":            "CSVデータあり {n} タイトル",
-        "kpi_wow_none":           "CSVデータなし",
-        "kpi_yoy":                "年次成長バランス（YoY）",
-        "kpi_yoy_sub":            "YoYデータあり {n} タイトル",
-        "kpi_mom":                "月次成長バランス（MoM）",
-        "kpi_mom_sub":            "CSVデータあり {n} タイトル",
-        "kpi_mom_none":           "CSVデータなし",
-        "kpi_csvs":               "SteamDB CSV 読み込み数",
-        "kpi_csvs_sub":           "完全な履歴データあり",
-        "kpi_health":             "平均ピーク健全率",
-        "kpi_health_sub":         "現在CCU ÷ 全期間ピーク",
-        "kpi_best_grower":        "最大YoY成長タイトル",
-        "kpi_best_sub":           "{pct} YoY（SteamDB）",
-        "kpi_worst_decline":      "最大YoY下落タイトル",
-        "kpi_worst_sub":          "{pct} YoY（SteamDB）",
-        "yoy_expander":           "YoY成長内訳 — 成長 {up}、下落 {down}",
-        "wow_expander":           "週次CCU変動（{n} タイトル・CSVデータあり）",
-        "wow_caption":            "最新CSV値と7日前の行を比較。出典: SteamDB 10分間隔データ",
-        "wow_none":               "CSVデータが未ロードです。steamdb_chart_{{appid}}.csv を /data に追加してください。",
-        "heatmap_expander":       "サブジャンル別CCUヒートマップ",
-        "heatmap_caption":        "出典: Steam API ライブCCUをロスター内サブジャンルタグで集計",
-        "table_expander":         "全データテーブル — 追跡中の全タイトル",
-        "history_expander":       "月次ピークCCU履歴 — SteamDBデータ",
-        "history_caption":        "出典: SteamDB 10分間隔CSV、月次ピーク集計。注釈は主要イベントを示す。",
-        "col_title":              "タイトル",
-        "col_subgenre":           "サブジャンル",
-        "col_publisher":          "パブリッシャー",
-        "col_f2p":                "基本無料",
-        "col_live_ccu":           "ライブCCU",
+        "topbar_subtitle":        "",
+        "sidebar_config":         "",
+        "api_loaded":             "Anthropic API ",
+        "api_missing":            "Anthropic API ",
+        "model_caption":          ": claude-sonnet-4-20250514",
+        "ccu_caption":            "CCU: SteamAPI5",
+        "engagement_caption":     ": SteamSpy API1",
+        "csvs_loaded":            "SteamDB CSV: {n}/{total} ",
+        "csv_missing":            ": {names}",
+        "csv_drop_hint":          "steamdb_chart_{{appid}}.csv  /data ",
+        "watchlist_header":       "",
+        "watchlist_max":          "5",
+        "lang_header":            "",
+        "last_fetched":           " CCU: {time}",
+        "hero_line1":             "",
+        "hero_line2":             "",
+        "hero_sub":               "Steam CCU · AI ·  ·  — SEGA",
+        "select_analysis":        "",
+        "live_ccu_header":        "Steam CCU ",
+        "ai_analysis_header":     "AI — {label}",
+        "fetch_ccu_btn":          "CCU",
+        "fetch_spinner":          "Steam / SteamSpy CCU…",
+        "fetching_game":          ": {name}…",
+        "fetch_done":             "{n} ",
+        "kpi_total_ccu":          "CCU",
+        "kpi_total_sub":          "{n} ",
+        "kpi_wow":                "WoW",
+        "kpi_wow_sub":            "CSV {n} ",
+        "kpi_wow_none":           "CSV",
+        "kpi_yoy":                "YoY",
+        "kpi_yoy_sub":            "YoY {n} ",
+        "kpi_mom":                "MoM",
+        "kpi_mom_sub":            "CSV {n} ",
+        "kpi_mom_none":           "CSV",
+        "kpi_csvs":               "SteamDB CSV ",
+        "kpi_csvs_sub":           "",
+        "kpi_health":             "",
+        "kpi_health_sub":         "CCU ÷ ",
+        "kpi_best_grower":        "YoY",
+        "kpi_best_sub":           "{pct} YoYSteamDB",
+        "kpi_worst_decline":      "YoY",
+        "kpi_worst_sub":          "{pct} YoYSteamDB",
+        "yoy_expander":           "YoY —  {up} {down}",
+        "wow_expander":           "CCU{n} CSV",
+        "wow_caption":            "CSV7: SteamDB 10",
+        "wow_none":               "CSVsteamdb_chart_{{appid}}.csv  /data ",
+        "heatmap_expander":       "CCU",
+        "heatmap_caption":        ": Steam API CCU",
+        "table_expander":         " — ",
+        "history_expander":       "CCU — SteamDB",
+        "history_caption":        ": SteamDB 10CSV",
+        "col_title":              "",
+        "col_subgenre":           "",
+        "col_publisher":          "",
+        "col_f2p":                "",
+        "col_live_ccu":           "CCU",
         "col_yoy":                "YoY",
-        "col_data_source":        "データソース",
-        "col_peak_ever":          "全期間ピーク",
-        "col_peak_12m":           "12ヶ月ピーク",
-        "col_avg_ccu_12m":        "12ヶ月平均CCU",
+        "col_data_source":        "",
+        "col_peak_ever":          "",
+        "col_peak_12m":           "12",
+        "col_avg_ccu_12m":        "12CCU",
         "col_mom":                "MoM",
-        "col_review":             "レビュー",
-        "col_owners":             "推定オーナー数",
-        "col_7d_ago":             "7日前CCU",
+        "col_review":             "",
+        "col_owners":             "",
+        "col_7d_ago":             "7CCU",
         "col_delta_ccu":          "Δ CCU",
         "col_delta_pct":          "Δ %",
-        "col_direction":          "方向",
-        "col_reference":          "参照日",
-        "chart_caption":          "有料タイトル（青）/ 基本無料（緑）  |  バーにカーソルでYoY・週次変動を表示  |  出典: Steam公開API",
-        "run_analysis":           "分析を実行",
-        "custom_label":           "またはカスタム質問を入力",
-        "custom_placeholder":     "例: SteamのF2Pシューター上位5タイトルの収益モデルを比較…",
+        "col_direction":          "",
+        "col_reference":          "",
+        "chart_caption":          "/   |  YoY  |  : SteamAPI",
+        "run_analysis":           "",
+        "custom_label":           "",
+        "custom_placeholder":     ": SteamF2P5…",
         "preset_labels": {
-            "ccu_mecha":      "CCUトレンドとメカ系シューター需要",
-            "table_stakes":   "2026年 ネットコード・サーバー最低要件",
-            "social_metrics": "Day-1成功を予測するSNSメトリクス",
-            "weekly_report":  "週次リテンション・エンゲージメントレポートテンプレート",
+            "ccu_mecha":      "CCU",
+            "table_stakes":   "2026 ",
+            "social_metrics": "Day-1SNS",
+            "weekly_report":  "",
         },
         "preset_descs": {
-            "ccu_mecha":      "Steam上位10シュータータイトルのCCUを前年比で比較し、メカ系シューターへの需要を分析します。",
-            "table_stakes":   "2026年の競技シューターにおいて、西洋の競技整合性基準を満たすためのネットコード・サーバー構成の「最低要件」を明確化します。",
-            "social_metrics": "直近の投資家レポートや市場データをもとに、新作シューターのDay-1成功を予測するための主要SNSメトリクスを特定します。",
-            "weekly_report":  "上位100シュータータイトルのリテンション・エンゲージメントKPIを追跡する週次市場レポートのテンプレートを作成します。インディータイトルのブレイクアウトも検出します。",
+            "ccu_mecha":      "Steam10CCU",
+            "table_stakes":   "2026",
+            "social_metrics": "Day-1SNS",
+            "weekly_report":  "100KPI",
         },
         "preset_tags": {
-            "ccu_mecha":      "市場",
-            "table_stakes":   "技術",
+            "ccu_mecha":      "",
+            "table_stakes":   "",
             "social_metrics": "SNS",
-            "weekly_report":  "レポート",
+            "weekly_report":  "",
         },
-        "run_btn":                "実行",
-        "custom_query_label":     "カスタムクエリ",
-        "cache_notice":           "キャッシュから読み込みました — データに変更なし。更新するにはCCUを再取得してください。",
-        "no_ccu_warning":         "先にライブCCUデータを取得してください。",
-        "spinner_generating":     "Claudeが分析を生成中…",
-        "no_key_warning":         "CLAUDE_KEY が見つかりません。.streamlit/secrets.toml に追加してください。",
-        "no_anthropic_error":     "`anthropic` パッケージをインストールしてください: `pip install anthropic`",
-        "auth_error":             "APIキーが無効です。CLAUDE_KEY を確認してください。",
-        "rate_limit_error":       "レートリミットに達しました。しばらく待ってから再試行してください。",
-        "download_report_header": "レポートをダウンロード",
-        "dl_md":                  "Markdownをダウンロード",
-        "dl_html":                "HTMLをダウンロード",
-        "dl_pdf":                 "PDFをダウンロード",
-        "dl_pptx_btn":            "PowerPointをダウンロード",
-        "dl_pptx_file":           ".pptxをダウンロード",
-        "dl_pptx_error":          "PPTX生成に失敗しました。python-pptxをインストールしてください。",
-        "dl_pdf_missing":         "PDF: `reportlab` をインストールしてください",
-        "spinner_pptx":           "スライドを作成中…",
-        "chat_header":            "フォローアップチャット",
-        "chat_subtext":           "— このレポートについてClaudeに追加質問できます",
-        "drilldown_header":       "ゲーム・インテリジェンス 詳細分析",
-        "back_btn":               "← ダッシュボードに戻る",
-        "drilldown_select":       "詳細分析するタイトルを選択...",
-        "drilldown_btn":          "詳細分析",
-        "drilldown_no_data":      "ゲームデータが見つかりません。先にCCUデータを取得してください。",
-        "drilldown_no_key":       "CLAUDE_KEY が見つかりません。.streamlit/secrets.toml に追加してください。",
-        "drilldown_spinner":      "詳細分析を生成中…",
-        "drilldown_dl":           "詳細分析をダウンロード (.md)",
-        "no_hist_info":           "このタイトルのCSV履歴データがありません。steamdb_chart_{{appid}}.csv を /data に追加してください。",
-        "yoy_caption":            "SteamDB CSV = 実際の同月YoY · SteamSpy推定 = エンゲージメント勢い推定値",
-        "yoy_none":               "YoYデータなし — 先にCCUデータを取得してください。",
-        "watchlist_section":      "ウォッチリスト",
-        "yes": "はい",
-        "no":  "いいえ",
-        "up":  "上昇",
-        "down":"下降",
-        "flat":"横ばい",
+        "run_btn":                "",
+        "custom_query_label":     "",
+        "cache_notice":           " — CCU",
+        "no_ccu_warning":         "CCU",
+        "spinner_generating":     "Claude…",
+        "no_key_warning":         "CLAUDE_KEY .streamlit/secrets.toml ",
+        "no_anthropic_error":     "`anthropic` : `pip install anthropic`",
+        "auth_error":             "APICLAUDE_KEY ",
+        "rate_limit_error":       "",
+        "download_report_header": "",
+        "dl_md":                  "Markdown",
+        "dl_html":                "HTML",
+        "dl_pdf":                 "PDF",
+        "dl_pptx_btn":            "PowerPoint",
+        "dl_pptx_file":           ".pptx",
+        "dl_pptx_error":          "PPTXpython-pptx",
+        "dl_pdf_missing":         "PDF: `reportlab` ",
+        "spinner_pptx":           "…",
+        "chat_header":            "",
+        "chat_subtext":           "— Claude",
+        "drilldown_header":       " ",
+        "back_btn":               "← ",
+        "drilldown_select":       "...",
+        "drilldown_btn":          "",
+        "drilldown_no_data":      "CCU",
+        "drilldown_no_key":       "CLAUDE_KEY .streamlit/secrets.toml ",
+        "drilldown_spinner":      "…",
+        "drilldown_dl":           " (.md)",
+        "no_hist_info":           "CSVsteamdb_chart_{{appid}}.csv  /data ",
+        "yoy_caption":            "SteamDB CSV = YoY · SteamSpy = ",
+        "yoy_none":               "YoY — CCU",
+        "watchlist_section":      "",
+        "yes": "",
+        "no":  "",
+        "up":  "",
+        "down":"",
+        "flat":"",
     },
 }
 
@@ -1701,9 +1751,9 @@ def T(key: str, **kwargs) -> str:
     text = TRANSLATIONS[lang].get(key, TRANSLATIONS["English"].get(key, key))
     return text.format(**kwargs) if kwargs else text
 
-# ─────────────────────────────────────────────────────────────
+# 
 # GAME DRILL-DOWN PROMPT
-# ─────────────────────────────────────────────────────────────
+# 
 
 def build_drilldown_prompt(game: dict, historical: dict, language: str = "English") -> str:
     hs   = game.get("hist_summary", {})
@@ -1716,13 +1766,13 @@ def build_drilldown_prompt(game: dict, historical: dict, language: str = "Englis
         last12 = mdf.sort_values("month").tail(12)
         rows = []
         for _, row in last12.iterrows():
-            rows.append(f"  {row['month'].strftime('%Y-%m')}  peak={int(row['peak_ccu']):,}  avg={int(row['avg_ccu']):,}")
+            rows.append(f" {row['month'].strftime('%Y-%m')}  peak={int(row['peak_ccu']):,}  avg={int(row['avg_ccu']):,}")
         history_table = "\n".join(rows)
     else:
-        history_table = "  (no CSV data available)"
+        history_table = " (no CSV data available)"
 
     lang_instruction = (
-        " IMPORTANT: Write the entire analysis in Japanese (日本語). "
+        " IMPORTANT: Write the entire analysis in Japanese (). "
         "Use professional business Japanese suitable for senior management. "
         "All section headers, bullet points, and analysis must be in Japanese. "
         "Game titles may be kept in their original English/romanised form."
@@ -1738,7 +1788,6 @@ Publisher: {game.get('publisher', 'N/A')}
 F2P: {'Yes' if game.get('f2p') else 'No'}
 Current CCU: {game.get('ccu', 0):,}
 YoY trend: {game.get('yoy', 'N/A')} (source: {src})
-Est. owners: {game.get('owners', 'N/A')}
 Avg playtime (2 weeks): {game.get('avg_2w_hrs', 0)} hrs
 Review score: {f"{game.get('review_pct')}%" if game.get('review_pct') else 'N/A'}
 All-time peak CCU: {hs.get('peak_ever', 'N/A'):,} (if int, else {hs.get('peak_ever', 'N/A')})
@@ -1757,7 +1806,7 @@ One paragraph — current health, trajectory, key risk or opportunity for SEGA.
 Interpret the monthly history. Identify growth phases, declines, seasonal patterns, notable spikes/drops. Quantify where possible.
 
 ## 3. Player Engagement & Retention Signals
-Use playtime, review score, and ownership estimates to assess engagement depth and churn risk.
+Use playtime and review score to assess engagement depth and churn risk.
 
 ## 4. Competitive Position
 How does this title's CCU and trajectory compare to its sub-genre peers? Is it gaining or losing share?
@@ -1771,9 +1820,9 @@ Evaluate the F2P vs premium model in context of this title's performance. What d
 Be specific, data-driven, and concise. Avoid generic observations. Attribute data sources inline."""
 
 
-# ─────────────────────────────────────────────────────────────
+# 
 # TOP NAV
-# ─────────────────────────────────────────────────────────────
+# 
 
 _tc = st.columns([7, 1])
 with _tc[0]:
@@ -1796,9 +1845,9 @@ with _tc[1]:
         st.session_state.report_cache = {}
         st.rerun()
 
-# ─────────────────────────────────────────────────────────────
+# 
 # HERO
-# ─────────────────────────────────────────────────────────────
+# 
 
 st.markdown(f"""
 <div class="hero">
@@ -1807,15 +1856,15 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────────────────────
+# 
 # SIDEBAR — API KEY
-# ─────────────────────────────────────────────────────────────
+# 
 
 with st.sidebar:
     st.markdown("""
     <div style="font-family:'Inter Tight',sans-serif;font-weight:900;font-size:1rem;
     letter-spacing:.1em;text-transform:uppercase;color:#4080ff;margin-bottom:1rem;">
-    ⚙ Configuration</div>
+     Configuration</div>
     """, unsafe_allow_html=True)
 
     # Active roster is built in the main page genre toggle below;
@@ -1847,13 +1896,13 @@ with st.sidebar:
     roster_ids = {g["app_id"] for g in SHOOTER_ROSTER}
     loaded = hist_ids & roster_ids
     missing = roster_ids - hist_ids
-    st.caption(f"📁 SteamDB CSVs: {len(loaded)}/{len(roster_ids)} loaded")
+    st.caption(f" SteamDB CSVs: {len(loaded)}/{len(roster_ids)} loaded")
     if missing:
         missing_names = [g["name"] for g in SHOOTER_ROSTER if g["app_id"] in missing]
-        st.caption("⚠️ Missing: " + ", ".join(missing_names))
+        st.caption(" Missing: " + ", ".join(missing_names))
     st.caption("Drop steamdb_chart_{appid}.csv into /data to update")
     st.markdown("---")
-    st.markdown("**📂 Upload SteamDB CSVs**", unsafe_allow_html=False)
+    st.markdown("** Upload SteamDB CSVs**", unsafe_allow_html=False)
     st.caption("Upload steamdb_chart_{appid}.csv files directly — no repo access needed.")
     _uploaded = st.file_uploader(
         "SteamDB CSVs",
@@ -1879,15 +1928,15 @@ with st.sidebar:
     if st.session_state.uploaded_csvs:
         _names = [g["name"] for g in SHOOTER_ROSTER
                   if g["app_id"] in st.session_state.uploaded_csvs]
-        st.success(f"✓ {len(st.session_state.uploaded_csvs)} CSV(s) loaded: {', '.join(_names)}")
+        st.success(f" {len(st.session_state.uploaded_csvs)} CSV(s) loaded: {', '.join(_names)}")
 
-# ─────────────────────────────────────────────────────────────
+# 
 # QUERY BLOCK
-# ─────────────────────────────────────────────────────────────
+# 
 
 st.markdown('<div class="query-block">', unsafe_allow_html=True)
 
-# ── Genre toggle + game picker ────────────────────────────────────────────────
+#  Genre toggle + game picker 
 st.markdown(f"""
 <div class="section-header" style="margin-top:0">
   <span class="dot"></span>DATASET
@@ -1898,7 +1947,7 @@ _g_col1, _g_col2, _g_spacer = st.columns([1, 1, 4])
 with _g_col1:
     _fps_active = st.session_state.roster_genre == "FPS"
     if st.button(
-        "🔫  First-Person",
+        " First-Person",
         key="btn_fps",
         type="primary" if _fps_active else "secondary",
         use_container_width=True,
@@ -1912,7 +1961,7 @@ with _g_col1:
 with _g_col2:
     _tps_active = st.session_state.roster_genre == "TPS"
     if st.button(
-        "🎯  Third-Person",
+        " Third-Person",
         key="btn_tps",
         type="primary" if _tps_active else "secondary",
         use_container_width=True,
@@ -1932,7 +1981,7 @@ _genre_label = "First-Person Shooters" if st.session_state.roster_genre == "FPS"
 # Game picker — inside expander to keep UI clean
 _prev_filter = st.session_state.roster_filter
 _active_count = len(_prev_filter) if _prev_filter else len(_all_names)
-_expander_label = f"🎮 Games included: {_active_count} / {len(_all_names)}"
+_expander_label = f"Games included: {_active_count} / {len(_all_names)}"
 
 with st.expander(_expander_label, expanded=False):
     _col_a, _col_b = st.columns([1, 1])
@@ -1970,7 +2019,7 @@ _overlap       = set(FPS_ROSTER_IDS) & set(TPS_ROSTER_IDS)
 _overlap_shown = [GAME_CATALOG[a]["name"] for a in _overlap
                   if a in _active_ids and a in GAME_CATALOG]
 if _overlap_shown:
-    st.caption(f"ℹ️ {len(_overlap_shown)} titles also appear in the other list: {', '.join(sorted(_overlap_shown))}")
+    st.caption(f"ℹ {len(_overlap_shown)} titles also appear in the other list: {', '.join(sorted(_overlap_shown))}")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -2028,9 +2077,9 @@ if run_custom and custom.strip():
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────────────────────
+# 
 # LIVE CCU PANEL
-# ─────────────────────────────────────────────────────────────
+# 
 
 if not st.session_state.ccu_data:
     with st.spinner(T("fetch_spinner")):
@@ -2060,7 +2109,6 @@ if not st.session_state.ccu_data:
 
             # SteamSpy for owner/review data (still useful supplemental)
             ss = fetch_steamspy(game["app_id"])
-            owners     = ss.get("owners", "Unknown")
             avg_2w_hrs = round((ss.get("average_2weeks", 0) or 0) / 60, 1)
             pos_reviews= ss.get("positive", 0) or 0
             neg_reviews= ss.get("negative", 0) or 0
@@ -2082,7 +2130,6 @@ if not st.session_state.ccu_data:
                 "yoy_val":      yoy_pct,
                 "has_hist":     has_hist,
                 "hist_summary": hist_summary,
-                "owners":       owners,
                 "avg_2w_hrs":   avg_2w_hrs,
                 "review_pct":   review_pct,
                 "pos_reviews":  pos_reviews,
@@ -2102,7 +2149,7 @@ else:
     wow_diff = compute_period_diff(raw_data, live_ccu_map, days=7)
     n_wow    = len(wow_diff)
 
-    # ── Derived stats ──
+    #  Derived stats 
     total_ccu    = sum(r["ccu"] for r in ccu_data)
     growing      = sum(1 for r in ccu_data if r.get("yoy_val", 0) > 0)
     declining    = sum(1 for r in ccu_data if r.get("yoy_val", 0) < 0)
@@ -2115,11 +2162,11 @@ else:
     avg_health   = sum(health_ratios) / len(health_ratios) if health_ratios else 0
     wow_up   = sum(1 for v in wow_diff.values() if v["delta"] > 0)
     wow_down = sum(1 for v in wow_diff.values() if v["delta"] < 0)
-    mom_up   = sum(1 for r in ccu_data if (r.get("hist_summary") or {}).get("mom_pct", 0) or 0 > 0)
-    mom_down = sum(1 for r in ccu_data if (r.get("hist_summary") or {}).get("mom_pct", 0) or 0 < 0)
+    mom_up   = sum(1 for r in ccu_data if ((r.get("hist_summary") or {}).get("mom_pct") or 0) > 0)
+    mom_down = sum(1 for r in ccu_data if ((r.get("hist_summary") or {}).get("mom_pct") or 0) < 0)
     mom_total= mom_up + mom_down
 
-    # ── Row 1: Primary KPI cards ──
+    #  Row 1: Primary KPI cards 
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(f"""<div class="metric-card blue-top">
@@ -2127,33 +2174,54 @@ else:
         <div class="metric-value">{total_ccu:,}</div>
         <div class="metric-sub">{T("kpi_total_sub", n=len(ccu_data))}</div>
         </div>""", unsafe_allow_html=True)
+    # Build title lists for clickable cards
+    _wow_up_names   = [r["name"] for r in ccu_data if wow_diff.get(r["app_id"], {}).get("delta", 0) > 0]
+    _wow_down_names = [r["name"] for r in ccu_data if wow_diff.get(r["app_id"], {}).get("delta", 0) < 0]
+    _mom_up_names   = [r["name"] for r in ccu_data if ((r.get("hist_summary") or {}).get("mom_pct") or 0) > 0]
+    _mom_down_names = [r["name"] for r in ccu_data if ((r.get("hist_summary") or {}).get("mom_pct") or 0) < 0]
+    _yoy_up_names   = [r["name"] for r in ccu_data if r.get("yoy_val", 0) > 0]
+    _yoy_down_names = [r["name"] for r in ccu_data if r.get("yoy_val", 0) < 0]
+
     with k2:
         wow_color = "var(--pos)" if wow_up >= wow_down else "var(--neg)"
-        wow_sub   = T("kpi_wow_sub", n=n_wow) if n_wow else T("kpi_wow_none")
         st.markdown(f"""<div class="metric-card pos-top">
         <div class="metric-label">{T("kpi_wow")}</div>
         <div class="metric-value" style="color:{wow_color}">{wow_up}↑ / {wow_down}↓</div>
-        <div class="metric-sub">{wow_sub}</div>
+        <div class="metric-sub">of {n_wow} titles with CSV data</div>
         </div>""", unsafe_allow_html=True)
+        with st.expander("See titles"):
+            if _wow_up_names:
+                st.markdown("**Up:** " + ", ".join(_wow_up_names))
+            if _wow_down_names:
+                st.markdown("**Down:** " + ", ".join(_wow_down_names))
     with k3:
-        yoy_color = "var(--pos)" if growing >= declining else "var(--neg)"
-        st.markdown(f"""<div class="metric-card amber-top">
-        <div class="metric-label">{T("kpi_yoy")}</div>
-        <div class="metric-value" style="color:{yoy_color}">{growing}↑ / {declining}↓</div>
-        <div class="metric-sub">{T("kpi_yoy_sub", n=len(yoy_titled))}</div>
-        </div>""", unsafe_allow_html=True)
-    with k4:
         mom_color = "var(--pos)" if mom_up >= mom_down else "var(--neg)"
-        mom_sub   = T("kpi_mom_sub", n=mom_total) if mom_total else T("kpi_mom_none")
-        st.markdown(f"""<div class="metric-card purple-top">
+        st.markdown(f"""<div class="metric-card amber-top">
         <div class="metric-label">{T("kpi_mom")}</div>
         <div class="metric-value" style="color:{mom_color}">{mom_up}↑ / {mom_down}↓</div>
-        <div class="metric-sub">{mom_sub}</div>
+        <div class="metric-sub">of {mom_total} titles with CSV data</div>
         </div>""", unsafe_allow_html=True)
+        with st.expander("See titles"):
+            if _mom_up_names:
+                st.markdown("**Up:** " + ", ".join(_mom_up_names))
+            if _mom_down_names:
+                st.markdown("**Down:** " + ", ".join(_mom_down_names))
+    with k4:
+        yoy_color = "var(--pos)" if growing >= declining else "var(--neg)"
+        st.markdown(f"""<div class="metric-card purple-top">
+        <div class="metric-label">{T("kpi_yoy")}</div>
+        <div class="metric-value" style="color:{yoy_color}">{growing}↑ / {declining}↓</div>
+        <div class="metric-sub">of {len(yoy_titled)} titles with YoY data</div>
+        </div>""", unsafe_allow_html=True)
+        with st.expander("See titles"):
+            if _yoy_up_names:
+                st.markdown("**Up:** " + ", ".join(_yoy_up_names))
+            if _yoy_down_names:
+                st.markdown("**Down:** " + ", ".join(_yoy_down_names))
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Row 2: CSV-derived stat cards ──
+    #  Row 2: CSV-derived stat cards 
     s1, s2, s3, s4 = st.columns(4)
     with s1:
         st.markdown(f"""<div class="metric-card blue-top">
@@ -2185,19 +2253,7 @@ else:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── YoY breakdown expander ──
-    with st.expander(T("yoy_expander", up=growing, down=declining)):
-        if yoy_titled:
-            yoy_df = pd.DataFrame(
-                sorted(yoy_titled, key=lambda x: x[1], reverse=True),
-                columns=[T("col_title"), "YoY %"]
-            )
-            st.dataframe(yoy_df, use_container_width=True, hide_index=True)
-            st.caption(T("yoy_caption"))
-        else:
-            st.info(T("yoy_none"))
-
-    # ── WoW expander ──
+    #  WoW expander 
     with st.expander(T("wow_expander", n=n_wow)):
         if wow_diff:
             wow_rows = []
@@ -2205,22 +2261,103 @@ else:
                 d = wow_diff.get(r["app_id"])
                 if d:
                     wow_rows.append({
-                        T("col_title"):     r["name"],
-                        T("col_live_ccu"):  d["curr_ccu"],
-                        T("col_7d_ago"):    d["prev_ccu"],
-                        T("col_delta_ccu"): d["delta"],
-                        T("col_delta_pct"): f"{d['delta_pct']:+.1f}%",
-                        T("col_direction"): T("up") if d["delta"] > 0 else T("down"),
-                        T("col_reference"): d["period_label"],
+                        "Title":      r["name"],
+                        "Live CCU":   d["curr_ccu"],
+                        "7d Ago CCU": d["prev_ccu"],
+                        "Delta CCU":  d["delta"],
+                        "Delta %":    round(d["delta_pct"]),
                     })
             if wow_rows:
-                wow_df = pd.DataFrame(sorted(wow_rows, key=lambda x: abs(x[T("col_delta_ccu")]), reverse=True))
-                st.dataframe(wow_df, use_container_width=True, hide_index=True)
-                st.caption(T("wow_caption"))
+                wow_df = pd.DataFrame(
+                    sorted(wow_rows, key=lambda x: x["Delta %"], reverse=True)
+                )
+                _wow_raw = wow_df["Delta %"].tolist()
+                wow_df["Delta %"] = wow_df["Delta %"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
+                def _style_wow(df, raw=_wow_raw):
+                    styles = pd.DataFrame("", index=df.index, columns=df.columns)
+                    for i, v in enumerate(raw):
+                        c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
+                        styles.iloc[i, df.columns.get_loc("Delta %")] = c
+                        styles.iloc[i, df.columns.get_loc("Delta CCU")] = c
+                    return styles
+                st.dataframe(
+                    wow_df.style.apply(_style_wow, axis=None),
+                    use_container_width=True, hide_index=True,
+                    height=(len(wow_df) + 1) * 35 + 3,
+                )
         else:
             st.info(T("wow_none"))
 
-    # ── Sub-genre heatmap ──
+    #  MoM expander 
+    with st.expander("MoM CCU Change"):
+        mom_rows = []
+        for r in ccu_data:
+            hs = r.get("hist_summary") or {}
+            pct = hs.get("mom_pct")
+            if pct is not None:
+                mom_rows.append({
+                    "Title":     r["name"],
+                    "Live CCU":  r["ccu"],
+                    "MoM %":     round(pct),
+                })
+        if mom_rows:
+            mom_df = pd.DataFrame(
+                sorted(mom_rows, key=lambda x: x["MoM %"], reverse=True)
+            )
+            _mom_raw = mom_df["MoM %"].tolist()
+            mom_df["MoM %"] = mom_df["MoM %"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
+            def _style_mom(df, raw=_mom_raw):
+                styles = pd.DataFrame("", index=df.index, columns=df.columns)
+                for i, v in enumerate(raw):
+                    c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
+                    styles.iloc[i, df.columns.get_loc("MoM %")] = c
+                return styles
+            st.dataframe(
+                mom_df.style.apply(_style_mom, axis=None),
+                use_container_width=True, hide_index=True,
+                height=(len(mom_df) + 1) * 35 + 3,
+            )
+        else:
+            st.info(T("yoy_none"))
+
+    #  YoY breakdown expander 
+    with st.expander(T("yoy_expander", up=growing, down=declining)):
+        if yoy_titled:
+            yoy_rows = []
+            for r in ccu_data:
+                if r.get("yoy_val") in (0, None) or r.get("yoy") == "N/A":
+                    continue
+                hs = r.get("hist_summary") or {}
+                live = r["ccu"]
+                yr_ago = hs.get("yoy_ccu")
+                pct = round(r["yoy_val"])
+                yoy_rows.append({
+                    "Title":          r["name"],
+                    "Live CCU":       live,
+                    "1Yr Ago CCU":    yr_ago if yr_ago else "N/A",
+                    "YoY %":          pct,
+                })
+            if yoy_rows:
+                yoy_df = pd.DataFrame(
+                    sorted(yoy_rows, key=lambda x: x["YoY %"] if isinstance(x["YoY %"], (int, float)) else 0, reverse=True)
+                )
+                _yoy_raw = yoy_df["YoY %"].tolist()
+                yoy_df["YoY %"] = yoy_df["YoY %"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
+                def _style_yoy(df, raw=_yoy_raw):
+                    styles = pd.DataFrame("", index=df.index, columns=df.columns)
+                    for i, v in enumerate(raw):
+                        c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
+                        styles.iloc[i, df.columns.get_loc("YoY %")] = c
+                    return styles
+                st.dataframe(
+                    yoy_df.style.apply(_style_yoy, axis=None),
+                    use_container_width=True, hide_index=True,
+                    height=(len(yoy_df) + 1) * 35 + 3,
+                )
+        else:
+            st.info(T("yoy_none"))
+
+    #  Sub-genre heatmap 
     with st.expander(T("heatmap_expander")):
         sub_totals: dict[str, int] = {}
         for r in ccu_data:
@@ -2246,8 +2383,10 @@ else:
             st.plotly_chart(fig_h, use_container_width=True)
             st.caption(T("heatmap_caption"))
 
-    # ── CCU Bar Chart ──
+    # ── Top 10 bar chart (active roster, sorted by live CCU) ──
+    _genre_label_chart = "FPS" if st.session_state.roster_genre == "FPS" else "TPS"
     top_n = ccu_data[:10]
+    rest_n = ccu_data[10:]  # ranks 11-25
     hover_texts = []
     for r in top_n:
         d = wow_diff.get(r["app_id"])
@@ -2265,15 +2404,43 @@ else:
     ))
     fig.update_layout(
         **PLOTLY_BASE,
-        title=dict(text="Top 10 Shooters by Live CCU", font=dict(size=13, color="#b8bcd4"), x=0),
+        title=dict(text=f"Top 10 {_genre_label_chart} Titles by Live CCU", font=dict(size=13, color="#b8bcd4"), x=0),
         xaxis=dict(showgrid=False, tickfont=dict(size=10), tickangle=-30, linecolor="#232640"),
         yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
         height=340, showlegend=False,
     )
     st.plotly_chart(fig, use_container_width=True)
-    st.caption(T("chart_caption"))
+    st.caption(f"Paid (blue) / F2P (green) | Ranked by live CCU | {_genre_label_chart} roster")
 
-    # ── Full data table ──
+    # ── Ranks 11-25 bar chart ──
+    if rest_n:
+        hover_texts_r = []
+        for r in rest_n:
+            d = wow_diff.get(r["app_id"])
+            wow_str = f"<br>WoW: {d['delta_pct']:+.1f}% ({d['period_label']})" if d else ""
+            hover_texts_r.append(f"<b>{r['name']}</b><br>CCU: {r['ccu']:,}<br>YoY: {r.get('yoy','N/A')}{wow_str}<extra></extra>")
+        colors_r = ["#4080ff" if not r["f2p"] else "#20c65a" for r in rest_n]
+        rank_labels = [f"#{i+11} {r['name']}" for i, r in enumerate(rest_n)]
+        fig_r = go.Figure(go.Bar(
+            x=rank_labels,
+            y=[r["ccu"] for r in rest_n],
+            marker_color=colors_r,
+            text=[f"{r['ccu']:,}" for r in rest_n],
+            textposition="outside",
+            textfont=dict(size=10, color="#b8bcd4"),
+            hovertemplate=hover_texts_r,
+        ))
+        fig_r.update_layout(
+            **PLOTLY_BASE,
+            title=dict(text=f"Ranks 11-{len(ccu_data)} {_genre_label_chart} Titles by Live CCU", font=dict(size=13, color="#b8bcd4"), x=0),
+            xaxis=dict(showgrid=False, tickfont=dict(size=9), tickangle=-30, linecolor="#232640"),
+            yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
+            height=320, showlegend=False,
+        )
+        st.plotly_chart(fig_r, use_container_width=True)
+        st.caption(f"Paid (blue) / F2P (green) | Ranked by live CCU | {_genre_label_chart} roster")
+
+    #  Full data table 
     with st.expander(T("table_expander")):
         df = pd.DataFrame([{
             T("col_title"):      r["name"],
@@ -2284,51 +2451,91 @@ else:
             T("col_yoy"):        r.get("yoy", "N/A"),
             T("col_data_source"): "SteamDB CSV" if r.get("has_hist") else "SteamSpy proxy",
             T("col_peak_ever"):  f"{r['hist_summary']['peak_ever']:,}" if r.get("hist_summary", {}).get("peak_ever") else "—",
-            T("col_peak_12m"):   f"{r['hist_summary']['peak_12m']:,}"  if r.get("hist_summary", {}).get("peak_12m")  else "—",
-            T("col_avg_ccu_12m"):f"{r['hist_summary']['avg_12m']:,}"   if r.get("hist_summary", {}).get("avg_12m")   else "—",
+            T("col_peak_12m"):   f"{r['hist_summary']['peak_12m']:,}" if r.get("hist_summary", {}).get("peak_12m")  else "—",
+            T("col_avg_ccu_12m"):f"{r['hist_summary']['avg_12m']:,}" if r.get("hist_summary", {}).get("avg_12m")   else "—",
             T("col_mom"):        r.get("hist_summary", {}).get("mom_trend", "—"),
             T("col_review"):     f"{r['review_pct']}%" if r.get("review_pct") else "—",
-            T("col_owners"):     r.get("owners", "—"),
         } for r in ccu_data])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, use_container_width=True, hide_index=True,
+                     height=(len(df) + 1) * 35 + 3)
         st.caption(f"{hist_count}/{len(ccu_data)} titles with SteamDB CSV · Peak/Avg from 10-min interval data")
 
-    # ── Monthly history chart ──
+    #  Monthly history chart 
     hist_titles = [r for r in ccu_data if r.get("has_hist")]
     if hist_titles:
         historical = load_all_historical()
         with st.expander(T("history_expander")):
             fig2 = go.Figure()
+            # Collect all x values across all traces for event matching
+            _all_x_sets: dict[int, list[str]] = {}
             for r in hist_titles:
                 mdf = historical.get(r["app_id"])
                 if mdf is not None and not mdf.empty:
                     last_24 = mdf.tail(24)
+                    x_vals = [str(p) for p in last_24["month"]]
+                    _all_x_sets[r["app_id"]] = x_vals
+                    # Build hover text with events for this game
+                    events = get_game_events(r["app_id"])
+                    event_map = {e[0][:7]: e[1] for e in events}
+                    hover = []
+                    for x, y in zip(x_vals, last_24["peak_ccu"]):
+                        ev = event_map.get(x[:7], "")
+                        ev_str = f"<br><b>{ev}</b>" if ev else ""
+                        y_str = f"{int(y):,}" if y == y else "N/A"  # NaN-safe
+                        hover.append(f"<b>{r['name']}</b><br>{x}<br>Peak CCU: {y_str}{ev_str}<extra></extra>")
                     fig2.add_trace(go.Scatter(
-                        x=[str(p) for p in last_24["month"]],
+                        x=x_vals,
                         y=last_24["peak_ccu"],
                         mode="lines", name=r["name"],
-                        hovertemplate=f"<b>{r['name']}</b><br>%{{x}}<br>Peak CCU: %{{y:,}}<extra></extra>",
+                        hovertemplate=hover,
                         line=dict(width=2),
                     ))
+
+            # If 5 or fewer games shown, add visible annotations; otherwise events are hover-only
+            if len(hist_titles) <= 5:
+                _seen_dates: set[str] = set()
+                for r in hist_titles:
+                    x_vals = _all_x_sets.get(r["app_id"], [])
+                    for ev_date, ev_label in get_game_events(r["app_id"]):
+                        ev_match = next((x for x in x_vals if x.startswith(ev_date[:7])), None)
+                        if ev_match and ev_match not in _seen_dates:
+                            _seen_dates.add(ev_match)
+                            fig2.add_vline(
+                                x=ev_match,
+                                line_width=1, line_dash="dash",
+                                line_color="rgba(255,200,50,0.4)",
+                            )
+                            fig2.add_annotation(
+                                x=ev_match, y=1.0, yref="paper",
+                                text=f"{r['name'][:10]}: {ev_label}",
+                                showarrow=False,
+                                font=dict(size=8, color="#ffc832"),
+                                textangle=-60, xanchor="left", yanchor="bottom",
+                                bgcolor="rgba(5,8,24,0.7)",
+                            )
+                _note = " | Dashed lines = key events (hover for details)"
+            else:
+                _note = " | Hover each line for key events"
+
             fig2.update_layout(
-                **PLOTLY_BASE,
+                **{**PLOTLY_BASE, "margin": dict(l=10, r=10, t=80, b=40)},
                 title=dict(text="Monthly Peak CCU — Last 24 Months (SteamDB)", font=dict(size=13, color="#b8bcd4"), x=0),
                 xaxis=dict(showgrid=False, tickangle=-45, tickfont=dict(size=9)),
                 yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
-                height=380,
+                height=420,
                 legend=dict(font=dict(size=10), bgcolor="rgba(0,0,0,0)"),
             )
             st.plotly_chart(fig2, use_container_width=True)
-            st.caption(T("history_caption"))
+            st.caption(f"Source: SteamDB 10-min interval CSVs, aggregated to monthly peak{_note}")
 
-    if st.button("🔄 Refresh CCU Data", key="refresh_ccu"):
+    if st.button(" Refresh CCU Data", key="refresh_ccu"):
         st.cache_data.clear()
         st.session_state.ccu_data = []
         st.rerun()
 
-# ─────────────────────────────────────────────────────────────
+# 
 # AI ANALYSIS ENGINE
-# ─────────────────────────────────────────────────────────────
+# 
 
 if st.session_state.active_query:
     st.markdown(f"""
@@ -2338,7 +2545,7 @@ if st.session_state.active_query:
     """, unsafe_allow_html=True)
 
     if not st.session_state.claude_key:
-        st.warning(T("no_key_warning"), icon="🔑")
+        st.warning(T("no_key_warning"), icon="")
     elif not ANTHROPIC_AVAILABLE:
         st.error(T("no_anthropic_error"))
     elif not st.session_state.ai_report:
@@ -2347,16 +2554,16 @@ if st.session_state.active_query:
         aq = st.session_state.active_query
         if aq == "ccu_mecha":
             if not ccu_data:
-                st.warning(T("no_ccu_warning"), icon="📡")
+                st.warning(T("no_ccu_warning"), icon="")
                 st.stop()
-            user_prompt = build_ccu_mecha_prompt(ccu_data[:10])
+            user_prompt = build_ccu_mecha_prompt(ccu_data[:10], genre=st.session_state.get("roster_genre", "FPS"))
         elif aq == "table_stakes":
             user_prompt = build_table_stakes_prompt()
         elif aq == "social_metrics":
             user_prompt = build_social_metrics_prompt()
         elif aq == "weekly_report":
             if not ccu_data:
-                st.warning(T("no_ccu_warning"), icon="📡")
+                st.warning(T("no_ccu_warning"), icon="")
                 st.stop()
             user_prompt = build_weekly_report_prompt(ccu_data[:20])
         elif aq == "custom":
@@ -2379,7 +2586,7 @@ if st.session_state.active_query:
                 ) as stream:
                     for delta in stream.text_stream:
                         report_text += delta
-                        ph.markdown(report_text + "▌")
+                        ph.markdown(report_text + "")
                 ph.markdown(report_text)
                 st.session_state.ai_report = report_text
             except _anthropic.AuthenticationError:
@@ -2394,7 +2601,7 @@ if st.session_state.active_query:
     elif st.session_state.ai_report:
         st.markdown(st.session_state.ai_report)
 
-    # ── Download options ──
+    #  Download options 
     if st.session_state.ai_report:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
@@ -2441,7 +2648,7 @@ if st.session_state.active_query:
                 else:
                     st.error(T("dl_pptx_error"))
 
-        # ── Follow-up chat ──
+        #  Follow-up chat 
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
             f'<div class="section-header"><span class="dot"></span>{T("chat_header")}'
@@ -2489,7 +2696,7 @@ if st.session_state.active_query:
                     ) as stream:
                         for delta in stream.text_stream:
                             reply += delta
-                            ph2.markdown(reply + "▌")
+                            ph2.markdown(reply + "")
                     ph2.markdown(reply)
                 st.session_state.ai_chat_history.append({"role": "assistant", "content": reply})
             except _anthropic.AuthenticationError:
@@ -2511,9 +2718,9 @@ if st.session_state.active_query:
                 st.session_state.ai_chat_pending = False
                 st.rerun()
 
-# ─────────────────────────────────────────────────────────────
+# 
 # EMPTY STATE
-# ─────────────────────────────────────────────────────────────
+# 
 
 elif not st.session_state.active_query:
     st.markdown("""
@@ -2526,9 +2733,9 @@ elif not st.session_state.active_query:
     </div>
     """, unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────────────────────
+# 
 # GAME DEEP DIVE
-# ─────────────────────────────────────────────────────────────
+# 
 
 st.markdown(f"""
 <div class="section-header">
@@ -2563,7 +2770,7 @@ else:
         st.session_state.drilldown_game   = _dd_selected_id
         st.session_state.drilldown_report = st.session_state.drilldown_cache.get(_dd_selected_id, "")
 
-    # ── Per-game CCU history chart (always shown when a game is selected) ──
+    #  Per-game CCU history chart (always shown when a game is selected) 
     _dd_hist_all = load_all_historical()
     _dd_mdf = _dd_hist_all.get(_dd_selected_id)
     _dd_game_data = next((g for g in st.session_state.ccu_data if g["app_id"] == _dd_selected_id), None)
@@ -2651,8 +2858,8 @@ else:
         _pill_cols = st.columns(4)
         _pills = [
             ("All-time peak", f"{_hs.get('peak_ever', '—'):,}" if isinstance(_hs.get('peak_ever'), int) else "—"),
-            ("12m peak",      f"{_hs.get('peak_12m', '—'):,}"  if isinstance(_hs.get('peak_12m'),  int) else "—"),
-            ("12m avg CCU",   f"{_hs.get('avg_12m', '—'):,}"   if isinstance(_hs.get('avg_12m'),   int) else "—"),
+            ("12m peak",      f"{_hs.get('peak_12m', '—'):,}" if isinstance(_hs.get('peak_12m'),  int) else "—"),
+            ("12m avg CCU",   f"{_hs.get('avg_12m', '—'):,}" if isinstance(_hs.get('avg_12m'),   int) else "—"),
             ("MoM trend",     _hs.get('mom_trend', '—')),
         ]
         for col, (label, val) in zip(_pill_cols, _pills):
@@ -2660,7 +2867,7 @@ else:
     else:
         st.info(f"No SteamDB CSV for {_dd_selected_name}. Drop steamdb_chart_{_dd_selected_id}.csv into /data to enable the history chart.")
 
-    # ── AI deep-dive report ──
+    #  AI deep-dive report 
     if _dd_btn or st.session_state.drilldown_report:
         if _dd_btn and not st.session_state.drilldown_cache.get(_dd_selected_id):
             if not st.session_state.claude_key:
@@ -2697,9 +2904,9 @@ else:
                 key="drilldown_download",
             )
 
-# ─────────────────────────────────────────────────────────────
+# 
 # FOOTER
-# ─────────────────────────────────────────────────────────────
+# 
 
 st.markdown("""
 <div class="footer">
