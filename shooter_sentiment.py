@@ -62,6 +62,40 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;700;800;900&family=Poppins:wght@300;400;500;600&display=swap');
 
+/* ── FORCE DARK MODE ── */
+html, body, #root, #root > div,
+[data-testid="stAppViewContainer"],
+[data-testid="stAppViewContainer"] > section,
+[data-testid="stMain"], [data-testid="stHeader"],
+[data-testid="stSidebar"], [data-testid="stSidebarContent"],
+[data-testid="stBottom"], .stApp, .main {
+    background-color: #0a0c1a !important;
+    color: #eef0fa !important;
+    color-scheme: dark !important;
+}
+/* Kill any light-mode class Streamlit injects */
+[data-testid="stAppViewContainer"][class*="light"],
+.stApp[class*="light"],
+html[data-theme="light"] .stApp,
+html[data-theme="light"] body {
+    background-color: #0a0c1a !important;
+    color: #eef0fa !important;
+    color-scheme: dark !important;
+}
+/* Dataframe dark internals */
+[data-testid="stDataFrame"] > div { background: #0f1120 !important; color-scheme: dark !important; }
+.dvn-scroller { background: #0f1120 !important; }
+.col-header-title { color: #b8bcd4 !important; background: #141728 !important; font-weight: 600 !important; font-size: 0.75rem !important; letter-spacing: 0.05em !important; }
+[data-testid="glideDataEditor"] { background: #0f1120 !important; }
+
+/* Expander summary styling */
+[data-testid="stExpander"] summary {
+    font-size: 0.84rem !important; font-weight: 600 !important;
+    padding: 0.7rem 1rem !important;
+    background: #0f1120 !important;
+}
+[data-testid="stExpander"] summary:hover { background: #141728 !important; }
+
 :root,
 html[data-theme="light"],
 html[data-theme="dark"],
@@ -1456,7 +1490,7 @@ defaults = {
     "report_language": "English",
     "report_cache": {},
     "uploaded_csvs": {},   # app_id -> bytes, from sidebar uploader
-    "roster_genre":  "FPS",             # "FPS" or "TPS"
+    "roster_genre":  "BOTH",            # "FPS", "TPS", or "BOTH"
     "roster_filter": [],                # list of app_ids to include (empty = all)
     "drilldown_game":   None,           # app_id of selected game
     "drilldown_report": "",             # cached drilldown report
@@ -2380,24 +2414,25 @@ else:
                 d = wow_diff.get(r["app_id"])
                 if d:
                     wow_rows.append({
-                        "Title":      r["name"],
-                        "Live CCU":   f"{d['curr_ccu']:,}",
-                        "7d Ago CCU": f"{d['prev_ccu']:,}",
-                        "Delta CCU":  f"{d['delta']:+,}",
-                        "Delta %":    round(d["delta_pct"]),
+                        "Title":          r["name"],
+                        "Live CCU":       f"{d['curr_ccu']:,}",
+                        "7 Days Ago":     f"{d['prev_ccu']:,}",
+                        "Change (CCU)":   d["delta"],
+                        "Weekly Change":  round(d["delta_pct"]),
                     })
             if wow_rows:
                 wow_df = pd.DataFrame(
-                    sorted(wow_rows, key=lambda x: x["Delta %"], reverse=True)
+                    sorted(wow_rows, key=lambda x: x["Weekly Change"], reverse=True)
                 )
-                _wow_raw = wow_df["Delta %"].tolist()
-                wow_df["Delta %"] = wow_df["Delta %"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
+                _wow_raw = wow_df["Weekly Change"].tolist()
+                wow_df["Weekly Change"] = wow_df["Weekly Change"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
+                wow_df["Change (CCU)"]  = wow_df["Change (CCU)"].apply(lambda v: f"+{v:,}" if v > 0 else f"{v:,}")
                 def _style_wow(df, raw=_wow_raw):
                     styles = pd.DataFrame("", index=df.index, columns=df.columns)
                     for i, v in enumerate(raw):
                         c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
-                        styles.iloc[i, df.columns.get_loc("Delta %")] = c
-                        styles.iloc[i, df.columns.get_loc("Delta CCU")] = c
+                        styles.iloc[i, df.columns.get_loc("Weekly Change")] = c + ""
+                        styles.iloc[i, df.columns.get_loc("Change (CCU)")] = c + ""
                     return styles
                 st.dataframe(
                     wow_df.style.apply(_style_wow, axis=None),
@@ -2421,21 +2456,23 @@ else:
             pct = hs.get("mom_pct")
             if pct is not None:
                 mom_rows.append({
-                    "Title":     r["name"],
-                    "Live CCU":  r["ccu"],
-                    "MoM %":     round(pct),
+                    "Title":         r["name"],
+                    "Live CCU":      f"{r['ccu']:,}",
+                    "Month Change":  round(pct),
                 })
         if mom_rows:
             mom_df = pd.DataFrame(
-                sorted(mom_rows, key=lambda x: x["MoM %"], reverse=True)
+                sorted(mom_rows, key=lambda x: x["Month Change"], reverse=True)
             )
-            _mom_raw = mom_df["MoM %"].tolist()
-            mom_df["MoM %"] = mom_df["MoM %"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
+            _mom_raw = mom_df["Month Change"].tolist()
+            mom_df["Month Change"] = mom_df["Month Change"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
             def _style_mom(df, raw=_mom_raw):
                 styles = pd.DataFrame("", index=df.index, columns=df.columns)
                 for i, v in enumerate(raw):
                     c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
-                    styles.iloc[i, df.columns.get_loc("MoM %")] = c
+                    styles.iloc[i, df.columns.get_loc("Month Change")] = c + ""
+                    if "Live CCU" in df.columns:
+                        styles.iloc[i, df.columns.get_loc("Live CCU")] = ""
                 return styles
             st.dataframe(
                 mom_df.style.apply(_style_mom, axis=None),
@@ -2463,22 +2500,25 @@ else:
                 yr_ago = hs.get("yoy_ccu")
                 pct = round(r["yoy_val"])
                 yoy_rows.append({
-                    "Title":          r["name"],
-                    "Live CCU":       f"{live:,}",
-                    "1Yr Ago CCU":    f"{yr_ago:,}" if yr_ago else "N/A",
-                    "YoY %":          pct,
+                    "Title":           r["name"],
+                    "Live CCU":        f"{live:,}",
+                    "1 Year Ago":      f"{yr_ago:,}" if yr_ago else "N/A",
+                    "Annual Change":   pct,
                 })
             if yoy_rows:
                 yoy_df = pd.DataFrame(
-                    sorted(yoy_rows, key=lambda x: x["YoY %"] if isinstance(x["YoY %"], (int, float)) else 0, reverse=True)
+                    sorted(yoy_rows, key=lambda x: x["Annual Change"] if isinstance(x["Annual Change"], (int, float)) else 0, reverse=True)
                 )
-                _yoy_raw = yoy_df["YoY %"].tolist()
-                yoy_df["YoY %"] = yoy_df["YoY %"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
+                _yoy_raw = yoy_df["Annual Change"].tolist()
+                yoy_df["Annual Change"] = yoy_df["Annual Change"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
                 def _style_yoy(df, raw=_yoy_raw):
                     styles = pd.DataFrame("", index=df.index, columns=df.columns)
                     for i, v in enumerate(raw):
                         c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
-                        styles.iloc[i, df.columns.get_loc("YoY %")] = c
+                        styles.iloc[i, df.columns.get_loc("Annual Change")] = c + ""
+                        for nc in ["Live CCU", "1 Year Ago"]:
+                            if nc in df.columns:
+                                styles.iloc[i, df.columns.get_loc(nc)] = ""
                     return styles
                 st.dataframe(
                     yoy_df.style.apply(_style_yoy, axis=None),
@@ -2583,18 +2623,18 @@ else:
     _tbl_genre = st.session_state.get("roster_genre", "FPS")
     with st.expander(f"Top Shooter CCU Stack-Ranked — {_tbl_genre}"):
         df = pd.DataFrame([{
-            "#":                 i + 1,
-            T("col_title"):      r["name"],
-            T("col_subgenre"):   r["sub"],
-            T("col_publisher"):  r["publisher"],
-            T("col_f2p"):        T("yes") if r["f2p"] else T("no"),
-            T("col_live_ccu"):   f"{r['ccu']:,} *" if r.get("ccu_from_csv") else f"{r['ccu']:,}",
-            T("col_yoy"):        r.get("yoy", "N/A"),
-            T("col_peak_ever"):  f"{r['hist_summary']['peak_ever']:,}" if r.get("hist_summary", {}).get("peak_ever") else "—",
-            T("col_peak_12m"):   f"{r['hist_summary']['peak_12m']:,}" if r.get("hist_summary", {}).get("peak_12m")  else "—",
-            T("col_avg_ccu_12m"):f"{r['hist_summary']['avg_12m']:,}" if r.get("hist_summary", {}).get("avg_12m")   else "—",
-            T("col_mom"):        r.get("hist_summary", {}).get("mom_trend", "—"),
-            T("col_review"):     f"{r['review_pct']}%" if r.get("review_pct") else "—",
+            "#":               i + 1,
+            "Title":           r["name"],
+            "Sub-Genre":       r["sub"],
+            "Publisher":       r["publisher"],
+            "F2P":             "Yes" if r["f2p"] else "No",
+            "Live CCU":        f"{r['ccu']:,} *" if r.get("ccu_from_csv") else f"{r['ccu']:,}",
+            "YoY":             r.get("yoy", "N/A"),
+            "All-Time Peak":   f"{r['hist_summary']['peak_ever']:,}" if r.get("hist_summary", {}).get("peak_ever") else "—",
+            "12m Peak":        f"{r['hist_summary']['peak_12m']:,}" if r.get("hist_summary", {}).get("peak_12m")  else "—",
+            "12m Avg":         f"{r['hist_summary']['avg_12m']:,}" if r.get("hist_summary", {}).get("avg_12m")   else "—",
+            "MoM":             r.get("hist_summary", {}).get("mom_trend", "—"),
+            "Review":          f"{r['review_pct']}%" if r.get("review_pct") else "—",
         } for i, r in enumerate(ccu_data)])
 
         # Raw numeric cols for styling
@@ -2607,24 +2647,18 @@ else:
 
         def _style_table(df):
             styles = pd.DataFrame("", index=df.index, columns=df.columns)
-            mom_col = T("col_mom")
-            yoy_col = T("col_yoy")
-            num_cols = [T("col_live_ccu"), T("col_peak_ever"), T("col_peak_12m"), T("col_avg_ccu_12m")]
             for i in df.index:
-                # MoM: green/red + centre
-                if mom_col in df.columns:
+                if "MoM" in df.columns:
                     v = _mom_raw_tbl[i] if i < len(_mom_raw_tbl) else 0
                     c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
-                    styles.iloc[i, df.columns.get_loc(mom_col)] = c + "; text-align: center"
-                # YoY: green/red
-                if yoy_col in df.columns:
+                    styles.iloc[i, df.columns.get_loc("MoM")] = c + ""
+                if "YoY" in df.columns:
                     v = _yoy_raw_tbl[i] if i < len(_yoy_raw_tbl) else 0
                     c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
-                    styles.iloc[i, df.columns.get_loc(yoy_col)] = c
-                # Numeric cols: right-align
-                for nc in num_cols:
+                    styles.iloc[i, df.columns.get_loc("YoY")] = c
+                for nc in ["Live CCU", "All-Time Peak", "12m Peak", "12m Avg"]:
                     if nc in df.columns:
-                        styles.iloc[i, df.columns.get_loc(nc)] = "text-align: right"
+                        styles.iloc[i, df.columns.get_loc(nc)] = ""
             return styles
 
         st.dataframe(
@@ -2633,7 +2667,7 @@ else:
             hide_index=True,
             height=(len(df) + 1) * 35 + 3,
         )
-        st.caption(f"Review score = all-time positive reviews ÷ total reviews (SteamSpy). 'None%' = no review data returned by SteamSpy for that title. * = CCU from CSV fallback.")
+        st.caption("Review = all-time positive ÷ total reviews (Steam/SteamSpy).  — = no data available.  * = live API returned 0, using latest CSV value instead.")
 
     #  Monthly history chart 
     hist_titles = [r for r in ccu_data if r.get("has_hist")]
