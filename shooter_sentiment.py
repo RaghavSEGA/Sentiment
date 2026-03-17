@@ -2430,21 +2430,10 @@ else:
                 wow_df = pd.DataFrame(
                     sorted(wow_rows, key=lambda x: x["Weekly Change"], reverse=True)
                 )
-                _wow_raw = wow_df["Weekly Change"].tolist()
                 wow_df["Weekly Change"] = wow_df["Weekly Change"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
                 wow_df["Change (CCU)"]  = wow_df["Change (CCU)"].apply(lambda v: f"+{v:,}" if v > 0 else f"{v:,}")
-                def _style_wow(df, raw=_wow_raw):
-                    styles = pd.DataFrame("", index=df.index, columns=df.columns)
-                    for i, v in enumerate(raw):
-                        c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
-                        styles.iloc[i, df.columns.get_loc("Weekly Change")] = c + ""
-                        styles.iloc[i, df.columns.get_loc("Change (CCU)")] = c + ""
-                    return styles
-                st.dataframe(
-                    wow_df.style.apply(_style_wow, axis=None),
-                    use_container_width=True, hide_index=True,
-                    height=(len(wow_df) + 1) * 35 + 3,
-                )
+                st.dataframe(wow_df, use_container_width=True, hide_index=True,
+                    height=(len(wow_df) + 1) * 35 + 3)
         else:
             st.info(T("wow_none"))
 
@@ -2470,21 +2459,9 @@ else:
             mom_df = pd.DataFrame(
                 sorted(mom_rows, key=lambda x: x["Month Change"], reverse=True)
             )
-            _mom_raw = mom_df["Month Change"].tolist()
             mom_df["Month Change"] = mom_df["Month Change"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
-            def _style_mom(df, raw=_mom_raw):
-                styles = pd.DataFrame("", index=df.index, columns=df.columns)
-                for i, v in enumerate(raw):
-                    c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
-                    styles.iloc[i, df.columns.get_loc("Month Change")] = c + ""
-                    if "Live CCU" in df.columns:
-                        styles.iloc[i, df.columns.get_loc("Live CCU")] = ""
-                return styles
-            st.dataframe(
-                mom_df.style.apply(_style_mom, axis=None),
-                use_container_width=True, hide_index=True,
-                height=(len(mom_df) + 1) * 35 + 3,
-            )
+            st.dataframe(mom_df, use_container_width=True, hide_index=True,
+                height=(len(mom_df) + 1) * 35 + 3)
         else:
             st.info(T("yoy_none"))
 
@@ -2515,22 +2492,9 @@ else:
                 yoy_df = pd.DataFrame(
                     sorted(yoy_rows, key=lambda x: x["Annual Change"] if isinstance(x["Annual Change"], (int, float)) else 0, reverse=True)
                 )
-                _yoy_raw = yoy_df["Annual Change"].tolist()
                 yoy_df["Annual Change"] = yoy_df["Annual Change"].apply(lambda v: f"+{v}%" if v > 0 else f"{v}%")
-                def _style_yoy(df, raw=_yoy_raw):
-                    styles = pd.DataFrame("", index=df.index, columns=df.columns)
-                    for i, v in enumerate(raw):
-                        c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
-                        styles.iloc[i, df.columns.get_loc("Annual Change")] = c + ""
-                        for nc in ["Live CCU", "1 Year Ago"]:
-                            if nc in df.columns:
-                                styles.iloc[i, df.columns.get_loc(nc)] = ""
-                    return styles
-                st.dataframe(
-                    yoy_df.style.apply(_style_yoy, axis=None),
-                    use_container_width=True, hide_index=True,
-                    height=(len(yoy_df) + 1) * 35 + 3,
-                )
+                st.dataframe(yoy_df, use_container_width=True, hide_index=True,
+                    height=(len(yoy_df) + 1) * 35 + 3)
         else:
             st.info(T("yoy_none"))
 
@@ -2643,36 +2607,8 @@ else:
             "Review":          f"{r['review_pct']}%" if r.get("review_pct") else "—",
         } for i, r in enumerate(ccu_data)])
 
-        # Raw numeric cols for styling
-        _mom_raw_tbl = []
-        _yoy_raw_tbl = []
-        for r in ccu_data:
-            mom_p = (r.get("hist_summary") or {}).get("mom_pct")
-            _mom_raw_tbl.append(mom_p if mom_p is not None else 0)
-            _yoy_raw_tbl.append(r.get("yoy_val") or 0)
-
-        def _style_table(df):
-            styles = pd.DataFrame("", index=df.index, columns=df.columns)
-            for i in df.index:
-                if "MoM" in df.columns:
-                    v = _mom_raw_tbl[i] if i < len(_mom_raw_tbl) else 0
-                    c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
-                    styles.iloc[i, df.columns.get_loc("MoM")] = c + ""
-                if "YoY" in df.columns:
-                    v = _yoy_raw_tbl[i] if i < len(_yoy_raw_tbl) else 0
-                    c = "color: #20c65a" if v > 0 else ("color: #ff4d4d" if v < 0 else "")
-                    styles.iloc[i, df.columns.get_loc("YoY")] = c
-                for nc in ["Live CCU", "All-Time Peak", "12m Peak", "12m Avg"]:
-                    if nc in df.columns:
-                        styles.iloc[i, df.columns.get_loc(nc)] = ""
-            return styles
-
-        st.dataframe(
-            df.style.apply(_style_table, axis=None),
-            use_container_width=True,
-            hide_index=True,
-            height=(len(df) + 1) * 35 + 3,
-        )
+        st.dataframe(df, use_container_width=True, hide_index=True,
+            height=(len(df) + 1) * 35 + 3)
         st.caption("Review = all-time positive ÷ total reviews (Steam/SteamSpy).  — = no data available.  * = live API returned 0, using latest CSV value instead.")
 
     #  Monthly history chart 
