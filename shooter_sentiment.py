@@ -2127,34 +2127,118 @@ else:
                         st.error(f"Analysis failed: {_e2}")
         if st.session_state.ai_report:
             st.markdown(st.session_state.ai_report)
-            _fn2 = st.session_state.report_label.lower().replace(" ","_").replace("—","").strip("_")
-            _dc1, _dc2 = st.columns(2)
-            with _dc1:
+            st.markdown("<br>", unsafe_allow_html=True)
+            _fn2 = re.sub(r"[^a-z0-9]+", "_", st.session_state.report_label.lower())[:40]
+            fname2 = f"sega_shooter_intel_{_fn2}"
+            _da1, _da2, _da3, _da4, _da5 = st.columns(5)
+            with _da1:
                 st.download_button(T("dl_md"), data=st.session_state.ai_report,
-                    file_name=f"{_fn2}.md", mime="text/markdown",
+                    file_name=f"{fname2}.md", mime="text/markdown",
                     use_container_width=True, key="dl_md_top")
-            with _dc2:
+            with _da2:
+                _html2 = report_to_html(st.session_state.ai_report).encode("utf-8")
+                st.download_button(T("dl_html"), data=_html2,
+                    file_name=f"{fname2}.html", mime="text/html",
+                    use_container_width=True, key="dl_html_top")
+            with _da3:
+                if _REPORTLAB_AVAILABLE:
+                    _pdf2 = report_to_pdf(st.session_state.ai_report)
+                    if _pdf2:
+                        st.download_button(T("dl_pdf"), data=_pdf2,
+                            file_name=f"{fname2}.pdf", mime="application/pdf",
+                            use_container_width=True, key="dl_pdf_top")
+                else:
+                    st.caption(T("dl_pdf_missing"))
+            with _da4:
+                if st.button(T("dl_pptx_btn"), key="dl_pptx_top", use_container_width=True):
+                    with st.spinner(T("spinner_pptx")):
+                        _pptx2 = generate_pptx_bytes(
+                            st.session_state.ai_report,
+                            st.session_state.ccu_data or [],
+                            st.session_state.report_label,
+                        )
+                    if _pptx2:
+                        st.download_button(T("dl_pptx_file"), data=_pptx2,
+                            file_name=f"{fname2}.pptx",
+                            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                            key="dl_pptx_actual_top")
+                    else:
+                        st.error(T("dl_pptx_error"))
+            with _da5:
                 if st.button("Regenerate", key="regen_top", use_container_width=True):
                     st.session_state.ai_report = ""
+                    st.session_state.report_cache = {}
                     st.rerun()
+
+            # Follow-up chat
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="section-header"><span class="dot"></span>{T("chat_header")}'                f'<span style="color:var(--muted);font-size:.7rem;font-weight:400;"> '                f'{T("chat_subtext")}</span></div>',
+                unsafe_allow_html=True,
+            )
+
+            def build_chat_system_top():
+                ccu_ctx = ""
+                if st.session_state.ccu_data:
+                    ccu_ctx = "\n\nLIVE CCU DATA:\n" + "\n".join(
+                        f"- {r['name']}: {r['ccu']:,} CCU ({r['yoy']} YoY)"
+                        for r in st.session_state.ccu_data[:15]
+                    )
+                return (
+                    "You are a senior games market analyst at SEGA. "
+                    "Answer follow-up questions concisely, accurately, and commercially. "
+                    "Reference the report and live data where relevant. "
+                    "Use markdown for formatting.\n\n"
+                    f"## Report\n\n{st.session_state.ai_report[:4000]}"
+                    + ("…[truncated]" if len(st.session_state.ai_report) > 4000 else "")
+                    + ccu_ctx
+                )
+
+            for msg in st.session_state.ai_chat_history:
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
+
+            if st.session_state.ai_chat_pending:
+                st.session_state.ai_chat_pending = False
+                api_msgs = [{"role": m["role"], "content": m["content"]}
+                            for m in st.session_state.ai_chat_history]
+                try:
+                    _cc = _anthropic.Anthropic(api_key=st.session_state.claude_key)
+                    with st.chat_message("assistant"):
+                        _reply = ""
+                        _ph_chat = st.empty()
+                        with _cc.messages.stream(
+                            model="claude-sonnet-4-20250514",
+                            max_tokens=2048,
+                            system=build_chat_system_top(),
+                            messages=api_msgs,
+                        ) as _stream:
+                            for _delta in _stream.text_stream:
+                                _reply += _delta
+                                _ph_chat.markdown(_reply + "")
+                        _ph_chat.markdown(_reply)
+                    st.session_state.ai_chat_history.append({"role": "assistant", "content": _reply})
+                except Exception as _ce:
+                    st.error(f"Chat error: {type(_ce).__name__}: {_ce}")
+
+            _user_msg = st.chat_input("Ask a follow-up question…", key="ai_chat_input_top")
+            if _user_msg:
+                st.session_state.ai_chat_history.append({"role": "user", "content": _user_msg})
+                st.session_state.ai_chat_pending = True
+                st.rerun()
+
+            if st.session_state.ai_chat_history:
+                if st.button("Clear chat history", key="clear_chat_top"):
+                    st.session_state.ai_chat_history = []
+                    st.session_state.ai_chat_pending = False
+                    st.rerun()
+
         st.markdown("---")
 
     raw_data = load_all_raw()
     live_ccu_map = {r["app_id"]: r["ccu"] for r in ccu_data}
     wow_diff = compute_period_diff(raw_data, live_ccu_map, days=7)
     n_wow    = len(wow_diff)
-
-    # AI Report at top of dashboard
-    if st.session_state.get("active_query") and st.session_state.get("ai_report"):
-        _genre_tag_top = st.session_state.get("roster_genre", "FPS")
-        _label_top = st.session_state.report_label.upper()
-        st.markdown(f"""
-    <div class="section-header">
-      <span class="dot"></span>AI ANALYSIS — {_label_top} — {_genre_tag_top}
-    </div>
-    """, unsafe_allow_html=True)
-        st.markdown(st.session_state.ai_report)
-        st.markdown("---")
 
     #  Derived stats 
     total_ccu    = sum(r["ccu"] for r in ccu_data)
@@ -2601,179 +2685,7 @@ if st.session_state.ccu_data:
         st.session_state.ai_chat_history = []
         st.session_state.report_label = "Custom Query"
 
-# 
-# AI ANALYSIS ENGINE
-# 
-
-if st.session_state.active_query:
-    if not st.session_state.claude_key:
-        st.warning(T("no_key_warning"), icon="")
-    elif not ANTHROPIC_AVAILABLE:
-        st.error(T("no_anthropic_error"))
-    elif not st.session_state.ai_report:
-        # Build prompt
-        ccu_data = st.session_state.ccu_data or []
-        aq = st.session_state.active_query
-        if aq == "ccu_mecha":
-            if not ccu_data:
-                st.warning(T("no_ccu_warning"), icon="")
-                st.stop()
-            user_prompt = build_ccu_mecha_prompt(ccu_data[:10], genre=st.session_state.get("roster_genre", "FPS"))
-        elif aq == "table_stakes":
-            user_prompt = build_table_stakes_prompt()
-        elif aq == "social_metrics":
-            user_prompt = build_social_metrics_prompt()
-        elif aq == "weekly_report":
-            if not ccu_data:
-                st.warning(T("no_ccu_warning"), icon="")
-                st.stop()
-            user_prompt = build_weekly_report_prompt(ccu_data)
-        elif aq == "custom":
-            user_prompt = st.session_state.custom_query
-        else:
-            user_prompt = st.session_state.custom_query
-
-        ai_model = "claude-sonnet-4-20250514"
-
-        with st.spinner(T("spinner_generating")):
-            report_text = ""
-            try:
-                client = _anthropic.Anthropic(api_key=st.session_state.claude_key)
-                with client.messages.stream(
-                    model=ai_model,
-                    max_tokens=4096,
-                    system=build_system_prompt(st.session_state.report_language),
-                    messages=[{"role": "user", "content": user_prompt}],
-                ) as stream:
-                    for delta in stream.text_stream:
-                        report_text += delta
-                st.session_state.ai_report = report_text
-                st.rerun()
-            except _anthropic.AuthenticationError:
-                st.error(T("auth_error"))
-            except _anthropic.RateLimitError:
-                st.error(T("rate_limit_error"))
-            except _anthropic.APIConnectionError as e:
-                st.error(f"Could not reach Anthropic API: {e}")
-            except Exception as e:
-                st.error(f"Unexpected error: {type(e).__name__}: {e}")
-
-    #  Download options 
-    if st.session_state.ai_report:
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(
-            '<div style="font-size:.62rem;font-weight:700;letter-spacing:.18em;'
-            'text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">'
-            f'{T("download_report_header")}</div>',
-            unsafe_allow_html=True,
-        )
-        slug = re.sub(r"[^a-z0-9]+", "_", st.session_state.report_label.lower())[:40]
-        fname = f"sega_shooter_intel_{slug}"
-
-        dl1, dl2, dl3, dl4 = st.columns(4)
-        with dl1:
-            st.download_button(T("dl_md"), data=st.session_state.ai_report,
-                file_name=f"{fname}.md", mime="text/markdown",
-                use_container_width=True, key="dl_md")
-        with dl2:
-            html_bytes = report_to_html(st.session_state.ai_report).encode("utf-8")
-            st.download_button(T("dl_html"), data=html_bytes,
-                file_name=f"{fname}.html", mime="text/html",
-                use_container_width=True, key="dl_html")
-        with dl3:
-            if _REPORTLAB_AVAILABLE:
-                pdf_bytes = report_to_pdf(st.session_state.ai_report)
-                if pdf_bytes:
-                    st.download_button(T("dl_pdf"), data=pdf_bytes,
-                        file_name=f"{fname}.pdf", mime="application/pdf",
-                        use_container_width=True, key="dl_pdf")
-            else:
-                st.caption(T("dl_pdf_missing"))
-        with dl4:
-            if st.button(T("dl_pptx_btn"), key="dl_pptx", use_container_width=True):
-                with st.spinner(T("spinner_pptx")):
-                    pptx_bytes = generate_pptx_bytes(
-                        st.session_state.ai_report,
-                        st.session_state.ccu_data or [],
-                        st.session_state.report_label,
-                    )
-                if pptx_bytes:
-                    st.download_button(T("dl_pptx_file"), data=pptx_bytes,
-                        file_name=f"{fname}.pptx",
-                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                        key="dl_pptx_actual")
-                else:
-                    st.error(T("dl_pptx_error"))
-
-        #  Follow-up chat 
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="section-header"><span class="dot"></span>{T("chat_header")}'
-            f'<span style="color:var(--muted);font-size:.7rem;font-weight:400;"> '
-            f'{T("chat_subtext")}</span></div>',
-            unsafe_allow_html=True,
-        )
-
-        def build_chat_system():
-            ccu_ctx = ""
-            if st.session_state.ccu_data:
-                ccu_ctx = "\n\nLIVE CCU DATA:\n" + "\n".join(
-                    f"- {r['name']}: {r['ccu']:,} CCU ({r['yoy']} YoY)"
-                    for r in st.session_state.ccu_data[:15]
-                )
-            return (
-                "You are a senior games market analyst at SEGA. "
-                "The user has just received the following analysis report about the competitive shooter market. "
-                "Answer follow-up questions concisely, accurately, and commercially. "
-                "Reference the report and live data where relevant. "
-                "Use markdown for formatting.\n\n"
-                f"## Report\n\n{st.session_state.ai_report[:4000]}"
-                + ("…[truncated]" if len(st.session_state.ai_report) > 4000 else "")
-                + ccu_ctx
-            )
-
-        for msg in st.session_state.ai_chat_history:
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
-
-        if st.session_state.ai_chat_pending:
-            st.session_state.ai_chat_pending = False
-            api_msgs = [{"role": m["role"], "content": m["content"]}
-                        for m in st.session_state.ai_chat_history]
-            try:
-                chat_client = _anthropic.Anthropic(api_key=st.session_state.claude_key)
-                with st.chat_message("assistant"):
-                    reply = ""
-                    ph2 = st.empty()
-                    with chat_client.messages.stream(
-                        model="claude-sonnet-4-20250514",
-                        max_tokens=2048,
-                        system=build_chat_system(),
-                        messages=api_msgs,
-                    ) as stream:
-                        for delta in stream.text_stream:
-                            reply += delta
-                            ph2.markdown(reply + "")
-                    ph2.markdown(reply)
-                st.session_state.ai_chat_history.append({"role": "assistant", "content": reply})
-            except _anthropic.AuthenticationError:
-                st.error(T("auth_error"))
-            except _anthropic.RateLimitError:
-                st.error("Rate limit. Please wait and retry.")
-            except Exception as e:
-                st.error(f"Chat error: {type(e).__name__}: {e}")
-
-        user_msg = st.chat_input("Ask a follow-up question…", key="ai_chat_input")
-        if user_msg:
-            st.session_state.ai_chat_history.append({"role": "user", "content": user_msg})
-            st.session_state.ai_chat_pending = True
-            st.rerun()
-
-        if st.session_state.ai_chat_history:
-            if st.button("Clear chat history", key="clear_chat"):
-                st.session_state.ai_chat_history = []
-                st.session_state.ai_chat_pending = False
-                st.rerun()
+# (AI analysis, downloads, and chat handled inside the CCU dashboard block above)
 
 # 
 # EMPTY STATE
