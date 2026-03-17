@@ -1202,71 +1202,58 @@ This analysis synthesises findings from recent investor reports (Embracer, EA, T
 6. **Budget Implication** — Given these metrics, what social/influencer spend is required to hit minimum viable social velocity for a Western competitive shooter launch?"""
 
 def build_weekly_report_prompt(ccu_data: list[dict]) -> str:
+    from datetime import datetime, timezone
+    today    = datetime.now(timezone.utc)
+    date_str = today.strftime("%B %d, %Y")
+
     rows = []
-    for r in ccu_data:
-        hs = r.get("hist_summary", {})
-        src = "SteamDB" if r.get("has_hist") else "est."
+    for rank, r in enumerate(ccu_data, 1):
+        hs   = r.get("hist_summary", {})
+        src  = "SteamDB" if r.get("has_hist") else "est."
         line = (
-            f"- {r['name']} ({r['sub']}): {r['ccu']:,} CCU live | "
+            f"{rank}. {r['name']} ({r['sub']}): {r['ccu']:,} live CCU | "
             f"YoY {r.get('yoy','N/A')} [{src}] | "
-            f"Peak 12m {hs.get('peak_12m','?'):,} | " if hs.get('peak_12m') else
-            f"- {r['name']} ({r['sub']}): {r['ccu']:,} CCU live | "
-            f"YoY {r.get('yoy','N/A')} [{src}] | "
+            f"MoM {hs.get('mom_trend','—')} | "
+            f"Review {r.get('review_pct','?')}%"
         )
-        line += f"MoM {hs.get('mom_trend','—')} | Avg Hrs/2wk {r.get('avg_2w_hrs','?')} | Review {r.get('review_pct','?')}%"
+        if hs.get("peak_12m"):
+            line += f" | Peak 12m {hs['peak_12m']:,}"
         rows.append(line)
     rows_str = "\n".join(rows)
-    return f"""## Task: Weekly Market Report Template — Top 100 Shooters
 
-Create a fully populated **template** for SEGA's internal weekly shooter market report. This report is distributed every Monday to product leads, publishing managers, and the CEO's strategy briefing.
+    return f"""You are producing SEGA's internal weekly shooter market intelligence report for the week of {date_str}.
 
-Use the following live CCU snapshot + historical data as seed data for the current week's figures:
+IMPORTANT: All data below is LIVE as of {date_str}. Use ONLY these figures. Do not reference any other dates. Do not invent or estimate CCU numbers.
 
+LIVE CCU SNAPSHOT — {date_str}:
 {rows_str}
 
-### The template must include ALL of the following sections, fully written out with example data:
+Produce ONLY the two sections below. Do not add any other sections or commentary.
 
 ---
 
-**SECTION 1: EXECUTIVE SUMMARY** (max 200 words)
-- Week-over-week market mood (Rising / Flat / Declining)
-- 3 bullet headline findings
-- 1 "Story of the Week"
+## SECTION 1: EXECUTIVE SUMMARY
 
-**SECTION 2: TOP 20 CCU LEAGUE TABLE**
-- Ranked table: Title | Sub-genre | Publisher | Live CCU | WoW Δ | 4-Week Trend | Status
-- Highlight any title that moved ±3 positions
-
-**SECTION 3: BREAKOUT INDIE WATCH**
-- Identify any title outside the top 20 with unusual CCU or review velocity
-- Include: Title | Developer | Price | CCU | Review Score | Why It Matters
-
-**SECTION 4: RETENTION & ENGAGEMENT KPIs**
-For each of the top 10 titles, estimate or track:
-- 7-Day Retention (D7)
-- 30-Day Retention (D30)
-- Avg Session Length
-- Daily Active Users (DAU) estimate
-- DAU/MAU ratio estimate
-- New Player Acquisition (NPA) rate this week
-
-**SECTION 5: SUB-GENRE HEAT MAP**
-- Which sub-genres are gaining/losing share? (Tactical, BR, Arena, Co-op PvE, Mecha, Hero, Extraction)
-
-**SECTION 6: COMPETITIVE INTELLIGENCE**
-- Any notable patch drops, events, or announcements from top publishers this week
-- Pricing changes, free weekends, or seasonal events that moved the needle
-
-**SECTION 7: SEGA STRATEGIC IMPLICATIONS**
-- 3 bullet points specifically relevant to SEGA's potential shooter projects
-- Any gap in the market that widened or narrowed this week?
-
-**SECTION 8: DATA SOURCES & METHODOLOGY**
-- Where to pull each data point, refresh cadence, and known limitations
+Write 150–200 words covering:
+- Overall market mood this week (Rising / Flat / Declining) — justify with the data above
+- 3 headline bullet findings drawn directly from the numbers above
+- Story of the Week: the single most notable move or trend visible in this data
 
 ---
 
-The output should be a complete, copy-paste-ready template that the analytics team can fill in each Monday in under 2 hours."""
+## SECTION 2: CCU LEAGUE TABLE
+
+Produce a markdown table with these exact columns:
+| Rank | Title | Sub-genre | Live CCU | YoY | MoM | Review Score | Notes |
+
+Rules:
+- Use ONLY the CCU figures provided above — do not invent or estimate
+- Notes: one short observation per title based on the data (e.g. "Declining 3 months", "New season spike", "Near all-time peak")
+- Flag in Notes any title with YoY > +50% or YoY < -30%
+
+---
+
+Do not write Section 3 or beyond."""
 
 # 
 # PPTX EXPORT  (pure python-pptx)
@@ -1544,7 +1531,7 @@ TRANSLATIONS = {
         "col_direction":          "Direction",
         "col_reference":          "Reference",
         # Bar chart
-        "chart_caption":          "Paid titles (blue) / F2P titles (green)  |  Hover bars for YoY & Week-over-Week delta  |  Source: Steam public API",
+        "chart_caption":          "Green = WoW up  |  Red = WoW down  |  Grey = no CSV data",
         # Analysis presets
         "run_analysis":           "Run Analysis",
         "custom_label":           "Or ask a custom question",
@@ -1956,6 +1943,8 @@ with _g_col1:
             st.session_state.roster_genre  = "FPS"
             st.session_state.roster_filter = []
             st.session_state.ccu_data      = []
+            st.session_state.active_query  = None
+            st.session_state.ai_report     = ""
             st.rerun()
 
 with _g_col2:
@@ -1970,6 +1959,8 @@ with _g_col2:
             st.session_state.roster_genre  = "TPS"
             st.session_state.roster_filter = []
             st.session_state.ccu_data      = []
+            st.session_state.active_query  = None
+            st.session_state.ai_report     = ""
             st.rerun()
 
 # Build full roster for active genre
@@ -2020,62 +2011,6 @@ _overlap_shown = [GAME_CATALOG[a]["name"] for a in _overlap
                   if a in _active_ids and a in GAME_CATALOG]
 if _overlap_shown:
     st.caption(f"ℹ {len(_overlap_shown)} titles also appear in the other list: {', '.join(sorted(_overlap_shown))}")
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-st.markdown(f"""
-<div class="section-header">
-  <span class="dot"></span>{T("select_analysis")}
-</div>
-""", unsafe_allow_html=True)
-
-# Preset cards — top-left (index 0) and bottom-right (index 3) only
-_shown_presets = [PRESET_QUERIES[0], PRESET_QUERIES[3]]
-col1, col2 = st.columns(2)
-for i, preset in enumerate(_shown_presets):
-    col = col1 if i == 0 else col2
-    with col:
-        _pid   = preset["id"]
-        _label = T("preset_labels")[_pid]
-        _desc  = T("preset_descs")[_pid]
-        _tag   = T("preset_tags")[_pid]
-        st.markdown(f"""
-        <div class="insight-card">
-          <div class="insight-card-title">
-            <span class="{preset['tag_class']}">{_tag}</span>
-            {_label}
-          </div>
-          <div class="insight-card-desc">{_desc}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button(T("run_analysis"), key=f"preset_{preset['id']}"):
-            st.session_state.active_query = preset["prompt_key"]
-            st.session_state.ai_report = ""
-            st.session_state.ai_chat_history = []
-            st.session_state.report_label = _label
-
-st.markdown("<br>", unsafe_allow_html=True)
-st.markdown(f'<div class="field-label">{T("custom_label")}</div>', unsafe_allow_html=True)
-col_q, col_btn = st.columns([5, 1])
-with col_q:
-    custom = st.text_input(
-        "Custom query",
-        value=st.session_state.custom_query,
-        label_visibility="collapsed",
-        placeholder=T("custom_placeholder"),
-        key="custom_input",
-    )
-with col_btn:
-    run_custom = st.button(T("run_btn"), key="run_custom")
-
-if run_custom and custom.strip():
-    st.session_state.custom_query = custom.strip()
-    st.session_state.active_query = "custom"
-    st.session_state.ai_report = ""
-    st.session_state.ai_chat_history = []
-    st.session_state.report_label = "Custom Query"
-
-st.markdown("</div>", unsafe_allow_html=True)
 
 # 
 # LIVE CCU PANEL
@@ -2141,13 +2076,85 @@ if not st.session_state.ccu_data:
         status.empty()
         results.sort(key=lambda x: x["ccu"], reverse=True)
         st.session_state.ccu_data = results
+        if not st.session_state.active_query:
+            _genre_for_label = st.session_state.get("roster_genre", "FPS")
+            st.session_state.active_query    = "weekly_report"
+            st.session_state.report_label    = f"Weekly Report — {_genre_for_label}"
+            st.session_state.ai_report       = ""
+            st.session_state.ai_chat_history = []
         st.rerun()
 else:
     ccu_data = st.session_state.ccu_data
+
+    # AI ANALYSIS — shown above dashboard
+    if st.session_state.active_query:
+        _genre_lbl = st.session_state.get("roster_genre", "FPS")
+        st.markdown(f"""
+<div class="section-header">
+  <span class="dot"></span>AI ANALYSIS — {st.session_state.report_label.upper()}
+</div>
+""", unsafe_allow_html=True)
+        if not st.session_state.claude_key:
+            st.warning(T("no_key_warning"))
+        elif not ANTHROPIC_AVAILABLE:
+            st.error(T("no_anthropic_error"))
+        elif not st.session_state.ai_report:
+            _ck = f"{st.session_state.active_query}_{hash(str([r['ccu'] for r in ccu_data]))}"
+            if _ck in st.session_state.report_cache:
+                st.session_state.ai_report = st.session_state.report_cache[_ck]
+                st.info(T("cache_notice"))
+            else:
+                with st.spinner(T("spinner_generating")):
+                    try:
+                        import anthropic as _ant2
+                        _aq2 = st.session_state.active_query
+                        if _aq2 == "weekly_report":
+                            _up2 = build_weekly_report_prompt(ccu_data[:25])
+                        elif _aq2 == "ccu_mecha":
+                            _up2 = build_ccu_mecha_prompt(ccu_data[:10], genre=_genre_lbl)
+                        else:
+                            _up2 = st.session_state.custom_query or build_weekly_report_prompt(ccu_data[:25])
+                        _cl2 = _ant2.Anthropic(api_key=st.session_state.claude_key)
+                        _r2  = _cl2.messages.create(
+                            model="claude-sonnet-4-20250514",
+                            max_tokens=2000,
+                            system=build_system_prompt(st.session_state.report_language),
+                            messages=[{"role": "user", "content": _up2}],
+                        )
+                        st.session_state.ai_report = _r2.content[0].text
+                        st.session_state.report_cache[_ck] = st.session_state.ai_report
+                    except Exception as _e2:
+                        st.error(f"Analysis failed: {_e2}")
+        if st.session_state.ai_report:
+            st.markdown(st.session_state.ai_report)
+            _fn2 = st.session_state.report_label.lower().replace(" ","_").replace("—","").strip("_")
+            _dc1, _dc2 = st.columns(2)
+            with _dc1:
+                st.download_button(T("dl_md"), data=st.session_state.ai_report,
+                    file_name=f"{_fn2}.md", mime="text/markdown",
+                    use_container_width=True, key="dl_md_top")
+            with _dc2:
+                if st.button("Regenerate", key="regen_top", use_container_width=True):
+                    st.session_state.ai_report = ""
+                    st.rerun()
+        st.markdown("---")
+
     raw_data = load_all_raw()
     live_ccu_map = {r["app_id"]: r["ccu"] for r in ccu_data}
     wow_diff = compute_period_diff(raw_data, live_ccu_map, days=7)
     n_wow    = len(wow_diff)
+
+    # AI Report at top of dashboard
+    if st.session_state.get("active_query") and st.session_state.get("ai_report"):
+        _genre_tag_top = st.session_state.get("roster_genre", "FPS")
+        _label_top = st.session_state.report_label.upper()
+        st.markdown(f"""
+    <div class="section-header">
+      <span class="dot"></span>AI ANALYSIS — {_label_top} — {_genre_tag_top}
+    </div>
+    """, unsafe_allow_html=True)
+        st.markdown(st.session_state.ai_report)
+        st.markdown("---")
 
     #  Derived stats 
     total_ccu    = sum(r["ccu"] for r in ccu_data)
@@ -2191,9 +2198,9 @@ else:
         </div>""", unsafe_allow_html=True)
         with st.expander("See titles"):
             if _wow_up_names:
-                st.markdown("**Up:** " + ", ".join(_wow_up_names))
+                st.markdown("<span style='color:#20c65a'>▲  " + "  ·  ".join(_wow_up_names) + "</span>", unsafe_allow_html=True)
             if _wow_down_names:
-                st.markdown("**Down:** " + ", ".join(_wow_down_names))
+                st.markdown("<span style='color:#ff4d4d'>▼  " + "  ·  ".join(_wow_down_names) + "</span>", unsafe_allow_html=True)
     with k3:
         mom_color = "var(--pos)" if mom_up >= mom_down else "var(--neg)"
         st.markdown(f"""<div class="metric-card amber-top">
@@ -2203,9 +2210,9 @@ else:
         </div>""", unsafe_allow_html=True)
         with st.expander("See titles"):
             if _mom_up_names:
-                st.markdown("**Up:** " + ", ".join(_mom_up_names))
+                st.markdown("<span style='color:#20c65a'>▲  " + "  ·  ".join(_mom_up_names) + "</span>", unsafe_allow_html=True)
             if _mom_down_names:
-                st.markdown("**Down:** " + ", ".join(_mom_down_names))
+                st.markdown("<span style='color:#ff4d4d'>▼  " + "  ·  ".join(_mom_down_names) + "</span>", unsafe_allow_html=True)
     with k4:
         yoy_color = "var(--pos)" if growing >= declining else "var(--neg)"
         st.markdown(f"""<div class="metric-card purple-top">
@@ -2215,9 +2222,9 @@ else:
         </div>""", unsafe_allow_html=True)
         with st.expander("See titles"):
             if _yoy_up_names:
-                st.markdown("**Up:** " + ", ".join(_yoy_up_names))
+                st.markdown("<span style='color:#20c65a'>▲  " + "  ·  ".join(_yoy_up_names) + "</span>", unsafe_allow_html=True)
             if _yoy_down_names:
-                st.markdown("**Down:** " + ", ".join(_yoy_down_names))
+                st.markdown("<span style='color:#ff4d4d'>▼  " + "  ·  ".join(_yoy_down_names) + "</span>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -2256,15 +2263,21 @@ else:
     #  WoW expander 
     with st.expander(T("wow_expander", n=n_wow)):
         if wow_diff:
+            _w_up   = [r["name"] for r in ccu_data if wow_diff.get(r["app_id"], {}).get("delta", 0) > 0]
+            _w_down = [r["name"] for r in ccu_data if wow_diff.get(r["app_id"], {}).get("delta", 0) < 0]
+            if _w_up:
+                st.markdown(f"<span style='color:#20c65a'>**Growth ({len(_w_up)}):** {', '.join(_w_up)}</span>", unsafe_allow_html=True)
+            if _w_down:
+                st.markdown(f"<span style='color:#ff4d4d'>**Decline ({len(_w_down)}):** {', '.join(_w_down)}</span>", unsafe_allow_html=True)
             wow_rows = []
             for r in ccu_data:
                 d = wow_diff.get(r["app_id"])
                 if d:
                     wow_rows.append({
                         "Title":      r["name"],
-                        "Live CCU":   d["curr_ccu"],
-                        "7d Ago CCU": d["prev_ccu"],
-                        "Delta CCU":  d["delta"],
+                        "Live CCU":   f"{d['curr_ccu']:,}",
+                        "7d Ago CCU": f"{d['prev_ccu']:,}",
+                        "Delta CCU":  f"{d['delta']:+,}",
                         "Delta %":    round(d["delta_pct"]),
                     })
             if wow_rows:
@@ -2290,6 +2303,12 @@ else:
 
     #  MoM expander 
     with st.expander("MoM CCU Change"):
+        _m_up   = [r["name"] for r in ccu_data if ((r.get("hist_summary") or {}).get("mom_pct") or 0) > 0]
+        _m_down = [r["name"] for r in ccu_data if ((r.get("hist_summary") or {}).get("mom_pct") or 0) < 0]
+        if _m_up:
+            st.markdown(f"<span style='color:#20c65a'>**Growth ({len(_m_up)}):** {', '.join(_m_up)}</span>", unsafe_allow_html=True)
+        if _m_down:
+            st.markdown(f"<span style='color:#ff4d4d'>**Decline ({len(_m_down)}):** {', '.join(_m_down)}</span>", unsafe_allow_html=True)
         mom_rows = []
         for r in ccu_data:
             hs = r.get("hist_summary") or {}
@@ -2322,6 +2341,12 @@ else:
 
     #  YoY breakdown expander 
     with st.expander(T("yoy_expander", up=growing, down=declining)):
+        _y_up   = [r["name"] for r in ccu_data if r.get("yoy_val", 0) > 0]
+        _y_down = [r["name"] for r in ccu_data if r.get("yoy_val", 0) < 0]
+        if _y_up:
+            st.markdown(f"<span style='color:#20c65a'>**Growth ({len(_y_up)}):** {', '.join(_y_up)}</span>", unsafe_allow_html=True)
+        if _y_down:
+            st.markdown(f"<span style='color:#ff4d4d'>**Decline ({len(_y_down)}):** {', '.join(_y_down)}</span>", unsafe_allow_html=True)
         if yoy_titled:
             yoy_rows = []
             for r in ccu_data:
@@ -2333,8 +2358,8 @@ else:
                 pct = round(r["yoy_val"])
                 yoy_rows.append({
                     "Title":          r["name"],
-                    "Live CCU":       live,
-                    "1Yr Ago CCU":    yr_ago if yr_ago else "N/A",
+                    "Live CCU":       f"{live:,}",
+                    "1Yr Ago CCU":    f"{yr_ago:,}" if yr_ago else "N/A",
                     "YoY %":          pct,
                 })
             if yoy_rows:
@@ -2385,16 +2410,24 @@ else:
 
     # ── Top 10 bar chart (active roster, sorted by live CCU) ──
     _genre_label_chart = "FPS" if st.session_state.roster_genre == "FPS" else "TPS"
-    top_n = ccu_data[:10]
-    rest_n = ccu_data[10:]  # ranks 11-25
+    top_n = ccu_data[:25]
+    rest_n = []  # all 25 in main chart
+
+    def _wow_color(r):
+        d = wow_diff.get(r["app_id"])
+        if d and d["delta"] > 0:  return "#20c65a"  # green = WoW up
+        if d and d["delta"] < 0:  return "#ff4d4d"  # red   = WoW down
+        return "#888aaa"                              # grey  = no data
+
     hover_texts = []
     for r in top_n:
         d = wow_diff.get(r["app_id"])
         wow_str = f"<br>WoW: {d['delta_pct']:+.1f}% ({d['period_label']})" if d else ""
         hover_texts.append(f"<b>{r['name']}</b><br>CCU: {r['ccu']:,}<br>YoY: {r.get('yoy','N/A')}{wow_str}<extra></extra>")
-    colors = ["#4080ff" if not r["f2p"] else "#20c65a" for r in top_n]
+    colors = [_wow_color(r) for r in top_n]
+    _top_labels = [f"#{i+1} {r['name']}" for i, r in enumerate(top_n)]
     fig = go.Figure(go.Bar(
-        x=[r["name"] for r in top_n],
+        x=_top_labels,
         y=[r["ccu"] for r in top_n],
         marker_color=colors,
         text=[f"{r['ccu']:,}" for r in top_n],
@@ -2404,13 +2437,13 @@ else:
     ))
     fig.update_layout(
         **PLOTLY_BASE,
-        title=dict(text=f"Top 10 {_genre_label_chart} Titles by Live CCU", font=dict(size=13, color="#b8bcd4"), x=0),
+        title=dict(text=f"Top 25 {_genre_label_chart} Titles by Live CCU", font=dict(size=13, color="#b8bcd4"), x=0),
         xaxis=dict(showgrid=False, tickfont=dict(size=10), tickangle=-30, linecolor="#232640"),
         yaxis=dict(showgrid=True, gridcolor="#1a1e30", tickformat=","),
         height=340, showlegend=False,
     )
     st.plotly_chart(fig, use_container_width=True)
-    st.caption(f"Paid (blue) / F2P (green) | Ranked by live CCU | {_genre_label_chart} roster")
+    st.caption(f"Green = WoW up  |  Red = WoW down  |  Grey = no CSV data  |  {_genre_label_chart} roster")
 
     # ── Ranks 11-25 bar chart ──
     if rest_n:
@@ -2419,7 +2452,7 @@ else:
             d = wow_diff.get(r["app_id"])
             wow_str = f"<br>WoW: {d['delta_pct']:+.1f}% ({d['period_label']})" if d else ""
             hover_texts_r.append(f"<b>{r['name']}</b><br>CCU: {r['ccu']:,}<br>YoY: {r.get('yoy','N/A')}{wow_str}<extra></extra>")
-        colors_r = ["#4080ff" if not r["f2p"] else "#20c65a" for r in rest_n]
+        colors_r = [_wow_color(r) for r in rest_n]
         rank_labels = [f"#{i+11} {r['name']}" for i, r in enumerate(rest_n)]
         fig_r = go.Figure(go.Bar(
             x=rank_labels,
@@ -2438,7 +2471,7 @@ else:
             height=320, showlegend=False,
         )
         st.plotly_chart(fig_r, use_container_width=True)
-        st.caption(f"Paid (blue) / F2P (green) | Ranked by live CCU | {_genre_label_chart} roster")
+        st.caption(f"Green = WoW up  |  Red = WoW down  |  Grey = no CSV data  |  {_genre_label_chart} roster")
 
     #  Full data table 
     with st.expander(T("table_expander")):
@@ -2456,8 +2489,17 @@ else:
             T("col_mom"):        r.get("hist_summary", {}).get("mom_trend", "—"),
             T("col_review"):     f"{r['review_pct']}%" if r.get("review_pct") else "—",
         } for r in ccu_data])
-        st.dataframe(df, use_container_width=True, hide_index=True,
-                     height=(len(df) + 1) * 35 + 3)
+        _num_cols_tbl = [T("col_live_ccu"), T("col_peak_ever"), T("col_peak_12m"), T("col_avg_ccu_12m")]
+        _present_num  = [c for c in _num_cols_tbl if c in df.columns]
+        _tbl_styler   = df.style.set_properties(
+            subset=_present_num, **{"text-align": "right"}
+        ) if _present_num else df
+        st.dataframe(
+            _tbl_styler,
+            use_container_width=True,
+            hide_index=True,
+            height=(len(df) + 1) * 35 + 3,
+        )
         st.caption(f"{hist_count}/{len(ccu_data)} titles with SteamDB CSV · Peak/Avg from 10-min interval data")
 
     #  Monthly history chart 
@@ -2534,13 +2576,41 @@ else:
         st.rerun()
 
 # 
+# SELECT ANALYSIS TYPE
+# 
+
+if st.session_state.ccu_data:
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(f'<div class="field-label">{T("custom_label")}</div>', unsafe_allow_html=True)
+    col_q, col_btn = st.columns([5, 1])
+    with col_q:
+        custom = st.text_input(
+            "Custom query",
+            value=st.session_state.custom_query,
+            label_visibility="collapsed",
+            placeholder=T("custom_placeholder"),
+            key="custom_input",
+        )
+    with col_btn:
+        run_custom = st.button(T("run_btn"), key="run_custom")
+
+    if run_custom and custom.strip():
+        st.session_state.custom_query = custom.strip()
+        st.session_state.active_query = "custom"
+        st.session_state.ai_report = ""
+        st.session_state.ai_chat_history = []
+        st.session_state.report_label = "Custom Query"
+
+# 
 # AI ANALYSIS ENGINE
 # 
 
 if st.session_state.active_query:
+    _genre_tag = st.session_state.get("roster_genre", "FPS")
+    _report_title = f"{st.session_state.report_label.upper()} — {_genre_tag}"
     st.markdown(f"""
     <div class="section-header">
-      <span class="dot"></span>{T("ai_analysis_header", label=st.session_state.report_label.upper())}
+      <span class="dot"></span>AI ANALYSIS — {_report_title}
     </div>
     """, unsafe_allow_html=True)
 
@@ -2565,7 +2635,7 @@ if st.session_state.active_query:
             if not ccu_data:
                 st.warning(T("no_ccu_warning"), icon="")
                 st.stop()
-            user_prompt = build_weekly_report_prompt(ccu_data[:20])
+            user_prompt = build_weekly_report_prompt(ccu_data)
         elif aq == "custom":
             user_prompt = st.session_state.custom_query
         else:
