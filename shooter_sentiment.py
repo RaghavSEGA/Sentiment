@@ -2480,7 +2480,7 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
 
     #  WoW expander 
-    with st.expander(T("wow_expander", n=n_wow)):
+    with st.expander(f"WoW CCU Change — {wow_up} growing, {wow_down} declining"):
         if wow_diff:
             _w_up   = [r["name"] for r in ccu_data if wow_diff.get(r["app_id"], {}).get("delta", 0) > 0]
             _w_down = [r["name"] for r in ccu_data if wow_diff.get(r["app_id"], {}).get("delta", 0) < 0]
@@ -2511,7 +2511,7 @@ else:
             st.info(T("wow_none"))
 
     #  MoM expander 
-    with st.expander("MoM CCU Change"):
+    with st.expander(f"MoM CCU Change — {mom_up} growing, {mom_down} declining"):
         _m_up   = [r["name"] for r in ccu_data if ((r.get("hist_summary") or {}).get("mom_pct") or 0) > 0]
         _m_down = [r["name"] for r in ccu_data if ((r.get("hist_summary") or {}).get("mom_pct") or 0) < 0]
         if _m_up:
@@ -2541,7 +2541,7 @@ else:
             st.info(T("yoy_none"))
 
     #  YoY breakdown expander 
-    with st.expander(T("yoy_expander", up=growing, down=declining)):
+    with st.expander(f"YoY CCU Change — {growing} growing, {declining} declining"):
         _y_up   = [r["name"] for r in ccu_data if r.get("yoy_val", 0) > 0]
         _y_down = [r["name"] for r in ccu_data if r.get("yoy_val", 0) < 0]
         if _y_up:
