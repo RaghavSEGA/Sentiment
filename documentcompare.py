@@ -352,11 +352,12 @@ def extract_text(uploaded_file) -> tuple[str, str]:
             wb    = _openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
             lines = []
             for sheet in wb.worksheets:
-                lines.append(f"[Sheet: {sheet.title}]")
-                for row in sheet.iter_rows(values_only=True):
-                    cells = [str(c) if c is not None else "" for c in row]
-                    if any(c.strip() for c in cells):
-                        lines.append("\t".join(cells))
+                lines.append(f"\n[Sheet: {sheet.title}]")
+                for row in sheet.iter_rows():
+                    for cell in row:
+                        if cell.value is not None and str(cell.value).strip():
+                            coord = f"{sheet.title}!{cell.coordinate}"
+                            lines.append(f"{coord}: {cell.value}")
             wb.close()
             return "\n".join(lines).strip() or "[XLSX contained no extractable text]", "xlsx"
         except Exception as e:
