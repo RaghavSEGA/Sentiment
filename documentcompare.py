@@ -513,17 +513,38 @@ with opt1:
         "Executive Summary",
         "Custom (describe below)",
     ]
+    _focus_descriptions = {
+        "Comprehensive Assessment":      "Comprehensive Assessment — Full structured analysis across all dimensions",
+        "Key Differences & Similarities":"Key Differences & Similarities — What changed, what stayed the same",
+        "Risk & Compliance":             "Risk & Compliance — Obligations, gaps, and legal exposure",
+        "Tone & Writing Style":          "Tone & Writing Style — Language, framing, and rhetorical approach",
+        "Data & Numbers":                "Data & Numbers — Every figure, metric, and statistic compared",
+        "Agreements & Gaps":             "Agreements & Gaps — Where documents align and where they diverge",
+        "Executive Summary":             "Executive Summary — Tight briefing, top findings only",
+        "Custom (describe below)":       "Custom — Define your own comparison focus",
+    }
     _focus_idx = 0
-    focus = st.selectbox("focus", focus_options, index=_focus_idx, label_visibility="collapsed")
+    focus = st.selectbox("focus", focus_options, index=_focus_idx,
+                         format_func=lambda x: _focus_descriptions[x],
+                         label_visibility="collapsed")
 
 with opt2:
     st.markdown('<div class="field-label">Output Tone</div>', unsafe_allow_html=True)
-    tone = st.selectbox("tone", [
+    tone_options = [
         "Analytical & detailed",
         "Executive brief",
         "Plain language",
         "Legal / formal",
-    ], label_visibility="collapsed")
+    ]
+    _tone_descriptions = {
+        "Analytical & detailed": "Analytical & detailed — Thorough, evidence-backed, structured",
+        "Executive brief":       "Executive brief — Concise, lead with the headline, 400–600 words",
+        "Plain language":        "Plain language — Clear and jargon-free, for any audience",
+        "Legal / formal":        "Legal / formal — Precise, numbered sections, flags obligations",
+    }
+    tone = st.selectbox("tone", tone_options,
+                        format_func=lambda x: _tone_descriptions[x],
+                        label_visibility="collapsed")
 
 with opt3:
     st.markdown('<div class="field-label">&nbsp;</div>', unsafe_allow_html=True)
@@ -691,6 +712,7 @@ OUTPUT TONE: {tone_map.get(tone, tone_map["Analytical & detailed"])}
 HARD RULES:
 - Every observation must be grounded in specific content from the documents
 - Quote directly from the documents when making claims about language or tone
+- Please do not give any form of suggestions on what to change or any explanation as to why something MIGHT have been changed.
 - Use clear markdown headers (##) for sections
 - Do not add generic preamble or sign-off — go straight into the analysis{_xlsx_rule}"""
 
