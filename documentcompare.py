@@ -498,7 +498,67 @@ with col_b:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ── Options row ───────────────────────────────────────────────
+# ── Selector card styles ──────────────────────────────────────
+st.markdown("""
+<style>
+div[data-testid="stRadio"] > label { display: none; }
+div[data-testid="stRadio"] > div {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.4rem !important;
+}
+div[data-testid="stRadio"] > div > label {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 0.6rem !important;
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 7px !important;
+    padding: 0.55rem 0.85rem !important;
+    cursor: pointer !important;
+    transition: border-color 0.15s, background 0.15s !important;
+}
+div[data-testid="stRadio"] > div > label:hover {
+    border-color: var(--border-hi) !important;
+    background: var(--surface2) !important;
+}
+div[data-testid="stRadio"] > div > label[data-checked="true"] {
+    border-color: var(--blue) !important;
+    background: var(--blue-glow) !important;
+}
+div[data-testid="stRadio"] > div > label > div:first-child {
+    margin-top: 2px !important;
+    flex-shrink: 0 !important;
+}
+div[data-testid="stRadio"] > div > label > div:first-child > div {
+    width: 14px !important;
+    height: 14px !important;
+    border: 2px solid var(--border-hi) !important;
+    border-radius: 50% !important;
+    background: transparent !important;
+}
+div[data-testid="stRadio"] > div > label[data-checked="true"] > div:first-child > div {
+    border-color: var(--blue) !important;
+    background: var(--blue) !important;
+    box-shadow: 0 0 0 3px var(--blue-glow) !important;
+}
+.opt-title {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text) !important;
+    line-height: 1.3;
+}
+.opt-desc {
+    font-size: 0.68rem;
+    color: var(--muted) !important;
+    line-height: 1.4;
+    margin-top: 1px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ── Options layout ────────────────────────────────────────────
 opt1, opt2, opt3 = st.columns([3, 2, 1.5])
 
 with opt1:
@@ -513,20 +573,24 @@ with opt1:
         "Executive Summary",
         "Custom (describe below)",
     ]
-    _focus_descriptions = {
-        "Comprehensive Assessment":      "Comprehensive Assessment — Full structured analysis across all dimensions",
-        "Key Differences & Similarities":"Key Differences & Similarities — What changed, what stayed the same",
-        "Risk & Compliance":             "Risk & Compliance — Obligations, gaps, and legal exposure",
-        "Tone & Writing Style":          "Tone & Writing Style — Language, framing, and rhetorical approach",
-        "Data & Numbers":                "Data & Numbers — Every figure, metric, and statistic compared",
-        "Agreements & Gaps":             "Agreements & Gaps — Where documents align and where they diverge",
-        "Executive Summary":             "Executive Summary — Tight briefing, top findings only",
-        "Custom (describe below)":       "Custom — Define your own comparison focus",
+    _focus_descs = {
+        "Comprehensive Assessment":       "Full structured analysis across all dimensions",
+        "Key Differences & Similarities": "What changed, what stayed the same",
+        "Risk & Compliance":              "Obligations, gaps, and legal exposure",
+        "Tone & Writing Style":           "Language, framing, and rhetorical approach",
+        "Data & Numbers":                 "Every figure, metric, and statistic compared",
+        "Agreements & Gaps":              "Where documents align and where they diverge",
+        "Executive Summary":              "Tight briefing, top findings only",
+        "Custom (describe below)":        "Define your own comparison focus",
     }
-    _focus_idx = 0
-    focus = st.selectbox("focus", focus_options, index=_focus_idx,
-                         format_func=lambda x: _focus_descriptions[x],
-                         label_visibility="collapsed")
+    focus = st.radio(
+        "focus",
+        focus_options,
+        index=0,
+        format_func=lambda x: x,
+        label_visibility="collapsed",
+        captions=[_focus_descs[o] for o in focus_options],
+    )
 
 with opt2:
     st.markdown('<div class="field-label">Output Tone</div>', unsafe_allow_html=True)
@@ -536,15 +600,19 @@ with opt2:
         "Plain language",
         "Legal / formal",
     ]
-    _tone_descriptions = {
-        "Analytical & detailed": "Analytical & detailed — Thorough, evidence-backed, structured",
-        "Executive brief":       "Executive brief — Concise, lead with the headline, 400–600 words",
-        "Plain language":        "Plain language — Clear and jargon-free, for any audience",
-        "Legal / formal":        "Legal / formal — Precise, numbered sections, flags obligations",
+    _tone_descs = {
+        "Analytical & detailed": "Thorough, evidence-backed, fully structured",
+        "Executive brief":       "Lead with the headline, 400–600 words max",
+        "Plain language":        "Clear and jargon-free, for any audience",
+        "Legal / formal":        "Precise, numbered sections, flags obligations",
     }
-    tone = st.selectbox("tone", tone_options,
-                        format_func=lambda x: _tone_descriptions[x],
-                        label_visibility="collapsed")
+    tone = st.radio(
+        "tone",
+        tone_options,
+        index=0,
+        label_visibility="collapsed",
+        captions=[_tone_descs[o] for o in tone_options],
+    )
 
 with opt3:
     st.markdown('<div class="field-label">&nbsp;</div>', unsafe_allow_html=True)
@@ -712,8 +780,8 @@ OUTPUT TONE: {tone_map.get(tone, tone_map["Analytical & detailed"])}
 HARD RULES:
 - Every observation must be grounded in specific content from the documents
 - Quote directly from the documents when making claims about language or tone
-- Please do not give any form of suggestions on what to change or any explanation as to why something MIGHT have been changed.
 - Use clear markdown headers (##) for sections
+- Do NOT attempt to find explanations or give suggestions to the user regarding what was changed
 - Do not add generic preamble or sign-off — go straight into the analysis{_xlsx_rule}"""
 
     # Stream the response
