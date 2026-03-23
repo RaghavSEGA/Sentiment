@@ -567,20 +567,14 @@ with opt1:
         "Comprehensive Assessment",
         "Key Differences & Similarities",
         "Risk & Compliance",
-        "Tone & Writing Style",
         "Data & Numbers",
-        "Agreements & Gaps",
-        "Executive Summary",
         "Custom (describe below)",
     ]
     _focus_descs = {
         "Comprehensive Assessment":       "Full structured analysis across all dimensions",
         "Key Differences & Similarities": "What changed, what stayed the same",
         "Risk & Compliance":              "Obligations, gaps, and legal exposure",
-        "Tone & Writing Style":           "Language, framing, and rhetorical approach",
         "Data & Numbers":                 "Every figure, metric, and statistic compared",
-        "Agreements & Gaps":              "Where documents align and where they diverge",
-        "Executive Summary":              "Tight briefing, top findings only",
         "Custom (describe below)":        "Define your own comparison focus",
     }
     focus = st.radio(
@@ -710,33 +704,12 @@ Be exhaustive. Quote directly. Use tables for any comparative data.""",
 4. Flag any terms that could be problematic legally or operationally
 5. What are the top 3 risk differences between the documents?""",
 
-        "Tone & Writing Style": """Compare the writing style and tone of both documents:
-1. Describe the overall tone of each (formal/informal, assertive/hedging, technical/plain)
-2. Compare complexity: readability, sentence structure, jargon density
-3. How does the framing of key topics differ between documents?
-4. Which document is more persuasive, and what techniques does it use?
-5. Are there notable differences in how uncertainty or caveats are expressed?""",
-
         "Data & Numbers": """Extract and compare all numerical content:
 1. List all key figures, statistics, dates, percentages and metrics from each document
 2. Where the same metric appears in both, compare the values — are they consistent?
 3. Identify discrepancies or contradictions in numerical data
 4. Which document provides more quantitative evidence, and is it more credible?
 5. Summarise the financial or quantitative picture each document paints""",
-
-        "Agreements & Gaps": """Map the alignment and divergence between both documents:
-1. Where do the documents agree or reinforce each other? Quote specific language
-2. Where do they diverge — is it in scope, terms, assumptions, or conclusions?
-3. What topics does one document address that the other ignores?
-4. Are there any direct contradictions that need to be resolved?
-5. If these documents were to be reconciled into one, what would be the sticking points?""",
-
-        "Executive Summary": """Provide a tight executive briefing:
-1. One-sentence summary of each document's purpose
-2. The 3 most important differences — lead with the highest-stakes one
-3. The 3 strongest points of alignment
-4. Bottom-line recommendation: how should a decision-maker use these documents together?
-Keep it under 500 words. Every sentence must earn its place.""",
     }
 
     focus_text = focus_instructions.get(actual_focus, f"""Compare the documents with this specific focus: {actual_focus}
@@ -781,8 +754,8 @@ HARD RULES:
 - Every observation must be grounded in specific content from the documents
 - Quote directly from the documents when making claims about language or tone
 - Use clear markdown headers (##) for sections
-- Do NOT attempt to find explanations or give suggestions to the user regarding what was changed
-- Do not add generic preamble or sign-off — go straight into the analysis{_xlsx_rule}"""
+- Do not add generic preamble or sign-off — go straight into the analysis
+- Do NOT offer suggestions, recommendations, or possible explanations for why a change was made — only state what the documents say and how they differ{_xlsx_rule}"""
 
     # Stream the response
     st.markdown('<div class="section-header"><span class="dot"></span>COMPARISON RESULT</div>', unsafe_allow_html=True)
@@ -803,7 +776,8 @@ HARD RULES:
                 "2. When quoting values or figures (e.g. $49.6M), write them as plain text, not inside asterisks. "
                 "3. For inline quotes from documents use double quotes (\") not asterisk-italic. "
                 "4. Use ## for section headers and ### for sub-headers. "
-                "5. Use markdown tables for any comparative data."
+                "5. Use markdown tables for any comparative data. "
+                "CRITICAL: Do NOT offer suggestions, recommendations, or possible explanations for why a change was made. Only report what each document states and how they differ. Never say 'this may be because', 'you might consider', 'this could indicate', or similar speculative or advisory language."
             ),
             messages=[{"role": "user", "content": prompt}],
         ) as stream:
