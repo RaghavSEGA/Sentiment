@@ -23,6 +23,7 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as _st_components
 
 try:
     import markdown as _md_lib
@@ -61,6 +62,97 @@ st.set_page_config(
 # 
 # HTML TABLE HELPER
 # 
+
+def parse_md_table(block: str) -> tuple[list[str], list[dict]] | None:
+    """Parse a markdown table block into (headers, rows).
+    Returns None if the block isn't a valid markdown table."""
+    lines = [l.strip() for l in block.strip().splitlines() if l.strip()]
+    if len(lines) < 3:
+        return None
+    # Must have a separator line (---|---|---)
+    sep_idx = next((i for i, l in enumerate(lines)
+                    if re.match(r"^\|?[\s\-:]+(\|[\s\-:]+)+\|?$", l)), None)
+    if sep_idx is None or sep_idx == 0:
+        return None
+    def split_row(line):
+        return [c.strip() for c in line.strip().strip("|").split("|")]
+    headers = split_row(lines[sep_idx - 1])
+    rows = []
+    for line in lines[sep_idx + 1:]:
+        if not line.startswith("|") and "|" not in line:
+            break
+        cells = split_row(line)
+        # Pad or trim to match header count
+        while len(cells) < len(headers):
+            cells.append("")
+        rows.append(dict(zip(headers, cells[:len(headers)])))
+    return (headers, rows) if rows else None
+
+
+def render_report_with_tables(report_md: str) -> None:
+    """Render an AI markdown report, replacing any markdown tables
+    with sortable HTML tables via render_table()."""
+    # Split report into chunks: text blocks and table blocks
+    # A table block is a sequence of lines containing |
+    lines = report_md.splitlines(keepends=True)
+    chunks = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # Detect start of a markdown table (line with | characters)
+        if "|" in line and line.strip().startswith("|"):
+            table_lines = []
+            while i < len(lines) and ("|" in lines[i] or lines[i].strip() == ""):
+                if "|" in lines[i]:
+                    table_lines.append(lines[i])
+                    i += 1
+                else:
+                    break
+            block = "".join(table_lines)
+            parsed = parse_md_table(block)
+            if parsed:
+                chunks.append(("table", parsed))
+            else:
+                chunks.append(("text", block))
+        else:
+            # Accumulate text until next table
+            text = ""
+            while i < len(lines) and not ("|" in lines[i] and lines[i].strip().startswith("|")):
+                text += lines[i]
+                i += 1
+            if text:
+                chunks.append(("text", text))
+
+    for kind, content in chunks:
+        if kind == "text":
+            if content.strip():
+                st.markdown(content)
+        else:
+            headers, rows = content
+            render_table(rows, headers)
+
+
+def render_table(rows: list[dict], col_order: list[str] = None,
+                 green_cols: set = None, red_cols: set = None,
+                 height: int = None) -> None:
+    """Render html_table inside a components iframe so <script> executes."""
+    html = html_table(rows, col_order, green_cols, red_cols)
+    if not html:
+        return
+    # Wrap in a full dark-themed page so the iframe matches the app
+    full = f"""<!DOCTYPE html><html>
+<head><style>
+  * {{ margin:0;padding:0;box-sizing:border-box;font-family:Poppins,sans-serif; }}
+  body {{ background:#0a0c1a;color:#eef0fa; }}
+  table {{ width:100%;border-collapse:collapse; }}
+  th {{ cursor:pointer; user-select:none; }}
+  th:hover {{ opacity:0.8; }}
+</style></head>
+<body>{html}</body></html>"""
+    # Auto-height: ~36px per row + 50px header + padding
+    if height is None:
+        height = min(len(rows) * 36 + 60, 600)
+    _st_components.html(full, height=height, scrolling=True)
 
 # Columns where a + prefix (even without %) means green, - means red
 _DELTA_COLS = {
@@ -2626,7 +2718,7 @@ else:
                     except Exception as _e2:
                         st.error(f"Analysis failed: {_e2}")
         if st.session_state.ai_report:
-            st.markdown(st.session_state.ai_report)
+            render_report_with_tables(st.session_state.ai_report)
             st.markdown("<br>", unsafe_allow_html=True)
             _fn2 = re.sub(r"[^a-z0-9]+", "_", st.session_state.report_label.lower())[:40]
             fname2 = f"sega_shooter_intel_{_fn2}"
@@ -2864,9 +2956,8 @@ else:
                 for r2 in wow_rows_sorted:
                     r2["Change (CCU)"] = f"+{r2['Change (CCU)']:,}" if r2["Change (CCU)"] > 0 else f"{r2['Change (CCU)']:,}"
                     r2["Weekly Change"] = f"+{r2['Weekly Change']}%" if r2["Weekly Change"] > 0 else f"{r2['Weekly Change']}%"
-                st.markdown(html_table(wow_rows_sorted,
-                    ["Title", "Live CCU", "7 Days Ago", "Change (CCU)", "Weekly Change"]),
-                    unsafe_allow_html=True)
+                render_table(wow_rows_sorted,
+                    ["Title", "Live CCU", "7 Days Ago", "Change (CCU)", "Weekly Change"])
         else:
             st.info(T("wow_none"))
 
@@ -2895,8 +2986,7 @@ else:
             mom_rows_sorted = mom_df.to_dict("records")
             for r2 in mom_rows_sorted:
                 r2["Month Change"] = f"+{r2['Month Change']}%" if r2["Month Change"] > 0 else f"{r2['Month Change']}%"
-            st.markdown(html_table(mom_rows_sorted, ["Title", "Live CCU", "Month Change"]),
-                unsafe_allow_html=True)
+            render_table(mom_rows_sorted, ["Title", "Live CCU", "Month Change"])
         else:
             st.info(T("yoy_none"))
 
@@ -2930,9 +3020,8 @@ else:
                 yoy_rows_sorted = yoy_df.to_dict("records")
                 for r2 in yoy_rows_sorted:
                     r2["Annual Change"] = f"+{r2['Annual Change']}%" if r2["Annual Change"] > 0 else f"{r2['Annual Change']}%"
-                st.markdown(html_table(yoy_rows_sorted,
-                    ["Title", "Live CCU", "1 Year Ago", "Annual Change"]),
-                    unsafe_allow_html=True)
+                render_table(yoy_rows_sorted,
+                    ["Title", "Live CCU", "1 Year Ago", "Annual Change"])
         else:
             st.info(T("yoy_none"))
 
@@ -3045,10 +3134,10 @@ else:
             "Review":          f"{r['review_pct']}%" if r.get("review_pct") else "—",
         } for i, r in enumerate(ccu_data)])
 
-        st.markdown(html_table(df.to_dict("records"),
+        render_table(df.to_dict("records"),
             ["#", "Title", "Sub-Genre", "Publisher", "F2P",
-             "Live CCU", "YoY", "All-Time Peak", "12m Peak", "12m Avg", "MoM", "Review"]),
-            unsafe_allow_html=True)
+             "Live CCU", "YoY", "All-Time Peak", "12m Peak", "12m Avg", "MoM", "Review"],
+            height=min(len(df) * 36 + 60, 900))
         st.caption("Review = all-time positive ÷ total reviews (Steam/SteamSpy).  — = no data available.  * = live API returned 0, using latest CSV value instead.")
 
     #  Monthly history chart 
