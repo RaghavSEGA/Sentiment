@@ -10,6 +10,10 @@ import time
 import re
 import io
 import json
+import random
+import base64
+import hmac
+import hashlib
 from datetime import datetime, timedelta
 from collections import Counter
 from pathlib import Path
@@ -119,13 +123,51 @@ def html_table(rows: list[dict], col_order: list[str] = None,
             cells.append(f"<td style='{td_style}'>{val}</td>")
         body_rows.append(f"<tr>{''.join(cells)}</tr>")
 
+    # Give each table a unique id for the sort script
+    import hashlib as _hl
+    tbl_id = "ht_" + _hl.md5(str(cols).encode()).hexdigest()[:8]
+
+    sort_js = f"""<script>
+(function(){{
+  var tbl = document.getElementById('{tbl_id}');
+  if(!tbl) return;
+  var headers = tbl.querySelectorAll('th');
+  var asc = {{}};
+  headers.forEach(function(th, ci){{
+    th.style.cursor='pointer';
+    th.title='Click to sort';
+    th.addEventListener('click', function(){{
+      var tbody = tbl.querySelector('tbody');
+      var rows  = Array.from(tbody.querySelectorAll('tr'));
+      asc[ci]   = !asc[ci];
+      rows.sort(function(a,b){{
+        var av = a.cells[ci].innerText.trim();
+        var bv = b.cells[ci].innerText.trim();
+        // strip non-numeric chars for numeric sort
+        var an = parseFloat(av.replace(/[^0-9.-]/g,''));
+        var bn = parseFloat(bv.replace(/[^0-9.-]/g,''));
+        if(!isNaN(an) && !isNaN(bn)) return asc[ci] ? an-bn : bn-an;
+        return asc[ci] ? av.localeCompare(bv) : bv.localeCompare(av);
+      }});
+      rows.forEach(function(r){{ tbody.appendChild(r); }});
+      // re-stripe rows
+      rows.forEach(function(r,i){{
+        r.querySelectorAll('td').forEach(function(td){{
+          td.style.background = td.style.background; // keep cell bg
+        }});
+      }});
+    }});
+  }});
+}})();
+</script>"""
+
     return (f"<div style='overflow-x:auto;border:1px solid {BORD};"
             f"border-radius:8px;margin-bottom:0.5rem;'>"
-            f"<table style='width:100%;border-collapse:collapse;"
+            f"<table id='{tbl_id}' style='width:100%;border-collapse:collapse;"
             f"font-family:Poppins,sans-serif;'>"
             f"<thead><tr>{head}</tr></thead>"
             f"<tbody>{''.join(body_rows)}</tbody>"
-            f"</table></div>")
+            f"</table></div>{sort_js}")
 
 # 
 # SEGA BRAND STYLES
@@ -917,40 +959,75 @@ def compute_period_diff(
     tolerance_hours: int = 96,
 ) -> dict[int, dict]:
     """
-    Compare live CCU against the CSV row closest to exactly `days` ago.
-    Returns {app_id: {prev_ccu, delta, delta_pct, period_label, ref_dt}}
+    Compare live CCU against a reference point for `days` ago.
+
+    Reference priority:
+      1. Saved CCU snapshot from ~`days` ago (ccu_snapshots.json)
+      2. Raw CSV row closest to `days` ago (within tolerance)
+      3. Last row in the CSV (fallback when no recent data exists)
+
+    Returns {app_id: {prev_ccu, delta, delta_pct, period_label, source}}
     """
-    now = pd.Timestamp.utcnow()
-    target = now - pd.Timedelta(days=days)
-    tol    = pd.Timedelta(hours=tolerance_hours)
-    result = {}
-    for app_id, df in raw_data.items():
-        if df.empty or app_id not in live_ccu:
+    now      = pd.Timestamp.utcnow()
+    target   = now - pd.Timedelta(days=days)
+    tol      = pd.Timedelta(hours=tolerance_hours)
+    snapshots = load_ccu_snapshots()
+    result   = {}
+
+    all_app_ids = set(raw_data.keys()) | set(live_ccu.keys())
+
+    for app_id in all_app_ids:
+        if app_id not in live_ccu:
             continue
-        dts = df["DateTime"]
-        if dts.dt.tz is None:
-            dts = dts.dt.tz_localize("UTC")
-        diff = (dts - target).abs()
-        idx  = diff.idxmin()
-        gap  = diff[idx]
-        if gap > tol:
-            continue
-        prev_ccu = int(df.loc[idx, "Players"])
         curr_ccu = live_ccu[app_id]
-        delta    = curr_ccu - prev_ccu
-        delta_pct = (delta / prev_ccu * 100) if prev_ccu > 0 else 0.0
-        ref_dt   = df.loc[idx, "DateTime"]
-        if hasattr(ref_dt, "strftime"):
-            ref_label = ref_dt.strftime(f"{days}d ago (%d %b %Y)")
-        else:
-            ref_label = f"{days}d ago"
+        prev_ccu = None
+        source   = ""
+        ref_label = ""
+
+        # Priority 1: saved JSON snapshot near target date
+        snap_val = find_snapshot_near(snapshots, app_id, days, tolerance_hours)
+        if snap_val is not None:
+            prev_ccu  = snap_val
+            source    = "snapshot"
+            ref_label = f"~{days}d ago (saved)"
+
+        # Priority 2: CSV row closest to target date
+        if prev_ccu is None and app_id in raw_data:
+            df = raw_data[app_id]
+            if not df.empty:
+                dts = df["DateTime"]
+                if dts.dt.tz is None:
+                    dts = dts.dt.tz_localize("UTC")
+                diff = (dts - target).abs()
+                idx  = diff.idxmin()
+                gap  = diff.iloc[idx] if hasattr(diff, "iloc") else diff[idx]
+                if gap <= tol:
+                    prev_ccu  = int(df.loc[idx, "Players"])
+                    ref_dt    = df.loc[idx, "DateTime"]
+                    source    = "csv_exact"
+                    ref_label = (ref_dt.strftime(f"{days}d ago (%d %b %Y)")
+                                 if hasattr(ref_dt, "strftime") else f"{days}d ago")
+
+        # Priority 3: last CSV row (when no data is old enough)
+        if prev_ccu is None and app_id in raw_data:
+            last = get_csv_last_ccu(raw_data, app_id)
+            if last is not None:
+                prev_ccu  = last
+                source    = "csv_last"
+                ref_label = "latest CSV row"
+
+        if prev_ccu is None or prev_ccu == 0:
+            continue
+
+        delta     = curr_ccu - prev_ccu
+        delta_pct = (delta / prev_ccu * 100)
         result[app_id] = {
-            "prev_ccu":    prev_ccu,
-            "curr_ccu":    curr_ccu,
-            "delta":       delta,
-            "delta_pct":   delta_pct,
+            "prev_ccu":     prev_ccu,
+            "curr_ccu":     curr_ccu,
+            "delta":        delta,
+            "delta_pct":    delta_pct,
             "period_label": ref_label,
-            "ref_dt":      ref_dt,
+            "source":       source,
         }
     return result
 
@@ -959,6 +1036,81 @@ def data_hash(ccu_data: list[dict]) -> str:
     import hashlib, json
     payload = json.dumps([{"id": r["app_id"], "ccu": r["ccu"]} for r in ccu_data], sort_keys=True)
     return hashlib.md5(payload.encode()).hexdigest()[:12]
+
+# ─────────────────────────────────────────────────────────────
+# CCU SNAPSHOT PERSISTENCE
+# Saves live CCU readings to /data/ccu_snapshots.json on every
+# fetch. Used as the WoW reference when the CSV has no matching
+# row for exactly 7 days ago.
+# ─────────────────────────────────────────────────────────────
+
+def _snapshot_path() -> Path:
+    d = DATA_DIR if DATA_DIR and DATA_DIR.exists() else Path(__file__).parent
+    return d / "ccu_snapshots.json"
+
+def load_ccu_snapshots() -> list[dict]:
+    """Load all saved CCU snapshots [{ts, data:{app_id:ccu}}]."""
+    p = _snapshot_path()
+    try:
+        if p.exists():
+            with open(p, "r") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return []
+
+def save_ccu_snapshot(ccu_data: list[dict]) -> None:
+    """Append a new snapshot entry with the current UTC timestamp."""
+    snapshots = load_ccu_snapshots()
+    entry = {
+        "ts":   datetime.utcnow().isoformat(),
+        "data": {str(r["app_id"]): r["ccu"] for r in ccu_data},
+    }
+    snapshots.append(entry)
+    # Keep at most 60 days of daily snapshots (trim oldest first)
+    cutoff = (datetime.utcnow() - timedelta(days=60)).isoformat()
+    snapshots = [s for s in snapshots if s["ts"] >= cutoff]
+    try:
+        with open(_snapshot_path(), "w") as f:
+            json.dump(snapshots, f)
+    except Exception:
+        pass  # read-only filesystem (e.g. Streamlit Cloud) — fail silently
+
+def find_snapshot_near(snapshots: list[dict], app_id: int, days: int = 7,
+                       tolerance_hours: int = 96) -> int | None:
+    """Return the CCU for app_id from the snapshot closest to `days` ago.
+    Returns None if no snapshot is within tolerance."""
+    if not snapshots:
+        return None
+    target = datetime.utcnow() - timedelta(days=days)
+    tol    = timedelta(hours=tolerance_hours)
+    best   = None
+    best_gap = None
+    for s in snapshots:
+        try:
+            ts  = datetime.fromisoformat(s["ts"])
+            gap = abs(ts - target)
+            ccu = s["data"].get(str(app_id))
+            if ccu is None:
+                continue
+            if best_gap is None or gap < best_gap:
+                best_gap = gap
+                best     = int(ccu)
+        except Exception:
+            continue
+    if best_gap is not None and best_gap <= tol:
+        return best
+    return None
+
+def get_csv_last_ccu(raw_data: dict[int, pd.DataFrame], app_id: int) -> int | None:
+    """Return the most recent Players value from the raw CSV for app_id."""
+    df = raw_data.get(app_id)
+    if df is None or df.empty:
+        return None
+    try:
+        return int(df.dropna(subset=["Players"])["Players"].iloc[-1])
+    except Exception:
+        return None
 
 PRESET_QUERIES = [
     {
@@ -1332,14 +1484,20 @@ def build_weekly_report_prompt(ccu_data: list[dict]) -> str:
     today    = datetime.now(timezone.utc)
     date_str = today.strftime("%B %d, %Y")
 
+    # Pull wow_diff from session state if available
+    _wow = st.session_state.get("_wow_diff_cache", {})
+
     rows = []
     for rank, r in enumerate(ccu_data, 1):
-        hs   = r.get("hist_summary", {})
-        src  = "SteamDB" if r.get("has_hist") else "est."
+        hs     = r.get("hist_summary", {})
+        data_src = "SteamDB" if r.get("has_hist") else "est."
+        wow_d  = _wow.get(r["app_id"])
+        wow_str = f"+{round(wow_d['delta_pct'])}%" if wow_d and wow_d["delta_pct"] > 0 else (f"{round(wow_d['delta_pct'])}%" if wow_d else "N/A")
         line = (
             f"{rank}. {r['name']} ({r['sub']}): {r['ccu']:,} live CCU | "
-            f"YoY {r.get('yoy','N/A')} [{src}] | "
+            f"WoW {wow_str} | "
             f"MoM {hs.get('mom_trend','—')} | "
+            f"YoY {r.get('yoy','N/A')} [{data_src}] | "
             f"Review {r.get('review_pct','?')}%"
         )
         if hs.get("peak_12m"):
@@ -1367,13 +1525,14 @@ Write 150–200 words covering:
 
 ---
 
-## SECTION 2: CCU LEAGUE TABLE
+## SECTION 2: SHOOTERS RANKED BY CCU
 
 Produce a markdown table with these exact columns:
-| Rank | Title | Sub-genre | Live CCU | YoY | MoM | Review Score | Notes |
+| Rank | Title | Sub-genre | Live CCU | WoW | MoM | YoY | Review Score | Notes |
 
 Rules:
 - Use ONLY the CCU figures provided above — do not invent or estimate
+- WoW, MoM, YoY: use the values from the data above; N/A if not available
 - Notes: one short observation per title based on the data (e.g. "Declining 3 months", "New season spike", "Near all-time peak")
 - Flag in Notes any title with YoY > +50% or YoY < -30%
 
@@ -1934,6 +2093,205 @@ Be specific, data-driven, and concise. Avoid generic observations. Attribute dat
 
 
 # 
+# OTP AUTHENTICATION
+# 
+
+ALLOWED_DOMAIN      = "@segaamerica.com"
+OTP_EXPIRY_SECS     = 600        # 10 minutes
+COOKIE_EXPIRY_DAYS  = 7
+COOKIE_NAME         = "sega_shooter_auth"
+
+def _send_otp(email: str, code: str) -> bool:
+    """Send OTP via AWS SES. Returns True on success."""
+    try:
+        import boto3
+        from botocore.exceptions import ClientError
+        ses = boto3.client(
+            "ses",
+            region_name=st.secrets.get("AWS_SES_REGION", "us-east-1"),
+            aws_access_key_id=st.secrets.get("AWS_ACCESS_KEY_ID", ""),
+            aws_secret_access_key=st.secrets.get("AWS_SECRET_ACCESS_KEY", ""),
+        )
+        ses.send_email(
+            Source=st.secrets.get("EMAIL_FROM", "noreply@segaamerica.com"),
+            Destination={"ToAddresses": [email]},
+            Message={
+                "Subject": {"Data": "SEGA Shooter Intelligence — Your verification code", "Charset": "UTF-8"},
+                "Body": {
+                    "Text": {
+                        "Data": f"Your SEGA Shooter Intelligence verification code is: {code}\n\nThis code expires in 10 minutes.\nIf you didn't request this, you can safely ignore this email.",
+                        "Charset": "UTF-8",
+                    },
+                    "Html": {
+                        "Data": f"""
+                        <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
+                          <div style="font-size:22px;font-weight:900;letter-spacing:0.1em;color:#0057FF;margin-bottom:4px;">SEGA</div>
+                          <div style="font-size:14px;color:#444;margin-bottom:28px;">Shooter Market Intelligence</div>
+                          <div style="font-size:14px;color:#222;margin-bottom:16px;">Your verification code is:</div>
+                          <div style="font-size:42px;font-weight:900;letter-spacing:0.18em;color:#050818;
+                                      background:#EEF3FF;border-radius:8px;padding:18px 24px;
+                                      display:inline-block;margin-bottom:24px;">{code}</div>
+                          <div style="font-size:12px;color:#888;">
+                            This code expires in 10 minutes.<br>
+                            If you didn't request this, you can safely ignore this email.
+                          </div>
+                        </div>
+                        """,
+                        "Charset": "UTF-8",
+                    },
+                },
+            },
+        )
+        return True
+    except Exception as e:
+        st.error(f"Failed to send email: {e}")
+        return False
+
+def _sign_cookie(email: str) -> str:
+    secret  = st.secrets.get("COOKIE_SIGNING_KEY", "shooter-intel-change-this")
+    expiry  = int(time.time()) + (COOKIE_EXPIRY_DAYS * 86400)
+    payload = f"{email}|{expiry}"
+    sig     = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return base64.urlsafe_b64encode(f"{payload}|{sig}".encode()).decode()
+
+def _verify_cookie(token: str):
+    try:
+        secret  = st.secrets.get("COOKIE_SIGNING_KEY", "shooter-intel-change-this")
+        decoded = base64.urlsafe_b64decode(token.encode()).decode()
+        email, expiry_str, sig = decoded.rsplit("|", 2)
+        payload  = f"{email}|{expiry_str}"
+        expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected): return None
+        if int(time.time()) > int(expiry_str):      return None
+        return email
+    except Exception:
+        return None
+
+# Cookie manager (graceful fallback if package missing)
+try:
+    import extra_streamlit_components as stx
+    _cookie_manager  = stx.CookieManager(key="auth_cookies")
+    _existing_cookie = _cookie_manager.get(COOKIE_NAME)
+except Exception:
+    _cookie_manager  = None
+    _existing_cookie = None
+
+_cookie_email = _verify_cookie(_existing_cookie) if _existing_cookie else None
+
+# Auth session state defaults
+for _k, _v in [
+    ("auth_verified", False),
+    ("auth_email",    ""),
+    ("otp_code",      ""),
+    ("otp_email",     ""),
+    ("otp_expiry",    0),
+    ("otp_sent",      False),
+    ("otp_attempts",  0),
+]:
+    if _k not in st.session_state:
+        st.session_state[_k] = _v
+
+if _cookie_email and not st.session_state.auth_verified:
+    st.session_state.auth_verified = True
+    st.session_state.auth_email    = _cookie_email
+
+if not st.session_state.auth_verified:
+    st.markdown("""
+    <style>
+    .auth-wrap {
+        max-width:420px;margin:6rem auto;padding:2.5rem 2.5rem 2rem;
+        background:var(--surface);border:1px solid var(--border);
+        border-top:3px solid var(--blue);border-radius:0 0 10px 10px;
+    }
+    .auth-logo  { font-family:'Inter Tight',sans-serif;font-size:1.6rem;font-weight:900;
+                  letter-spacing:0.12em;color:var(--blue) !important;margin-bottom:0.2rem;}
+    .auth-title { font-family:'Inter Tight',sans-serif;font-size:1rem;font-weight:700;
+                  color:var(--text) !important;margin-bottom:0.25rem;}
+    .auth-sub   { font-size:0.8rem;color:var(--muted) !important;margin-bottom:1.5rem;}
+    .auth-note  { font-size:0.72rem;color:var(--muted) !important;margin-top:1rem;
+                  text-align:center;line-height:1.5;}
+    </style>
+    """, unsafe_allow_html=True)
+
+    _lc, _mc, _rc = st.columns([1, 2, 1])
+    with _mc:
+        st.markdown("""
+        <div class="auth-wrap">
+          <div class="auth-logo">SEGA</div>
+          <div class="auth-title">Shooter Market Intelligence</div>
+          <div class="auth-sub">Sign in with your SEGA America email to continue</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if not st.session_state.otp_sent:
+            _email_in = st.text_input("Email address", placeholder="you@segaamerica.com",
+                label_visibility="collapsed", key="auth_email_input")
+            if st.button("Send verification code", use_container_width=True):
+                if not _email_in.strip().lower().endswith(ALLOWED_DOMAIN):
+                    st.error(f"Access restricted to {ALLOWED_DOMAIN} addresses.")
+                else:
+                    _code = str(random.randint(100000, 999999))
+                    if _send_otp(_email_in.strip().lower(), _code):
+                        st.session_state.otp_code     = _code
+                        st.session_state.otp_email    = _email_in.strip().lower()
+                        st.session_state.otp_expiry   = time.time() + OTP_EXPIRY_SECS
+                        st.session_state.otp_sent     = True
+                        st.session_state.otp_attempts = 0
+                        st.rerun()
+        else:
+            st.info(f"Code sent to **{st.session_state.otp_email}** — check your inbox.")
+            _code_in = st.text_input("6-digit code", placeholder="123456",
+                label_visibility="collapsed", max_chars=6, key="auth_code_input")
+            if st.button("Verify code", use_container_width=True):
+                if st.session_state.otp_attempts >= 5:
+                    st.error("Too many attempts. Please request a new code.")
+                    st.session_state.otp_sent = False
+                elif time.time() > st.session_state.otp_expiry:
+                    st.error("Code has expired. Please request a new one.")
+                    st.session_state.otp_sent = False
+                elif _code_in.strip() != st.session_state.otp_code:
+                    st.session_state.otp_attempts += 1
+                    _rem = 5 - st.session_state.otp_attempts
+                    st.error(f"Incorrect code. {_rem} attempt{'s' if _rem != 1 else ''} remaining.")
+                else:
+                    st.session_state.auth_verified = True
+                    st.session_state.auth_email    = st.session_state.otp_email
+                    st.session_state.otp_code      = ""
+                    if _cookie_manager:
+                        _token = _sign_cookie(st.session_state.auth_email)
+                        _cookie_manager.set(COOKIE_NAME, _token,
+                            expires_at=None, key="set_auth_cookie")
+                    st.rerun()
+
+            if st.button("← Use a different email", key="auth_back"):
+                st.session_state.otp_sent = False
+                st.session_state.otp_code = ""
+                st.rerun()
+
+        st.markdown(
+            f'<div class="auth-note">Restricted to {ALLOWED_DOMAIN} addresses only.<br>'
+            f'Codes expire after 10 minutes.</div>',
+            unsafe_allow_html=True)
+
+    st.stop()
+
+# ── Sign-out in sidebar ───────────────────────────────────────
+with st.sidebar:
+    st.markdown(
+        f'<div style="font-size:.7rem;font-weight:600;color:var(--muted);margin-bottom:.5rem;">'
+        f'Signed in as<br>'
+        f'<span style="color:var(--text);font-weight:700;">{st.session_state.auth_email}</span>'
+        f'</div>',
+        unsafe_allow_html=True)
+    if st.button("Sign out", key="sign_out_btn"):
+        if _cookie_manager:
+            _cookie_manager.delete(COOKIE_NAME, key="delete_auth_cookie")
+        for _k in ["auth_verified","auth_email","otp_sent","otp_code",
+                   "otp_email","otp_expiry","otp_attempts"]:
+            st.session_state[_k] = False if _k == "auth_verified" else ""
+        st.rerun()
+
+# 
 # TOP NAV
 # 
 
@@ -2216,6 +2574,7 @@ if not st.session_state.ccu_data:
         status.empty()
         results.sort(key=lambda x: x["ccu"], reverse=True)
         st.session_state.ccu_data = results
+        save_ccu_snapshot(results)  # persist live CCU for future WoW comparison
         if not st.session_state.active_query:
             _genre_for_label = st.session_state.get("roster_genre", "FPS")
             st.session_state.active_query    = "weekly_report"
@@ -2373,6 +2732,7 @@ else:
     raw_data = load_all_raw()
     live_ccu_map = {r["app_id"]: r["ccu"] for r in ccu_data}
     wow_diff = compute_period_diff(raw_data, live_ccu_map, days=7)
+    st.session_state["_wow_diff_cache"] = wow_diff
     n_wow    = len(wow_diff)
 
     #  Derived stats 
