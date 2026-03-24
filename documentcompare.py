@@ -3,13 +3,17 @@ Document Comparator — SEGA-branded Streamlit App
 =================================================
 Run with:  streamlit run doc_compare.py
 
-Required:  pip install streamlit anthropic python-docx openpyxl pymupdf
+Required:  pip install streamlit anthropic python-docx openpyxl pymupdf boto3 extra-streamlit-components
 """
 
 import io
 import base64
 import tempfile
 import os
+import random
+import time
+import hashlib
+import hmac
 
 import streamlit as st
 
@@ -399,8 +403,243 @@ for key, default in [
 claude_key = st.secrets.get("ANTHROPIC_API_KEY", "")
 
 # ─────────────────────────────────────────────────────────────
-# TOP NAV
+# OTP AUTHENTICATION
 # ─────────────────────────────────────────────────────────────
+
+ALLOWED_DOMAIN   = "@segaamerica.com"
+OTP_EXPIRY_SECS  = 600   # 10 minutes
+COOKIE_EXPIRY_DAYS = 7
+COOKIE_NAME      = "sega_doc_auth"
+
+def _send_otp(email: str, code: str) -> bool:
+    """Send OTP via AWS SES. Returns True on success."""
+    try:
+        import boto3
+        from botocore.exceptions import ClientError
+
+        ses = boto3.client(
+            "ses",
+            region_name=st.secrets.get("AWS_SES_REGION", "us-east-1"),
+            aws_access_key_id=st.secrets.get("AWS_ACCESS_KEY_ID", ""),
+            aws_secret_access_key=st.secrets.get("AWS_SECRET_ACCESS_KEY", ""),
+        )
+
+        ses.send_email(
+            Source=st.secrets.get("EMAIL_FROM", "noreply@segaamerica.com"),
+            Destination={"ToAddresses": [email]},
+            Message={
+                "Subject": {
+                    "Data": "SEGA Doc Comparator — Your verification code",
+                    "Charset": "UTF-8",
+                },
+                "Body": {
+                    "Text": {
+                        "Data": f"Your SEGA Doc Comparator verification code is: {code}\n\nThis code expires in 10 minutes.\nIf you didn't request this, you can safely ignore this email.",
+                        "Charset": "UTF-8",
+                    },
+                    "Html": {
+                        "Data": f"""
+                        <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
+                          <div style="font-size:22px;font-weight:900;letter-spacing:0.1em;color:#1A6BFF;margin-bottom:4px;">SEGA</div>
+                          <div style="font-size:14px;color:#444;margin-bottom:28px;">Doc Comparator</div>
+                          <div style="font-size:14px;color:#222;margin-bottom:16px;">Your verification code is:</div>
+                          <div style="font-size:42px;font-weight:900;letter-spacing:0.18em;color:#1a1a2e;
+                                      background:#f0f4ff;border-radius:8px;padding:18px 24px;
+                                      display:inline-block;margin-bottom:24px;">{code}</div>
+                          <div style="font-size:12px;color:#888;">
+                            This code expires in 10 minutes.<br>
+                            If you didn't request this, you can safely ignore this email.
+                          </div>
+                        </div>
+                        """,
+                        "Charset": "UTF-8",
+                    },
+                },
+            },
+        )
+        return True
+    except ClientError as e:
+        st.error(f"SES error: {e.response['Error']['Message']}")
+        return False
+    except Exception as e:
+        st.error(f"Failed to send email: {e}")
+        return False
+
+def _sign_cookie(email: str) -> str:
+    """Create an HMAC-signed token: email|expiry|signature."""
+    secret = st.secrets.get("COOKIE_SIGNING_KEY", "fallback-change-this")
+    expiry = int(time.time()) + (COOKIE_EXPIRY_DAYS * 86400)
+    payload = f"{email}|{expiry}"
+    sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return base64.urlsafe_b64encode(f"{payload}|{sig}".encode()).decode()
+
+def _verify_cookie(token: str) -> str | None:
+    """Verify signed cookie. Returns email if valid, None otherwise."""
+    try:
+        secret = st.secrets.get("COOKIE_SIGNING_KEY", "fallback-change-this")
+        decoded = base64.urlsafe_b64decode(token.encode()).decode()
+        email, expiry_str, sig = decoded.rsplit("|", 2)
+        payload = f"{email}|{expiry_str}"
+        expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return None
+        if int(time.time()) > int(expiry_str):
+            return None
+        return email
+    except Exception:
+        return None
+
+# ── Check for existing valid cookie ──────────────────────────
+try:
+    import extra_streamlit_components as stx
+    _cookie_manager = stx.CookieManager(key="auth_cookies")
+    _existing_cookie = _cookie_manager.get(COOKIE_NAME)
+except Exception:
+    _cookie_manager = None
+    _existing_cookie = None
+
+_cookie_email = _verify_cookie(_existing_cookie) if _existing_cookie else None
+
+# ── Auth state init ───────────────────────────────────────────
+for _k, _v in [
+    ("auth_verified",   False),
+    ("auth_email",      ""),
+    ("otp_code",        ""),
+    ("otp_email",       ""),
+    ("otp_expiry",      0),
+    ("otp_sent",        False),
+    ("otp_attempts",    0),
+]:
+    if _k not in st.session_state:
+        st.session_state[_k] = _v
+
+# If valid cookie found, mark as verified
+if _cookie_email and not st.session_state.auth_verified:
+    st.session_state.auth_verified = True
+    st.session_state.auth_email    = _cookie_email
+
+# ── Render login gate if not verified ────────────────────────
+if not st.session_state.auth_verified:
+    st.markdown("""
+    <style>
+    .auth-wrap {
+        max-width: 420px; margin: 5rem auto; padding: 2.5rem 2.5rem 2rem;
+        background: var(--surface); border: 1px solid var(--border);
+        border-top: 3px solid var(--blue); border-radius: 0 0 10px 10px;
+    }
+    .auth-logo { font-family:'Inter Tight',sans-serif; font-size:1.6rem; font-weight:900;
+                 letter-spacing:0.12em; color:var(--blue) !important; margin-bottom:0.2rem; }
+    .auth-title { font-family:'Inter Tight',sans-serif; font-size:1rem; font-weight:700;
+                  color:var(--text) !important; margin-bottom:0.25rem; }
+    .auth-sub { font-size:0.8rem; color:var(--muted) !important; margin-bottom:1.5rem; }
+    .auth-note { font-size:0.72rem; color:var(--muted) !important; margin-top:1rem;
+                 text-align:center; line-height:1.5; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    _lc, _mc, _rc = st.columns([1, 2, 1])
+    with _mc:
+        st.markdown("""
+        <div class="auth-wrap">
+          <div class="auth-logo">SEGA</div>
+          <div class="auth-title">Doc Comparator</div>
+          <div class="auth-sub">Sign in with your SEGA America email</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if not st.session_state.otp_sent:
+            _email_input = st.text_input(
+                "Email address",
+                placeholder="you@segaamerica.com",
+                label_visibility="collapsed",
+                key="auth_email_input",
+            )
+            _send_btn = st.button("Send verification code", width="stretch")
+
+            if _send_btn and _email_input:
+                if not _email_input.strip().lower().endswith(ALLOWED_DOMAIN):
+                    st.error(f"Access restricted to {ALLOWED_DOMAIN} addresses.")
+                else:
+                    _code = str(random.randint(100000, 999999))
+                    if _send_otp(_email_input.strip().lower(), _code):
+                        st.session_state.otp_code     = _code
+                        st.session_state.otp_email    = _email_input.strip().lower()
+                        st.session_state.otp_expiry   = time.time() + OTP_EXPIRY_SECS
+                        st.session_state.otp_sent     = True
+                        st.session_state.otp_attempts = 0
+                        st.rerun()
+
+        else:
+            st.info(f"Code sent to **{st.session_state.otp_email}** — check your inbox.")
+            _code_input = st.text_input(
+                "6-digit code",
+                placeholder="123456",
+                label_visibility="collapsed",
+                max_chars=6,
+                key="auth_code_input",
+            )
+            _verify_btn = st.button("Verify code", width="stretch")
+
+            if _verify_btn and _code_input:
+                if st.session_state.otp_attempts >= 5:
+                    st.error("Too many attempts. Please request a new code.")
+                    st.session_state.otp_sent = False
+                elif time.time() > st.session_state.otp_expiry:
+                    st.error("Code has expired. Please request a new one.")
+                    st.session_state.otp_sent = False
+                elif _code_input.strip() != st.session_state.otp_code:
+                    st.session_state.otp_attempts += 1
+                    _remaining = 5 - st.session_state.otp_attempts
+                    st.error(f"Incorrect code. {_remaining} attempt{'s' if _remaining != 1 else ''} remaining.")
+                else:
+                    # Success
+                    st.session_state.auth_verified = True
+                    st.session_state.auth_email    = st.session_state.otp_email
+                    st.session_state.otp_code      = ""  # clear code from state
+                    # Set persistent cookie
+                    if _cookie_manager:
+                        _token = _sign_cookie(st.session_state.auth_email)
+                        _cookie_manager.set(
+                            COOKIE_NAME, _token,
+                            expires_at=None,  # session-managed expiry via signature
+                            key="set_auth_cookie"
+                        )
+                    st.rerun()
+
+            _resend_col, _ = st.columns([1, 1])
+            with _resend_col:
+                if st.button("← Use a different email", key="auth_back"):
+                    st.session_state.otp_sent  = False
+                    st.session_state.otp_code  = ""
+                    st.rerun()
+
+        st.markdown(
+            f'<div class="auth-note">Restricted to {ALLOWED_DOMAIN} addresses only.<br>'
+            f'Codes expire after 10 minutes.</div>',
+            unsafe_allow_html=True
+        )
+
+    st.stop()  # Nothing below renders until authenticated
+
+# ─────────────────────────────────────────────────────────────
+# SIGNED-IN USER + SIGN OUT
+# ─────────────────────────────────────────────────────────────
+
+with st.sidebar:
+    st.markdown(
+        f'<div style="font-size:.7rem;font-weight:600;color:var(--muted);margin-bottom:.5rem;">'
+        f'Signed in as<br>'
+        f'<span style="color:var(--text);font-weight:700;">{st.session_state.auth_email}</span>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+    if st.button("Sign out", key="sign_out_btn"):
+        if _cookie_manager:
+            _cookie_manager.delete(COOKIE_NAME, key="delete_auth_cookie")
+        for _k in ["auth_verified", "auth_email", "otp_sent", "otp_code",
+                   "otp_email", "otp_expiry", "otp_attempts"]:
+            st.session_state[_k] = False if _k == "auth_verified" else ""
+        st.rerun()
 
 st.markdown("""
 <div class="topbar">

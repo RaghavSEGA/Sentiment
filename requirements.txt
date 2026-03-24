@@ -33,3 +33,6 @@ python-pptx
 pymupdf
 openpyxl
 python-docx
+
+boto3
+extra-streamlit-components
