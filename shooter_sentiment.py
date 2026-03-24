@@ -151,8 +151,8 @@ def render_table(rows: list[dict], col_order: list[str] = None,
 <body>{html}</body></html>"""
     # Auto-height: ~36px per row + 50px header + padding
     if height is None:
-        height = min(len(rows) * 36 + 60, 600)
-    _st_components.html(full, height=height, scrolling=True)
+        height = len(rows) * 36 + 60
+    _st_components.html(full, height=height, scrolling=False)
 
 # Columns where a + prefix (even without %) means green, - means red
 _DELTA_COLS = {
@@ -3137,7 +3137,7 @@ else:
         render_table(df.to_dict("records"),
             ["#", "Title", "Sub-Genre", "Publisher", "F2P",
              "Live CCU", "YoY", "All-Time Peak", "12m Peak", "12m Avg", "MoM", "Review"],
-            height=min(len(df) * 36 + 60, 900))
+            height=len(df) * 36 + 60)
         st.caption("Review = all-time positive ÷ total reviews (Steam/SteamSpy).  — = no data available.  * = live API returned 0, using latest CSV value instead.")
 
     #  Monthly history chart 
