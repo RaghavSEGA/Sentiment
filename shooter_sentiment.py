@@ -74,8 +74,17 @@ def parse_md_table(block: str) -> tuple[list[str], list[dict]] | None:
                     if re.match(r"^\|?[\s\-:]+(\|[\s\-:]+)+\|?$", l)), None)
     if sep_idx is None or sep_idx == 0:
         return None
+    def clean_cell(text: str) -> str:
+        """Strip markdown bold/italic markers from cell text."""
+        t = text.strip()
+        t = re.sub(r"\*\*(.+?)\*\*", r"\1", t)
+        t = re.sub(r"\*(.+?)\*",     r"\1", t)
+        t = re.sub(r"__(.+?)__",       r"\1", t)
+        t = re.sub(r"_(.+?)_",         r"\1", t)
+        return t.strip()
+
     def split_row(line):
-        return [c.strip() for c in line.strip().strip("|").split("|")]
+        return [clean_cell(c) for c in line.strip().strip("|").split("|")]
     headers = split_row(lines[sep_idx - 1])
     rows = []
     for line in lines[sep_idx + 1:]:
