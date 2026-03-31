@@ -1084,6 +1084,7 @@ def lookup_game(query: str) -> list[dict]:
                     results.append({"app_id": int(aid), "name": name, "img": tiny})
     except Exception:
         pass
+    return results
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
