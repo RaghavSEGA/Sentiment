@@ -1450,33 +1450,24 @@ def chart_review_velocity(df: pd.DataFrame) -> "go.Figure":
     return fig
 
 
-def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100, session_cookie: str = "") -> list[dict]:
-    """Fetch Steam community forum threads.
-    Steam's forum listing is rendered server-side via a POST to a /render/ endpoint
-    that requires sessionid (from the sessionid cookie) as a form field.
+def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100,
+                        login_secure: str = "", session_id: str = "") -> list[dict]:
+    """Fetch Steam community forum threads via the internal POST render endpoint.
+    Requires steamLoginSecure and sessionid cookies separately.
     Returns (list[dict], debug_lines)."""
     from bs4 import BeautifulSoup
     import re as _re_f
     results = []
     _debug = []
 
-    # Build cookies dict — accept either just steamLoginSecure or a full cookie string
     cookies = {}
-    if session_cookie.strip():
-        if "=" in session_cookie and ";" in session_cookie:
-            # Full cookie string — parse each key=value pair
-            for part in session_cookie.split(";"):
-                part = part.strip()
-                if "=" in part:
-                    k, _, v = part.partition("=")
-                    cookies[k.strip()] = v.strip()
-        else:
-            cookies["steamLoginSecure"] = session_cookie.strip()
+    if login_secure.strip():
+        cookies["steamLoginSecure"] = login_secure.strip()
+    if session_id.strip():
+        cookies["sessionid"] = session_id.strip()
 
-    # sessionid is a separate cookie Steam requires as a POST field
-    session_id = cookies.get("sessionid", "")
-    _debug.append(f"Cookies found: {list(cookies.keys())}")
-    _debug.append(f"sessionid present: {bool(session_id)}")
+    _debug.append(f"Cookies set: {list(cookies.keys())}")
+    _debug.append(f"sessionid present: {bool(session_id.strip())}")
 
     headers = {
         **BROWSER_HEADERS,
@@ -1638,6 +1629,9 @@ for key, default in [
 
     ("game_events",          {}),   # {app_id: [event dicts]} fetched from Steam News
     ("forum_data",           {}),   # {app_id: [thread dicts]} scraped from Steam forums
+    ("steam_session_cookie", ""),   # legacy combined cookie string
+    ("steam_login_secure",   ""),   # steamLoginSecure cookie value
+    ("steam_session_id",     ""),   # sessionid cookie value
 
 ]:
     if key not in st.session_state:
@@ -1979,7 +1973,8 @@ if st.session_state.found_games:
                 _all_forums = {}
                 for _g in selected_list:
                     _fthreads, _ = fetch_forum_threads(_g["app_id"], _g["name"], max_threads=50,
-                        session_cookie=st.session_state.get("steam_session_cookie", ""))
+                        login_secure=st.session_state.get("steam_login_secure", ""),
+                            session_id=st.session_state.get("steam_session_id", ""))
                     if _fthreads:
                         _all_forums[_g["app_id"]] = _fthreads
                 st.session_state.forum_data = _all_forums
@@ -4062,37 +4057,57 @@ HARD RULES:
         _all_threads = [t for threads in _fdata_all.values() for t in threads]
 
         # ── Session cookie input (always visible) ─────────────────
-        _has_cookie = bool(st.session_state.get("steam_session_cookie", "").strip())
+        _has_login  = bool(st.session_state.get("steam_login_secure", "").strip())
+        _has_sessid = bool(st.session_state.get("steam_session_id", "").strip())
+        _has_cookie = _has_login and _has_sessid
         with st.expander(
-            f"Steam session cookie {'✓ saved' if _has_cookie else '— required for forum access'}",
+            f"Steam cookies {'✓ both saved' if _has_cookie else '— required for forum access'}",
             expanded=not _has_cookie,
         ):
             st.markdown(
                 '<div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem;line-height:1.8;">'
-                'Steam requires two cookies to access forum data. In your browser, open '
-                '<strong>steamcommunity.com</strong> while signed in → F12 → Application → '
-                'Cookies → steamcommunity.com, then copy <strong>both</strong>:<br>'
-                '<code style="color:var(--blue);">steamLoginSecure</code> and '
+                'Steam forums require two cookies. Open <strong>steamcommunity.com</strong> '
+                'while signed in, then press <strong>F12</strong> → Application → Cookies → '
+                '<code>steamcommunity.com</code> and copy the values of these two cookies:<br>'
+                '<code style="color:var(--blue);">steamLoginSecure</code> &nbsp;and&nbsp; '
                 '<code style="color:var(--blue);">sessionid</code><br><br>'
-                'Paste them below in the format: '
-                '<code style="color:var(--blue);">steamLoginSecure=VALUE; sessionid=VALUE</code>'
+                '<strong>Shortcut:</strong> paste this into your browser console on steamcommunity.com '
+                'and it will copy both values to your clipboard:<br>'
+                '<code style="color:var(--blue);font-size:.75rem;">'
+                'copy(document.cookie.split(";").filter(c=>c.includes("steamLoginSecure")||c.includes("sessionid")).join(";"))'
+                '</code>'
                 '</div>',
                 unsafe_allow_html=True,
             )
-            _ck_col, _ck_btn = st.columns([5, 1])
-            with _ck_col:
-                _cookie_val = st.text_input(
-                    "Cookie value",
-                    value=st.session_state.get("steam_session_cookie", ""),
+            _ck1, _ck2 = st.columns(2)
+            with _ck1:
+                st.markdown('<div class="field-label">steamLoginSecure</div>', unsafe_allow_html=True)
+                _login_val = st.text_input(
+                    "steamLoginSecure",
+                    value=st.session_state.get("steam_login_secure", ""),
                     type="password",
-                    placeholder="Paste steamLoginSecure value here…",
-                    key="forum_cookie_input",
+                    placeholder="Paste steamLoginSecure value…",
+                    key="forum_cookie_login",
                     label_visibility="collapsed",
                 )
-            with _ck_btn:
-                if st.button("Save", key="btn_save_cookie", use_container_width=False):
-                    st.session_state.steam_session_cookie = _cookie_val.strip()
-                    st.rerun()
+            with _ck2:
+                st.markdown('<div class="field-label">sessionid</div>', unsafe_allow_html=True)
+                _sessid_val = st.text_input(
+                    "sessionid",
+                    value=st.session_state.get("steam_session_id", ""),
+                    type="password",
+                    placeholder="Paste sessionid value…",
+                    key="forum_cookie_sessid",
+                    label_visibility="collapsed",
+                )
+            if st.button("Save cookies", key="btn_save_cookie"):
+                st.session_state.steam_login_secure = _login_val.strip()
+                st.session_state.steam_session_id   = _sessid_val.strip()
+                # Also keep legacy combined key for backward compat
+                st.session_state.steam_session_cookie = (
+                    f"steamLoginSecure={_login_val.strip()}; sessionid={_sessid_val.strip()}"
+                )
+                st.rerun()
 
         if not _all_threads:
             st.info("No forum data yet. Add your Steam session cookie above, then load forums below.")
@@ -4107,13 +4122,14 @@ HARD RULES:
             with _fb_col:
                 st.markdown("<br>", unsafe_allow_html=True)
                 if st.button("Load Forums", key="btn_load_forums"):
-                    if not st.session_state.get("steam_session_cookie", "").strip():
-                        st.warning("Paste your steamLoginSecure cookie and click Save first.")
+                    if not (st.session_state.get("steam_login_secure", "").strip() and st.session_state.get("steam_session_id", "").strip()):
+                        st.warning("Enter both steamLoginSecure and sessionid cookies above and click Save cookies.")
                     else:
                         with st.spinner("Scraping forum threads…"):
                             _manual_threads, _forum_debug = fetch_forum_threads(
                                 int(_manual_appid), f"App {_manual_appid}", max_threads=50,
-                                session_cookie=st.session_state.get("steam_session_cookie", ""),
+                                login_secure=st.session_state.get("steam_login_secure", ""),
+                            session_id=st.session_state.get("steam_session_id", ""),
                             )
                         if _manual_threads:
                             st.session_state.forum_data[int(_manual_appid)] = _manual_threads
@@ -4290,7 +4306,8 @@ HARD RULES:
                             if st.session_state.selected_games.get(_g["app_id"]):
                                 _new_forums[_g["app_id"]], _ = fetch_forum_threads(
                                     _g["app_id"], _g["name"], max_threads=int(_f_max),
-                                    session_cookie=st.session_state.get("steam_session_cookie", ""),
+                                    login_secure=st.session_state.get("steam_login_secure", ""),
+                            session_id=st.session_state.get("steam_session_id", ""),
                                 )
                         st.session_state.forum_data = _new_forums
                     st.rerun()
