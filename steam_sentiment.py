@@ -1451,162 +1451,141 @@ def chart_review_velocity(df: pd.DataFrame) -> "go.Figure":
 
 
 def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100,
-                        login_secure: str = "", session_id: str = "") -> list[dict]:
-    """Fetch Steam community forum threads via the internal POST render endpoint.
-    Requires steamLoginSecure and sessionid cookies separately.
+                        login_secure: str = "", session_id: str = "") -> tuple:
+    """Fetch Steam community forum threads using Playwright (headless Chromium).
+    Playwright executes JavaScript so the JS-rendered forum content loads fully.
     Returns (list[dict], debug_lines)."""
-    from bs4 import BeautifulSoup
     import re as _re_f
     results = []
     _debug = []
 
-    cookies = {}
-    if login_secure.strip():
-        cookies["steamLoginSecure"] = login_secure.strip()
-    if session_id.strip():
-        cookies["sessionid"] = session_id.strip()
+    try:
+        from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+    except ImportError:
+        _debug.append("playwright not installed. Run: pip install playwright && playwright install chromium")
+        return [], _debug
 
-    _debug.append(f"Cookies set: {list(cookies.keys())}")
-    _debug.append(f"sessionid present: {bool(session_id.strip())}")
-
-    headers = {
-        **BROWSER_HEADERS,
-        "Accept": "text/javascript, text/html, application/xml, text/xml, */*",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "X-Requested-With": "XMLHttpRequest",
-        "X-Prototype-Version": "1.7",
-        "Referer": f"https://steamcommunity.com/app/{app_id}/discussions/",
-        "Origin": "https://steamcommunity.com",
-    }
-
-    start = 0
-    count = 15
-
-    while len(results) < max_threads:
-        url = f"https://steamcommunity.com/forum/app/{app_id}/General/render/"
-        post_data = {
-            "start": str(start),
-            "count": str(count),
-            "feature2": "-1",
-            "gidforum": "0",
-            "action": "topics",
-        }
-        if session_id:
-            post_data["sessionid"] = session_id
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
+                  "--disable-blink-features=AutomationControlled"],
+        )
+        ctx_kwargs = {}
+        if login_secure.strip() or session_id.strip():
+            ctx_kwargs["storage_state"] = {
+                "cookies": [
+                    c for c in [
+                        {"name": "steamLoginSecure", "value": login_secure.strip(),
+                         "domain": "steamcommunity.com", "path": "/"}
+                        if login_secure.strip() else None,
+                        {"name": "sessionid", "value": session_id.strip(),
+                         "domain": "steamcommunity.com", "path": "/"}
+                        if session_id.strip() else None,
+                    ] if c
+                ]
+            }
+        context = browser.new_context(
+            **ctx_kwargs,
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1280, "height": 900},
+        )
+        page = context.new_page()
 
         try:
-            resp = requests.post(url, data=post_data, headers=headers, cookies=cookies, timeout=15)
-            _debug.append(f"POST {url} → {resp.status_code}, {len(resp.content)}b, CT={resp.headers.get('Content-Type','')!r}")
-
-            if not resp.ok:
-                _debug.append(f"Non-OK: {resp.status_code}")
-                break
-
-            # Check content type — JSON vs HTML fallback
-            ct = resp.headers.get("Content-Type", "")
-            if "json" in ct or resp.text.strip().startswith("{"):
+            page_num = 0
+            while len(results) < max_threads:
+                url = f"https://steamcommunity.com/app/{app_id}/discussions/0/?fp={page_num * 15}"
+                _debug.append(f"Loading: {url}")
                 try:
-                    data = resp.json()
-                    _debug.append(f"JSON keys: {list(data.keys())}")
-                    topics_html  = data.get("topics_html") or data.get("html") or ""
-                    total_count  = int(data.get("total_count", 0))
-                    _debug.append(f"total_count={total_count}, topics_html len={len(topics_html)}")
-                    if not topics_html:
-                        _debug.append("Empty topics_html")
-                        break
-                    soup = BeautifulSoup(topics_html, "html.parser")
-                except Exception as je:
-                    _debug.append(f"JSON parse error: {je}")
-                    _debug.append(f"Raw: {resp.text[:400]!r}")
+                    page.goto(url, timeout=30000, wait_until="domcontentloaded")
+                except PWTimeout:
+                    _debug.append("Page load timeout")
                     break
-            else:
-                # Returned HTML — try parsing directly (some authenticated sessions return full page)
-                _debug.append(f"Got HTML, attempting direct parse. Title snippet: {resp.text[resp.text.find('<title'):resp.text.find('<title')+80]!r}")
-                soup = BeautifulSoup(resp.text, "html.parser")
-                total_count = max_threads  # unknown, keep paginating until empty
 
-            topics = soup.select("div.forum_topic")
-            _debug.append(f"forum_topic divs found: {len(topics)}")
-
-            if not topics:
-                # Try alternate selectors
-                for sel in ["div.forum_topic_overlay", "a.forum_topic_name", ".discussionforum .topic"]:
-                    alt = soup.select(sel)
-                    if alt:
-                        _debug.append(f"Alternate '{sel}': {len(alt)} found")
-                # Show classes present
-                all_cls = set()
-                for tag in soup.find_all(True, class_=True):
-                    all_cls.update(tag.get("class", []))
-                relevant = [c for c in all_cls if any(k in c for k in ("forum", "topic", "discuss"))]
-                _debug.append(f"Relevant classes: {relevant[:20]}")
-                _debug.append(f"HTML fragment (500c): {resp.text[2000:2500]!r}")
-                break
-
-            for topic in topics:
+                # Wait for forum topics to appear (JS renders them)
                 try:
-                    title_el = topic.select_one("div.forum_topic_name a, a.forum_topic_overlay")
-                    if not title_el:
+                    page.wait_for_selector("div.forum_topic, div.apphub_Card", timeout=12000)
+                except PWTimeout:
+                    _debug.append("Timed out waiting for forum_topic — checking page state")
+                    title = page.title()
+                    _debug.append(f"Page title: {title!r}")
+                    # Check if we got a login wall
+                    if "Sign In" in title or len(page.query_selector_all("div.forum_topic")) == 0:
+                        _debug.append("No topics found after JS wait. May need login cookies.")
+                    break
+
+                topics = page.query_selector_all("div.forum_topic")
+                _debug.append(f"Page {page_num}: found {len(topics)} topics")
+                if not topics:
+                    break
+
+                for topic in topics:
+                    try:
+                        title_el = (topic.query_selector("div.forum_topic_name a") or
+                                    topic.query_selector("a.forum_topic_overlay"))
+                        if not title_el:
+                            continue
+                        title_text = title_el.inner_text().strip()
+                        link       = title_el.get_attribute("href") or ""
+                        rep_el     = topic.query_selector("div.forum_topic_reply_count")
+                        replies    = int((rep_el.inner_text().strip().replace(",", "") or "0")) if rep_el else 0
+                        auth_el    = (topic.query_selector("a.forum_topic_author") or
+                                      topic.query_selector("div.forum_topic_op a"))
+                        author     = auth_el.inner_text().strip() if auth_el else "Unknown"
+                        ts_el      = topic.query_selector("span[data-timestamp]")
+                        ts_val     = int(ts_el.get_attribute("data-timestamp")) if ts_el else None
+                        ts_str     = ts_el.inner_text().strip() if ts_el else ""
+                        is_pinned  = topic.query_selector("span.forum_topic_pinned") is not None
+                        is_dev     = topic.query_selector("span.forum_topic_developer") is not None
+                        results.append({
+                            "app_id": app_id, "game": game_name,
+                            "title": title_text, "url": link,
+                            "author": author, "reply_count": replies,
+                            "timestamp": ts_val, "date_str": ts_str,
+                            "is_pinned": is_pinned, "is_dev_post": is_dev,
+                            "opening_post": "",
+                        })
+                    except Exception:
                         continue
-                    title   = title_el.get_text(strip=True)
-                    link    = title_el.get("href", "")
-                    rep_el  = topic.select_one("div.forum_topic_reply_count")
-                    replies = int(rep_el.get_text(strip=True).replace(",", "") or 0) if rep_el else 0
-                    auth_el = topic.select_one("a.forum_topic_author, div.forum_topic_op a")
-                    author  = auth_el.get_text(strip=True) if auth_el else "Unknown"
-                    ts_el   = topic.select_one("span[data-timestamp]")
-                    ts_val  = int(ts_el["data-timestamp"]) if ts_el and ts_el.get("data-timestamp") else None
-                    ts_str  = ts_el.get_text(strip=True) if ts_el else ""
-                    is_pinned = bool(topic.select_one("span.forum_topic_pinned, .sticky"))
-                    is_dev    = bool(topic.select_one("span.forum_topic_developer"))
-                    results.append({
-                        "app_id":       app_id,
-                        "game":         game_name,
-                        "title":        title,
-                        "url":          link,
-                        "author":       author,
-                        "reply_count":  replies,
-                        "timestamp":    ts_val,
-                        "date_str":     ts_str,
-                        "is_pinned":    is_pinned,
-                        "is_dev_post":  is_dev,
-                        "opening_post": "",
-                    })
+
+                # Check for next page
+                next_btn = page.query_selector("div.forum_paging_next a, .pagebtn:last-child")
+                if not next_btn or len(results) >= max_threads:
+                    break
+                page_num += 1
+                time.sleep(0.5)
+
+        finally:
+            # Second pass: fetch opening posts
+            for thread in results[:max_threads]:
+                if not thread["url"]:
+                    continue
+                try:
+                    page.goto(thread["url"], timeout=20000, wait_until="domcontentloaded")
+                    try:
+                        page.wait_for_selector("div.forum_op, div.forum_comment_text", timeout=8000)
+                    except PWTimeout:
+                        continue
+                    op_el = (page.query_selector("div.forum_op div.forum_comment_text") or
+                             page.query_selector("div.forum_comment_text"))
+                    if op_el:
+                        raw = op_el.inner_text().strip()
+                        raw = _re_f.sub(r"\s{2,}", " ", raw)
+                        thread["opening_post"] = raw[:1500]
+                    time.sleep(0.4)
                 except Exception:
                     continue
 
-            start += count
-            if start >= total_count or not topics:
-                break
-            time.sleep(0.8)
+            browser.close()
 
-        except Exception as e:
-            _debug.append(f"Exception: {type(e).__name__}: {e}")
-            break
-
-    # ── Second pass: fetch opening post body ──────────────────
-    _op_headers = {**BROWSER_HEADERS,
-                   "Accept": "text/html,application/xhtml+xml,*/*",
-                   "Referer": f"https://steamcommunity.com/app/{app_id}/discussions/"}
-    for thread in results[:max_threads]:
-        if not thread["url"]:
-            continue
-        try:
-            tr = requests.get(thread["url"], headers=_op_headers, cookies=cookies, timeout=12)
-            if not tr.ok:
-                continue
-            tsoup = BeautifulSoup(tr.text, "html.parser")
-            op_el = (tsoup.select_one("div.forum_op div.forum_comment_text") or
-                     tsoup.select_one("div.forum_comment_text"))
-            if op_el:
-                raw = op_el.get_text(separator=" ", strip=True)
-                raw = _re_f.sub(r"\s{2,}", " ", raw)
-                thread["opening_post"] = raw[:1500]
-            time.sleep(0.5)
-        except Exception:
-            continue
-
+    _debug.append(f"Total threads collected: {len(results)}")
     return results[:max_threads], _debug
+
 
 
 # ─────────────────────────────────────────────────────────────
@@ -4053,135 +4032,131 @@ HARD RULES:
             unsafe_allow_html=True,
         )
 
-        _fdata_all = st.session_state.get("forum_data", {})
-        _all_threads = [t for threads in _fdata_all.values() for t in threads]
-
-        # ── Session cookie input (always visible) ─────────────────
-        _has_login  = bool(st.session_state.get("steam_login_secure", "").strip())
-        _has_sessid = bool(st.session_state.get("steam_session_id", "").strip())
-        _has_cookie = _has_login and _has_sessid
-        with st.expander(
-            f"Steam cookies {'✓ both saved' if _has_cookie else '— required for forum access'}",
-            expanded=not _has_cookie,
-        ):
+        # ── Playwright load controls ───────────────────────────────
+        with st.expander("Load forum threads (Playwright / headless browser)", expanded=not bool(st.session_state.get("forum_data"))):
             st.markdown(
-                '<div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem;line-height:1.8;">'
-                'Steam forums require two cookies. Open <strong>steamcommunity.com</strong> '
-                'while signed in, then press <strong>F12</strong> → Application → Cookies → '
-                '<code>steamcommunity.com</code> and copy the values of these two cookies:<br>'
-                '<code style="color:var(--blue);">steamLoginSecure</code> &nbsp;and&nbsp; '
-                '<code style="color:var(--blue);">sessionid</code><br><br>'
-                '<strong>Shortcut:</strong> paste this into your browser console on steamcommunity.com '
-                'and it will copy both values to your clipboard:<br>'
-                '<code style="color:var(--blue);font-size:.75rem;">'
-                'copy(document.cookie.split(";").filter(c=>c.includes("steamLoginSecure")||c.includes("sessionid")).join(";"))'
-                '</code>'
+                '<div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem;line-height:1.7;">'
+                'Uses a headless Chromium browser to load the forums exactly as your browser would, '
+                'including JavaScript rendering. Optionally provide cookies for faster loading.<br><br>'
+                '<strong style="color:var(--text);">Optional — Steam session cookies</strong> '
+                '(paste from browser DevTools → Application → Cookies → steamcommunity.com):'
                 '</div>',
                 unsafe_allow_html=True,
             )
-            _ck1, _ck2 = st.columns(2)
-            with _ck1:
-                st.markdown('<div class="field-label">steamLoginSecure</div>', unsafe_allow_html=True)
-                _login_val = st.text_input(
-                    "steamLoginSecure",
+            _pw_c1, _pw_c2 = st.columns(2)
+            with _pw_c1:
+                st.markdown('<div class="field-label">steamLoginSecure (optional)</div>', unsafe_allow_html=True)
+                _pw_login = st.text_input("steamLoginSecure", type="password",
                     value=st.session_state.get("steam_login_secure", ""),
-                    type="password",
-                    placeholder="Paste steamLoginSecure value…",
-                    key="forum_cookie_login",
-                    label_visibility="collapsed",
-                )
-            with _ck2:
-                st.markdown('<div class="field-label">sessionid</div>', unsafe_allow_html=True)
-                _sessid_val = st.text_input(
-                    "sessionid",
+                    placeholder="Paste value…", key="pw_login_input", label_visibility="collapsed")
+            with _pw_c2:
+                st.markdown('<div class="field-label">sessionid (optional)</div>', unsafe_allow_html=True)
+                _pw_sessid = st.text_input("sessionid", type="password",
                     value=st.session_state.get("steam_session_id", ""),
-                    type="password",
-                    placeholder="Paste sessionid value…",
-                    key="forum_cookie_sessid",
-                    label_visibility="collapsed",
-                )
-            if st.button("Save cookies", key="btn_save_cookie"):
-                st.session_state.steam_login_secure = _login_val.strip()
-                st.session_state.steam_session_id   = _sessid_val.strip()
-                # Also keep legacy combined key for backward compat
-                st.session_state.steam_session_cookie = (
-                    f"steamLoginSecure={_login_val.strip()}; sessionid={_sessid_val.strip()}"
-                )
-                st.rerun()
+                    placeholder="Paste value…", key="pw_sessid_input", label_visibility="collapsed")
 
-        if not _all_threads:
-            st.info("No forum data yet. Add your Steam session cookie above, then load forums below.")
-            # Manual load by App ID
-            _fa_col, _fb_col, _ = st.columns([1.2, 1, 4])
-            with _fa_col:
-                _manual_appid = st.number_input(
-                    "App ID", min_value=1, value=3112260, step=1,
-                    key="forum_manual_appid",
-                    label_visibility="visible",
-                )
-            with _fb_col:
+            _pw_row1, _pw_row2, _pw_row3 = st.columns([1.5, 1, 1])
+            with _pw_row1:
+                _pw_appid = st.number_input("App ID", min_value=1, value=3112260, step=1,
+                    key="pw_appid", label_visibility="visible")
+            with _pw_row2:
+                _pw_max = st.selectbox("Max threads", [25, 50, 100, 200],
+                    index=1, key="pw_max_threads", label_visibility="visible")
+            with _pw_row3:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("Load Forums", key="btn_load_forums"):
-                    if not (st.session_state.get("steam_login_secure", "").strip() and st.session_state.get("steam_session_id", "").strip()):
-                        st.warning("Enter both steamLoginSecure and sessionid cookies above and click Save cookies.")
-                    else:
-                        with st.spinner("Scraping forum threads…"):
-                            _manual_threads, _forum_debug = fetch_forum_threads(
-                                int(_manual_appid), f"App {_manual_appid}", max_threads=50,
-                                login_secure=st.session_state.get("steam_login_secure", ""),
-                            session_id=st.session_state.get("steam_session_id", ""),
-                            )
-                        if _manual_threads:
-                            st.session_state.forum_data[int(_manual_appid)] = _manual_threads
-                            st.rerun()
-                        else:
-                            st.warning("No threads found. Check the App ID and ensure your cookie is valid and not expired.")
-                            with st.expander("Debug info"):
-                                for line in _forum_debug:
-                                    st.text(line)
-        else:
+                _pw_load = st.button("Load Forums", key="btn_pw_load", width="stretch")
+
+            if _pw_load:
+                # Save cookies
+                st.session_state.steam_login_secure = _pw_login.strip()
+                st.session_state.steam_session_id   = _pw_sessid.strip()
+                _game_name = next(
+                    (g["name"] for g in st.session_state.get("found_games", [])
+                     if g["app_id"] == int(_pw_appid)), f"App {_pw_appid}"
+                )
+                with st.spinner(f"Loading forums for {_game_name} with headless browser…"):
+                    _pw_threads, _pw_debug = fetch_forum_threads(
+                        int(_pw_appid), _game_name, max_threads=int(_pw_max),
+                        login_secure=_pw_login.strip(),
+                        session_id=_pw_sessid.strip(),
+                    )
+                if _pw_threads:
+                    st.session_state.forum_data[int(_pw_appid)] = _pw_threads
+                    st.success(f"Loaded {len(_pw_threads):,} threads.")
+                    st.rerun()
+                else:
+                    st.warning("No threads found.")
+                    with st.expander("Debug info"):
+                        for line in _pw_debug:
+                            st.text(line)
+
+        # ── CSV upload (alternative / supplement) ─────────────────
+        with st.expander("Or upload a CSV of forum threads"):
+            st.markdown(
+                '<div style="font-size:.78rem;color:var(--muted);margin-bottom:.5rem;">'
+                'Expected columns: <code>title, author, reply_count, date_str, url, '
+                'is_pinned, is_dev_post, opening_post, game</code> — missing columns are filled automatically.'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            _forum_upload = st.file_uploader(
+                "Upload forum threads CSV", type=["csv"],
+                key="forum_csv_upload", label_visibility="collapsed",
+            )
+            if _forum_upload:
+                try:
+                    import io as _fio
+                    _fdf = pd.read_csv(_fio.BytesIO(_forum_upload.read()))
+                    _fdf.columns = [c.strip().lower().replace(" ", "_") for c in _fdf.columns]
+                    for _col, _def in [("is_pinned", False), ("is_dev_post", False),
+                                       ("opening_post", ""), ("game", "Uploaded"), ("url", ""),
+                                       ("reply_count", 0), ("date_str", ""), ("author", "Unknown"),
+                                       ("timestamp", None)]:
+                        if _col not in _fdf.columns:
+                            _fdf[_col] = _def
+                    _uploaded_threads = _fdf.to_dict("records")
+                    st.session_state.forum_data[0] = _uploaded_threads
+                    st.success(f"Loaded {len(_uploaded_threads):,} threads from CSV.")
+                except Exception as _ue:
+                    st.error(f"Could not read CSV: {_ue}")
+
+
+        _fdata_all = st.session_state.get("forum_data", {})
+        _all_threads = [t for threads in _fdata_all.values() for t in threads]
+
+        if _all_threads:
             # ── Controls ──────────────────────────────────────────────
             _fg_col, _fs_col, _ftype_col, _ = st.columns([1.5, 2, 1.5, 2])
 
-            _forum_games = ["All Games"] + sorted({t["game"] for t in _all_threads})
+            _forum_games = ["All Games"] + sorted({str(t.get("game","")) for t in _all_threads if t.get("game")})
             with _fg_col:
-                _fg_sel = st.selectbox(
-                    "Game", _forum_games, key="forum_game_filter",
-                    label_visibility="visible",
-                )
+                _fg_sel = st.selectbox("Game", _forum_games, key="forum_game_filter", label_visibility="visible")
             with _fs_col:
-                _f_search = st.text_input(
-                    "Search threads", placeholder="keyword in title or post…",
-                    key="forum_search", label_visibility="visible",
-                )
+                _f_search = st.text_input("Search threads", placeholder="keyword in title or post…",
+                                          key="forum_search", label_visibility="visible")
             with _ftype_col:
-                _f_sort = st.selectbox(
-                    "Sort by", ["Most Replies", "Most Recent", "Dev Posts First"],
-                    key="forum_sort", label_visibility="visible",
-                )
+                _f_sort = st.selectbox("Sort by", ["Most Replies", "Most Recent", "Dev Posts First"],
+                                       key="forum_sort", label_visibility="visible")
 
-            # Apply filters
             _fview = _all_threads.copy()
             if _fg_sel != "All Games":
-                _fview = [t for t in _fview if t["game"] == _fg_sel]
+                _fview = [t for t in _fview if str(t.get("game","")) == _fg_sel]
             if _f_search.strip():
                 _sq = _f_search.strip().lower()
-                _fview = [
-                    t for t in _fview
-                    if _sq in t["title"].lower() or _sq in t["opening_post"].lower()
-                ]
+                _fview = [t for t in _fview
+                          if _sq in str(t.get("title","")).lower() or _sq in str(t.get("opening_post","")).lower()]
             if _f_sort == "Most Replies":
-                _fview = sorted(_fview, key=lambda t: t["reply_count"], reverse=True)
+                _fview = sorted(_fview, key=lambda t: int(t.get("reply_count") or 0), reverse=True)
             elif _f_sort == "Most Recent":
-                _fview = sorted(_fview, key=lambda t: t["timestamp"] or 0, reverse=True)
+                _fview = sorted(_fview, key=lambda t: t.get("timestamp") or 0, reverse=True)
             elif _f_sort == "Dev Posts First":
-                _fview = sorted(_fview, key=lambda t: (not t["is_dev_post"], -t["reply_count"]))
+                _fview = sorted(_fview, key=lambda t: (not t.get("is_dev_post"), -int(t.get("reply_count") or 0)))
 
-            # ── Stats strip ───────────────────────────────────────────
-            _n_threads  = len(_fview)
-            _n_dev      = sum(1 for t in _fview if t["is_dev_post"])
-            _n_pinned   = sum(1 for t in _fview if t["is_pinned"])
-            _avg_rep    = sum(t["reply_count"] for t in _fview) / max(_n_threads, 1)
+            # Stats strip
+            _n_threads = len(_fview)
+            _n_dev     = sum(1 for t in _fview if t.get("is_dev_post"))
+            _n_pinned  = sum(1 for t in _fview if t.get("is_pinned"))
+            _avg_rep   = sum(int(t.get("reply_count") or 0) for t in _fview) / max(_n_threads, 1)
             _fs1, _fs2, _fs3, _fs4 = st.columns(4)
             for _fcol, _flabel, _fval in [
                 (_fs1, "Threads", f"{_n_threads:,}"),
@@ -4201,14 +4176,10 @@ HARD RULES:
                         unsafe_allow_html=True,
                     )
 
-            # ── Keyword analysis on opening posts ─────────────────────
-            _post_texts = [t["opening_post"] for t in _fview if t["opening_post"]]
+            # Keywords
+            _post_texts = [str(t.get("opening_post","")) for t in _fview if t.get("opening_post")]
             if _post_texts:
-                st.markdown(
-                    '<div class="section-header"><span class="dot"></span>'
-                    'TOP FORUM KEYWORDS</div>',
-                    unsafe_allow_html=True,
-                )
+                st.markdown('<div class="section-header"><span class="dot"></span>TOP FORUM KEYWORDS</div>', unsafe_allow_html=True)
                 _fkw = extract_keywords(_post_texts, top_n=30)
                 if _fkw:
                     _fkw_html = " ".join(
@@ -4218,101 +4189,59 @@ HARD RULES:
                         f'{w} <span style="opacity:.6">{c}</span></span>'
                         for w, c in _fkw
                     )
-                    st.markdown(
-                        f'<div style="margin-bottom:1.25rem;line-height:2;">{_fkw_html}</div>',
-                        unsafe_allow_html=True,
-                    )
+                    st.markdown(f'<div style="margin-bottom:1.25rem;line-height:2;">{_fkw_html}</div>', unsafe_allow_html=True)
 
-            # ── Thread list ───────────────────────────────────────────
+            # Thread list
             st.markdown(
-                '<div class="section-header"><span class="dot"></span>'
-                f'THREADS <span style="color:var(--muted);font-weight:400;font-size:.72rem;">'
-                f'— {_n_threads} shown</span></div>',
+                f'<div class="section-header"><span class="dot"></span>THREADS '
+                f'<span style="color:var(--muted);font-weight:400;font-size:.72rem;">— {_n_threads} shown</span></div>',
                 unsafe_allow_html=True,
             )
-
-            if not _fview:
-                st.info("No threads match the current filters.")
-            else:
-                for _t in _fview[:100]:
-                    _tbadges = ""
-                    if _t["is_pinned"]:
-                        _tbadges += '<span style="background:#f0a50022;color:#f0a500;border:1px solid #f0a50044;font-size:.58rem;font-weight:700;letter-spacing:.1em;padding:.1rem .35rem;border-radius:3px;margin-right:.35rem;">PINNED</span>'
-                    if _t["is_dev_post"]:
-                        _tbadges += '<span style="background:#4080ff22;color:#4080ff;border:1px solid #4080ff44;font-size:.58rem;font-weight:700;letter-spacing:.1em;padding:.1rem .35rem;border-radius:3px;margin-right:.35rem;">DEV</span>'
-                    _treply_col = "#20c65a" if _t["reply_count"] >= 20 else "#f0a500" if _t["reply_count"] >= 5 else "var(--muted)"
-                    _tsnip = _t["opening_post"][:300] + ("…" if len(_t["opening_post"]) > 300 else "") if _t["opening_post"] else "_No preview available_"
-                    _tlink = (
-                        f'<a href="{_t["url"]}" target="_blank" rel="noopener" '
-                        f'style="color:var(--blue);font-size:.72rem;text-decoration:none;'
-                        f'font-weight:600;">View on Steam ↗</a>'
-                        if _t["url"] else ""
-                    )
-                    st.markdown(
-                        f'<div style="background:var(--surface2);border:1px solid var(--border);'
-                        f'border-radius:8px;padding:.9rem 1.1rem;margin-bottom:.6rem;">'
-                        f'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;">'
-                        f'<div style="flex:1;min-width:0;">'
-                        f'<div style="margin-bottom:.3rem;">{_tbadges}'
-                        f'<span style="font-size:.88rem;font-weight:700;color:var(--text);">{_t["title"]}</span>'
-                        f'</div>'
-                        f'<div style="font-size:.72rem;color:var(--muted);margin-bottom:.5rem;">'
-                        f'{_t["game"]} &nbsp;·&nbsp; by <strong style="color:var(--text);">{_t["author"]}</strong>'
-                        f'&nbsp;·&nbsp; {_t["date_str"]}'
-                        f'</div>'
-                        f'<div style="font-size:.8rem;color:var(--text);line-height:1.6;opacity:.85;">{_tsnip}</div>'
-                        f'<div style="margin-top:.5rem;">{_tlink}</div>'
-                        f'</div>'
-                        f'<div style="text-align:right;flex-shrink:0;">'
-                        f'<div style="font-family:Inter Tight,sans-serif;font-size:1.3rem;'
-                        f'font-weight:900;color:{_treply_col};line-height:1;">{_t["reply_count"]}</div>'
-                        f'<div style="font-size:.55rem;font-weight:700;letter-spacing:.12em;'
-                        f'text-transform:uppercase;color:var(--muted);">replies</div>'
-                        f'</div>'
-                        f'</div></div>',
-                        unsafe_allow_html=True,
-                    )
-
-            # ── CSV export ────────────────────────────────────────────
-            if _fview:
-                st.markdown("<br>", unsafe_allow_html=True)
-                _fcsv_col, _ = st.columns([1.2, 4])
-                with _fcsv_col:
-                    _fdf = pd.DataFrame(_fview)
-                    _fg_slug = _fg_sel.replace(" ", "_").lower()
-                    st.download_button(
-                        "Export threads (.csv)",
-                        data=_fdf.to_csv(index=False).encode("utf-8"),
-                        file_name=f"forum_threads_{_fg_slug}.csv",
-                        mime="text/csv",
-                        key="dl_forum_csv",
-                        width="stretch",
-                    )
-
-            # ── Manual refresh ────────────────────────────────────────
-            st.markdown("<br>", unsafe_allow_html=True)
-            _fref_col, _fmax_col, _ = st.columns([1, 1, 4])
-            with _fmax_col:
-                _f_max = st.selectbox(
-                    "Threads to fetch", [50, 100, 200],
-                    key="forum_max_threads", label_visibility="visible",
+            for _t in _fview[:100]:
+                _tbadges = ""
+                if _t.get("is_pinned"):
+                    _tbadges += '<span style="background:#f0a50022;color:#f0a500;border:1px solid #f0a50044;font-size:.58rem;font-weight:700;letter-spacing:.1em;padding:.1rem .35rem;border-radius:3px;margin-right:.35rem;">PINNED</span>'
+                if _t.get("is_dev_post"):
+                    _tbadges += '<span style="background:#4080ff22;color:#4080ff;border:1px solid #4080ff44;font-size:.58rem;font-weight:700;letter-spacing:.1em;padding:.1rem .35rem;border-radius:3px;margin-right:.35rem;">DEV</span>'
+                _rc = int(_t.get("reply_count") or 0)
+                _treply_col = "#20c65a" if _rc >= 20 else "#f0a500" if _rc >= 5 else "var(--muted)"
+                _tsnip = str(_t.get("opening_post",""))[:300]
+                if len(str(_t.get("opening_post",""))) > 300:
+                    _tsnip += "…"
+                _tsnip = _tsnip or "_No preview_"
+                _url = str(_t.get("url",""))
+                _tlink = (f'<a href="{_url}" target="_blank" rel="noopener" '
+                          f'style="color:var(--blue);font-size:.72rem;text-decoration:none;font-weight:600;">View on Steam ↗</a>') if _url else ""
+                st.markdown(
+                    f'<div style="background:var(--surface2);border:1px solid var(--border);'
+                    f'border-radius:8px;padding:.9rem 1.1rem;margin-bottom:.6rem;">'
+                    f'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;">'
+                    f'<div style="flex:1;min-width:0;">'
+                    f'<div style="margin-bottom:.3rem;">{_tbadges}'
+                    f'<span style="font-size:.88rem;font-weight:700;color:var(--text);">{_t.get("title","")}</span></div>'
+                    f'<div style="font-size:.72rem;color:var(--muted);margin-bottom:.5rem;">'
+                    f'{_t.get("game","")} &nbsp;·&nbsp; by <strong style="color:var(--text);">{_t.get("author","")}</strong>'
+                    f'&nbsp;·&nbsp; {_t.get("date_str","")}</div>'
+                    f'<div style="font-size:.8rem;color:var(--text);line-height:1.6;opacity:.85;">{_tsnip}</div>'
+                    f'<div style="margin-top:.5rem;">{_tlink}</div></div>'
+                    f'<div style="text-align:right;flex-shrink:0;">'
+                    f'<div style="font-family:Inter Tight,sans-serif;font-size:1.3rem;font-weight:900;color:{_treply_col};line-height:1;">{_rc}</div>'
+                    f'<div style="font-size:.55rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);">replies</div>'
+                    f'</div></div></div>',
+                    unsafe_allow_html=True,
                 )
-            with _fref_col:
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("Refresh Forums", key="btn_refresh_forums"):
-                    with st.spinner("Re-scraping forum threads…"):
-                        _new_forums = {}
-                        for _g in st.session_state.found_games:
-                            if st.session_state.selected_games.get(_g["app_id"]):
-                                _new_forums[_g["app_id"]], _ = fetch_forum_threads(
-                                    _g["app_id"], _g["name"], max_threads=int(_f_max),
-                                    login_secure=st.session_state.get("steam_login_secure", ""),
-                            session_id=st.session_state.get("steam_session_id", ""),
-                                )
-                        st.session_state.forum_data = _new_forums
-                    st.rerun()
 
-# ─────────────────────────────────────────────────────────────
+            # Export
+            st.markdown("<br>", unsafe_allow_html=True)
+            _fcsv_col, _ = st.columns([1.2, 4])
+            with _fcsv_col:
+                st.download_button(
+                    "Export threads (.csv)",
+                    data=pd.DataFrame(_fview).to_csv(index=False).encode("utf-8"),
+                    file_name=f"forum_threads_{_fg_sel.replace(' ','_').lower()}.csv",
+                    mime="text/csv", key="dl_forum_csv", width="stretch",
+                )
+
 # EMPTY STATE
 # ─────────────────────────────────────────────────────────────
 
