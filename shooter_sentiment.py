@@ -2878,9 +2878,13 @@ else:
         </div>""", unsafe_allow_html=True)
         with st.expander("See titles"):
             if _wow_up_names:
-                st.markdown("<span style='color:#20c65a'>▲  " + "  ·  ".join(_wow_up_names) + "</span>", unsafe_allow_html=True)
+                st.markdown(
+                    " ".join(f"<span style='color:#20c65a;margin-right:8px'>▲ {n}</span>" for n in _wow_up_names),
+                    unsafe_allow_html=True)
             if _wow_down_names:
-                st.markdown("<span style='color:#ff4d4d'>▼  " + "  ·  ".join(_wow_down_names) + "</span>", unsafe_allow_html=True)
+                st.markdown(
+                    " ".join(f"<span style='color:#ff4d4d;margin-right:8px'>▼ {n}</span>" for n in _wow_down_names),
+                    unsafe_allow_html=True)
     with k3:
         mom_color = "var(--pos)" if mom_up >= mom_down else "var(--neg)"
         st.markdown(f"""<div class="metric-card amber-top">
@@ -2890,9 +2894,13 @@ else:
         </div>""", unsafe_allow_html=True)
         with st.expander("See titles"):
             if _mom_up_names:
-                st.markdown("<span style='color:#20c65a'>▲  " + "  ·  ".join(_mom_up_names) + "</span>", unsafe_allow_html=True)
+                st.markdown(
+                    " ".join(f"<span style='color:#20c65a;margin-right:8px'>▲ {n}</span>" for n in _mom_up_names),
+                    unsafe_allow_html=True)
             if _mom_down_names:
-                st.markdown("<span style='color:#ff4d4d'>▼  " + "  ·  ".join(_mom_down_names) + "</span>", unsafe_allow_html=True)
+                st.markdown(
+                    " ".join(f"<span style='color:#ff4d4d;margin-right:8px'>▼ {n}</span>" for n in _mom_down_names),
+                    unsafe_allow_html=True)
     with k4:
         yoy_color = "var(--pos)" if growing >= declining else "var(--neg)"
         st.markdown(f"""<div class="metric-card purple-top">
@@ -2902,9 +2910,13 @@ else:
         </div>""", unsafe_allow_html=True)
         with st.expander("See titles"):
             if _yoy_up_names:
-                st.markdown("<span style='color:#20c65a'>▲  " + "  ·  ".join(_yoy_up_names) + "</span>", unsafe_allow_html=True)
+                st.markdown(
+                    " ".join(f"<span style='color:#20c65a;margin-right:8px'>▲ {n}</span>" for n in _yoy_up_names),
+                    unsafe_allow_html=True)
             if _yoy_down_names:
-                st.markdown("<span style='color:#ff4d4d'>▼  " + "  ·  ".join(_yoy_down_names) + "</span>", unsafe_allow_html=True)
+                st.markdown(
+                    " ".join(f"<span style='color:#ff4d4d;margin-right:8px'>▼ {n}</span>" for n in _yoy_down_names),
+                    unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
