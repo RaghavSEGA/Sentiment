@@ -815,7 +815,7 @@ BROWSER_HEADERS = {
 }
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def search_games_by_genre(genre: str, max_results: int = 30) -> list[dict]:
     """
     Return a game list for the given genre.
@@ -857,11 +857,11 @@ def search_games_by_genre(genre: str, max_results: int = 30) -> list[dict]:
 
 
 def fetch_reviews_for_game(
-    app_id: int, title: str, max_reviews: int, progress_cb=None,
+    app_id: int, title: str, max_reviews: int, progress_cb=None, language: str = "english",
 ) -> list[dict]:
     collected, cursor = [], "*"
     base = {
-        "json": 1, "language": "english", "review_type": "all",
+        "json": 1, "language": language, "review_type": "all",
         "purchase_type": "steam", "num_per_page": 100, "filter": "recent",
     }
     while len(collected) < max_reviews:
@@ -1064,7 +1064,7 @@ def _normalise_timestamps(df: pd.DataFrame) -> pd.DataFrame:
 # LIVE GAME LOOKUP  (for manual "add a game" feature)
 # ─────────────────────────────────────────────────────────────
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def lookup_game(query: str) -> list[dict]:
     """Search Steam for a specific game title. Returns up to 8 candidates."""
     results = []
@@ -1405,6 +1405,143 @@ def chart_sentiment_timeline(df: pd.DataFrame, events: list | None = None) -> go
     return fig
 
 
+def chart_review_velocity(df: pd.DataFrame) -> "go.Figure":
+    """Monthly review count per game — shows submission velocity over time."""
+    from datetime import datetime, UTC as _vUTC
+    _df = df.copy()
+    _df["month"] = pd.to_datetime(
+        _df["timestamp_created"].apply(
+            lambda ts: datetime.fromtimestamp(int(ts), _vUTC).strftime("%Y-%m")
+            if ts is not None and pd.notna(ts) else None
+        ), errors="coerce"
+    )
+    _df = _df.dropna(subset=["month"])
+    if _df.empty:
+        return go.Figure()
+    palette = ["#4080ff", "#20c65a", "#ff3d52", "#f0a500", "#a060ff",
+               "#00d4ff", "#ff8c00", "#60ff9a", "#ff60a0", "#c0ff40"]
+    games = sorted(_df["game_title"].unique())
+    fig = go.Figure()
+    for i, game in enumerate(games):
+        g = _df[_df["game_title"] == game]
+        monthly = g.groupby("month").size().reset_index(name="count")
+        monthly = monthly.sort_values("month")
+        if len(monthly) < 2:
+            continue
+        colour = palette[i % len(palette)]
+        fig.add_trace(go.Bar(
+            x=monthly["month"].astype(str),
+            y=monthly["count"],
+            name=game[:22],
+            marker_color=colour,
+            opacity=0.8,
+            hovertemplate=f"<b>{game[:30]}</b><br>%{{x}}<br>%{{y}} reviews<extra></extra>",
+        ))
+    fig.update_layout(
+        **PLOTLY_BASE,
+        barmode="stack",
+        xaxis=dict(tickangle=-38, tickfont=dict(color="#5a5f82", size=9), showgrid=False, title=None),
+        yaxis=dict(title=dict(text="Reviews / month", font=dict(color="#5a5f82", size=11)),
+                   showgrid=True, gridcolor="#1a1d2e", tickfont=dict(color="#5a5f82")),
+        legend=dict(font=dict(color="#b8bcd4", size=10), bgcolor="rgba(15,17,32,0.8)",
+                    bordercolor="#232640", borderwidth=1),
+        height=360,
+    )
+    return fig
+
+
+def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100) -> list[dict]:
+    """Scrape Steam community forum discussion listings for a game.
+    Returns list of thread dicts with title, author, reply_count, timestamp,
+    opening_post, url, is_pinned, is_dev_post."""
+    from bs4 import BeautifulSoup
+    import re as _re_f
+    results = []
+    page = 0
+    headers = {
+        **BROWSER_HEADERS,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Referer": f"https://store.steampowered.com/app/{app_id}/",
+    }
+    while len(results) < max_threads:
+        url = f"https://steamcommunity.com/app/{app_id}/discussions/0/?fp={page * 15}"
+        try:
+            resp = requests.get(url, headers=headers, timeout=15)
+            if not resp.ok:
+                break
+            soup = BeautifulSoup(resp.text, "html.parser")
+            # Each thread is a forum_topic div
+            topics = soup.select("div.forum_topic")
+            if not topics:
+                break
+            for topic in topics:
+                try:
+                    # Title + link
+                    title_el = topic.select_one("div.forum_topic_name a")
+                    if not title_el:
+                        continue
+                    title    = title_el.get_text(strip=True)
+                    link     = title_el.get("href", "")
+                    # Reply count
+                    replies_el = topic.select_one("div.forum_topic_reply_count")
+                    replies  = int(replies_el.get_text(strip=True).replace(",", "") or 0) if replies_el else 0
+                    # Author
+                    author_el = topic.select_one("div.forum_topic_op a.forum_topic_author")
+                    author   = author_el.get_text(strip=True) if author_el else "Unknown"
+                    # Timestamp (Steam uses a data-timestamp attr or relative text)
+                    ts_el    = topic.select_one("div.forum_topic_lastpost span[data-timestamp]")
+                    ts_val   = int(ts_el["data-timestamp"]) if ts_el and ts_el.get("data-timestamp") else None
+                    ts_str   = ts_el.get_text(strip=True) if ts_el else ""
+                    # Flags
+                    is_pinned  = bool(topic.select_one("span.forum_topic_pinned"))
+                    is_dev     = bool(topic.select_one("span.forum_topic_developer"))
+                    results.append({
+                        "app_id":       app_id,
+                        "game":         game_name,
+                        "title":        title,
+                        "url":          link,
+                        "author":       author,
+                        "reply_count":  replies,
+                        "timestamp":    ts_val,
+                        "date_str":     ts_str,
+                        "is_pinned":    is_pinned,
+                        "is_dev_post":  is_dev,
+                        "opening_post": "",   # filled in second pass below
+                    })
+                except Exception:
+                    continue
+            # Check if there's a next page
+            next_btn = soup.select_one("div.forum_paging_next a")
+            if not next_btn:
+                break
+            page += 1
+            time.sleep(0.8)
+        except Exception:
+            break
+
+    # ── Second pass: fetch opening post for each thread ────────
+    for thread in results[:max_threads]:
+        if not thread["url"]:
+            continue
+        try:
+            tr = requests.get(thread["url"], headers=headers, timeout=12)
+            if not tr.ok:
+                continue
+            tsoup = BeautifulSoup(tr.text, "html.parser")
+            # Opening post is the first .forum_op div
+            op_el = tsoup.select_one("div.forum_op div.forum_comment_text")
+            if op_el:
+                # Strip BBCode-style tags and excessive whitespace
+                raw = op_el.get_text(separator=" ", strip=True)
+                raw = _re_f.sub(r"\s{2,}", " ", raw)
+                thread["opening_post"] = raw[:1500]
+            time.sleep(0.6)
+        except Exception:
+            continue
+
+    return results[:max_threads]
+
+
 # ─────────────────────────────────────────────────────────────
 # SESSION STATE
 # ─────────────────────────────────────────────────────────────
@@ -1418,7 +1555,14 @@ for key, default in [
     ("game_search_results", []),   # candidates from "add a game" lookup
     ("ai_report",           ""),   # last generated report text
     ("ai_chat_history",      []),   # [{role, content}] conversation after report
+    ("ai_struct",             None),  # structured JSON summary from last report
+    ("review_lang_all",       False),  # True = all languages, False = english only
+    ("ea_filter",             "All"),  # "All" | "EA Only" | "Post-EA Only"
+    ("alert_threshold",       10.0),   # pp drop threshold for trend alerts
+
     ("game_events",          {}),   # {app_id: [event dicts]} fetched from Steam News
+    ("forum_data",           {}),   # {app_id: [thread dicts]} scraped from Steam forums
+
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -1502,7 +1646,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ─────────────────────────────────────────────────────────────
 
 st.markdown('<div class="search-block">', unsafe_allow_html=True)
-c1, c2, c3 = st.columns([3, 1.2, 1.2])
+c1, c2, c3, c4 = st.columns([3, 1.2, 1.2, 1.2])
 with c1:
     st.markdown('<div class="field-label">Genre / Search Term</div>', unsafe_allow_html=True)
     genre_input = st.text_input(
@@ -1517,6 +1661,10 @@ with c2:
 with c3:
     st.markdown('<div class="field-label">Reviews / Game</div>', unsafe_allow_html=True)
     reviews_per = st.selectbox("reviews per game", [100, 250, 500], index=0, label_visibility="collapsed")
+with c4:
+    st.markdown('<div class="field-label">Language</div>', unsafe_allow_html=True)
+    lang_all = st.toggle("All languages", value=st.session_state.review_lang_all, key="lang_toggle")
+    st.session_state.review_lang_all = lang_all
 btn_col, _ = st.columns([1, 5])
 with btn_col:
     search_clicked = st.button("SEARCH GENRE", width='stretch')
@@ -1699,7 +1847,12 @@ if st.session_state.found_games:
                         unsafe_allow_html=True,
                     )
 
-                reviews = fetch_reviews_for_game(app_id, title, reviews_per, _cb)
+                _lang = "all" if st.session_state.review_lang_all else "english"
+                try:
+                    reviews = fetch_reviews_for_game(app_id, title, reviews_per, _cb, language=_lang)
+                except Exception as _fe:
+                    st.warning(f"Failed to fetch {title}: {_fe} — continuing with other games.")
+                    reviews = []
                 all_reviews.extend(reviews)
                 overall_bar.progress((idx + 1) / len(selected_list))
                 live_counter.markdown(
@@ -1720,6 +1873,16 @@ if st.session_state.found_games:
             if all_reviews:
                 import io as _io2
                 _rdf = pd.DataFrame(all_reviews)
+                # Deduplicate on recommendation_id (same reviewer re-fetched)
+                if "recommendation_id" in _rdf.columns:
+                    _before_dedup = len(_rdf)
+                    _rdf = _rdf.drop_duplicates(subset="recommendation_id", keep="first")
+                    _dupes = _before_dedup - len(_rdf)
+                    if _dupes:
+                        status_box.markdown(
+                            f'<div style="font-size:.75rem;color:var(--muted);">Removed {_dupes:,} duplicate reviews</div>',
+                            unsafe_allow_html=True,
+                        )
                 _rdf = _normalise_timestamps(_rdf)
                 if VADER_AVAILABLE:
                     _rdf = pd.read_json(
@@ -1736,6 +1899,13 @@ if st.session_state.found_games:
                     if _evs:
                         _all_events[_g["app_id"]] = _evs
                 st.session_state.game_events = _all_events
+                # Auto-fetch forum threads for all selected games
+                _all_forums = {}
+                for _g in selected_list:
+                    _fthreads = fetch_forum_threads(_g["app_id"], _g["name"], max_threads=50)
+                    if _fthreads:
+                        _all_forums[_g["app_id"]] = _fthreads
+                st.session_state.forum_data = _all_forums
             else:
                 st.error("No reviews collected. Try different games or a higher review limit.")
 
@@ -1751,6 +1921,29 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
     _max_hrs = int(df["author_playtime_hrs"].max()) if len(df) else 1000
     _max_hrs = max(_max_hrs, 1)
     _cap     = min(_max_hrs, 2000)   # slider cap — outliers above 2k hrs are rare
+
+    # ── EA filter ─────────────────────────────────────────────
+    if "written_during_ea" in df.columns and df["written_during_ea"].any():
+        with st.expander("Filter by Early Access / Full Release", expanded=False):
+            st.markdown(
+                '<div style="font-size:.78rem;color:var(--muted);margin-bottom:.75rem;">'
+                'Filter reviews by whether they were written during Early Access or after full release.</div>',
+                unsafe_allow_html=True,
+            )
+            ea_choice = st.radio(
+                "EA filter", ["All", "EA Only", "Post-EA Only"],
+                horizontal=True, key="ea_filter_radio",
+                label_visibility="collapsed",
+            )
+            st.session_state.ea_filter = ea_choice
+            if ea_choice == "EA Only":
+                df = df[df["written_during_ea"] == True].copy()
+                sdf = build_summary(df) if len(df) else sdf
+            elif ea_choice == "Post-EA Only":
+                df = df[df["written_during_ea"] == False].copy()
+                sdf = build_summary(df) if len(df) else sdf
+            _ea_n = len(df)
+            st.caption(f"{_ea_n:,} reviews match this filter.")
 
     with st.expander("Filter by playtime at review", expanded=False):
         st.markdown(
@@ -2033,7 +2226,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
 """, unsafe_allow_html=True)
 
     # ── Tabs ──
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["SENTIMENT", "ENGAGEMENT", "GAME TABLE", "REVIEWS", "KEYWORD INSIGHTS", "AI ANALYSIS"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["SENTIMENT", "ENGAGEMENT", "GAME TABLE", "REVIEWS", "KEYWORD INSIGHTS", "AI ANALYSIS", "FORUMS"])
 
     with tab1:
         # ── Methodology explainer ──
@@ -2332,6 +2525,18 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         elif st.session_state.results_df is not None and not _all_ev_flat:
             st.caption("No patch/DLC/update events found in Steam News for the selected games.")
 
+        # ── Review velocity chart ────────────────────────────────────────────
+        st.markdown(
+            '<div class="section-header"><span class="dot"></span>REVIEW VELOCITY</div>',
+            unsafe_allow_html=True,
+        )
+        st.caption("Monthly review submissions per game — spikes often signal launches, updates, or controversy")
+        _vel = chart_review_velocity(df)
+        if _vel.data:
+            st.plotly_chart(_vel, config={"displayModeBar": False})
+        else:
+            st.info("Not enough timestamped reviews to plot velocity.")
+
         # ── Standard charts ───────────────────────────────────────────────────
         st.markdown(
             '<div class="section-header"><span class="dot"></span>POSITIVE SENTIMENT RANKING</div>',
@@ -2356,6 +2561,72 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             st.plotly_chart(_tl, config={"displayModeBar": False})
         else:
             st.info("Not enough timestamped reviews to plot a timeline.")
+
+        # ── Trend alerts ─────────────────────────────────────
+        from datetime import datetime, UTC as _alertUTC
+        _df_ts2 = df.copy()
+        _df_ts2["month"] = pd.to_datetime(
+            _df_ts2["timestamp_created"].apply(
+                lambda ts: datetime.fromtimestamp(int(ts), _alertUTC).strftime("%Y-%m")
+                if ts is not None and pd.notna(ts) else None
+            ), errors="coerce"
+        )
+        _df_ts2 = _df_ts2.dropna(subset=["month"])
+        _alerts = []
+        if len(_df_ts2):
+            _cutoff_90 = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=90)
+            _cutoff_30 = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=30)
+            for _gname in _df_ts2["game_title"].unique():
+                _g = _df_ts2[_df_ts2["game_title"] == _gname]
+                _lifetime_pct = _g["voted_up"].mean() * 100
+                _recent_90 = _g[_g["month"] >= _cutoff_90.strftime("%Y-%m")]
+                _recent_30 = _g[_g["month"] >= _cutoff_30.strftime("%Y-%m")]
+                for _window_label, _window_df in [("last 90 days", _recent_90), ("last 30 days", _recent_30)]:
+                    if len(_window_df) >= 5:
+                        _window_pct = _window_df["voted_up"].mean() * 100
+                        _drop = _lifetime_pct - _window_pct
+                        if _drop >= st.session_state.get("alert_threshold", 10.0):
+                            _alerts.append((_gname, _window_label, _lifetime_pct, _window_pct, _drop, len(_window_df)))
+                        elif (_window_pct - _lifetime_pct) >= st.session_state.get("alert_threshold", 10.0):
+                            _alerts.append((_gname, _window_label, _lifetime_pct, _window_pct, _window_pct - _lifetime_pct, len(_window_df), "rise"))
+
+        if _alerts:
+            st.markdown(
+                '<div class="section-header"><span class="dot"></span>TREND ALERTS</div>',
+                unsafe_allow_html=True,
+            )
+            _thresh_col, _ = st.columns([1, 4])
+            with _thresh_col:
+                _new_thresh = st.number_input(
+                    "Alert threshold (pp)", min_value=1.0, max_value=50.0,
+                    value=float(st.session_state.get("alert_threshold", 10.0)),
+                    step=1.0, key="alert_thresh_input",
+                    help="Minimum percentage-point swing to show an alert",
+                )
+                st.session_state.alert_threshold = _new_thresh
+            for _alert in _alerts:
+                if len(_alert) == 6:
+                    _gn, _wl, _lp, _rp, _dp, _n = _alert
+                    _is_rise = False
+                else:
+                    _gn, _wl, _lp, _rp, _dp, _n, _ = _alert
+                    _is_rise = True
+                _acol = "#20c65a" if _is_rise else "#ff3d52"
+                _aicon = "▲" if _is_rise else "▼"
+                _aword = "improvement" if _is_rise else "drop"
+                st.markdown(
+                    f'<div style="background:var(--surface);border:1px solid var(--border);'
+                    f'border-left:3px solid {_acol};border-radius:0 6px 6px 0;'
+                    f'padding:.6rem 1rem;margin-bottom:.5rem;">'
+                    f'<span style="font-size:.7rem;font-weight:700;letter-spacing:.12em;'
+                    f'text-transform:uppercase;color:{_acol};">{_aicon} SENTIMENT {_aword.upper()}</span> '
+                    f'<strong style="color:var(--text);font-size:.88rem;">{_gn}</strong> '
+                    f'<span style="font-size:.78rem;color:var(--muted);">'
+                    f'— {_wl}: <strong style="color:{_acol};">{_rp:.1f}%</strong> '
+                    f'vs lifetime avg {_lp:.1f}% '
+                    f'({_aicon}{_dp:.1f}pp, {_n} reviews)</span></div>',
+                    unsafe_allow_html=True,
+                )
 
     with tab2:
         left, right = st.columns(2)
@@ -2429,16 +2700,25 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
                 ),
             },
         )
-        dl_col, _ = st.columns([1, 4])
-        with dl_col:
-            csv = df.to_csv(index=False, encoding="utf-8-sig").encode()
-            genre_slug = st.session_state.last_genre.replace(" ", "_")
+        _dl_a, _dl_b, _ = st.columns([1, 1, 3])
+        genre_slug = st.session_state.last_genre.replace(" ", "_")
+        with _dl_a:
             st.download_button(
-                "EXPORT RAW CSV",
-                data=csv,
+                "Export raw reviews (.csv)",
+                data=df.to_csv(index=False, encoding="utf-8-sig").encode(),
                 file_name=f"steam_reviews_{genre_slug}.csv",
                 mime="text/csv",
                 width='stretch',
+                key="dl_raw_csv",
+            )
+        with _dl_b:
+            st.download_button(
+                "Export summary (.csv)",
+                data=display.drop(columns=["Trend"], errors="ignore").to_csv(index=False).encode(),
+                file_name=f"steam_summary_{genre_slug}.csv",
+                mime="text/csv",
+                width='stretch',
+                key="dl_summary_csv",
             )
 
     with tab4:
@@ -2446,7 +2726,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             '<div class="section-header"><span class="dot"></span>SAMPLE REVIEWS</div>',
             unsafe_allow_html=True,
         )
-        f_col, g_col, s_col, _ = st.columns([1.3, 1.6, 1.5, 2])
+        f_col, g_col, s_col, pt_col, ea_col = st.columns([1.3, 1.6, 1.5, 1.3, 1.3])
         with f_col:
             filter_mode = st.selectbox(
                 "Show", ["Most Helpful", "Positive Only", "Negative Only", "Random"],
@@ -2455,6 +2735,25 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         with g_col:
             game_options = ["All Games"] + sorted(df["game_title"].unique().tolist())
             game_filter  = st.selectbox("Game", game_options, label_visibility="visible")
+        with pt_col:
+            rv_pt_min = st.number_input(
+                "Min hrs (review)", min_value=0, max_value=99999,
+                value=0, step=1, key="rv_pt_min", label_visibility="visible",
+            )
+        with ea_col:
+            rv_ea = st.selectbox(
+                "EA Status", ["All", "EA Only", "Post-EA"],
+                key="rv_ea_filter", label_visibility="visible",
+            )
+        # Apply per-tab playtime + EA filters
+        _rv_df = df.copy()
+        if rv_pt_min > 0:
+            _rv_df = _rv_df[_rv_df["author_playtime_hrs"] >= rv_pt_min]
+        if rv_ea == "EA Only":
+            _rv_df = _rv_df[_rv_df.get("written_during_ea", False) == True]
+        elif rv_ea == "Post-EA":
+            _rv_df = _rv_df[_rv_df.get("written_during_ea", False) == False]
+
         with s_col:
             _has_vader = "vader_compound" in df.columns and df["vader_compound"].notna().any()
             sort_opts = ["Default", "Date (newest)", "Date (oldest)",
@@ -2491,7 +2790,7 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
 }
 </style>""", unsafe_allow_html=True)
 
-        sample = df.copy()
+        sample = _rv_df.copy()
         if game_filter != "All Games":
             sample = sample[sample["game_title"] == game_filter]
         if filter_mode == "Positive Only":
@@ -2874,6 +3173,30 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
         top_pos = extract_keywords(pos_df["review_text"].fillna("").tolist(), top_n=60)
         top_neg = extract_keywords(neg_df["review_text"].fillna("").tolist(), top_n=60)
 
+        # Keyword CSV export
+        _kw_df = pd.DataFrame({
+            "keyword": [w for w,_ in top_pos],
+            "positive_count": [c for _,c in top_pos],
+            "negative_count": [dict(top_neg).get(w, 0) for w,_ in top_pos],
+        })
+        _neg_only = [(w,c) for w,c in top_neg if w not in dict(top_pos)]
+        if _neg_only:
+            _kw_df = pd.concat([_kw_df, pd.DataFrame({
+                "keyword": [w for w,_ in _neg_only],
+                "positive_count": [0]*len(_neg_only),
+                "negative_count": [c for _,c in _neg_only],
+            })], ignore_index=True)
+        _kw_game_slug = ki_game.replace(" ", "_").lower()
+        _kw_col, _ = st.columns([1.2, 5])
+        with _kw_col:
+            st.download_button(
+                "Export keywords (.csv)",
+                data=_kw_df.to_csv(index=False).encode("utf-8"),
+                file_name=f"keywords_{_kw_game_slug}.csv",
+                mime="text/csv",
+                key="dl_keywords",
+            )
+
         with ki_info_col:
             pos_pct = len(pos_df) / max(len(ki_df), 1) * 100
             label   = ki_game if ki_game != "All Games" else "all games"
@@ -3014,7 +3337,15 @@ if st.session_state.results_df is not None and st.session_state.summary_df is no
             st.error("anthropic SDK not installed. Run: `pip install anthropic`")
         else:
             # ── Report options ─────────────────────────────────
-            opt_left, opt_right = st.columns(2)
+            _ai_game_opts = ["All games"] + sorted(df["game_title"].unique().tolist())
+            opt_game, opt_left, opt_right = st.columns([1.2, 1.5, 1.5])
+            with opt_game:
+                ai_game_scope = st.selectbox(
+                    "Scope",
+                    _ai_game_opts,
+                    key="ai_game_scope",
+                    help="Generate a report for all games or focus on a single one",
+                )
             with opt_left:
                 report_focus = st.selectbox(
                     "Report focus",
@@ -3285,7 +3616,10 @@ HARD RULES:
             # ── Generate ───────────────────────────────────────
             if generate_clicked:
                 st.session_state.ai_report = ""
-                prompt = build_analysis_prompt(df, sdf,
+                # Scope data to selected game if not "All games"
+                _ai_df  = df[df["game_title"] == ai_game_scope].copy() if ai_game_scope != "All games" else df
+                _ai_sdf = build_summary(_ai_df) if ai_game_scope != "All games" else sdf
+                prompt = build_analysis_prompt(_ai_df, _ai_sdf,
                                                report_focus, report_tone)
                 report_placeholder = st.empty()
                 status_placeholder = st.empty()
@@ -3315,6 +3649,29 @@ HARD RULES:
                     report_placeholder.markdown(full_text)
                     st.session_state.ai_report = full_text
 
+                    # ── Structured summary card (JSON via second call) ──
+                    try:
+                        _struct_client = _anthropic.Anthropic(api_key=st.secrets["CLAUDE_KEY"])
+                        _struct_resp = _struct_client.messages.create(
+                            model="claude-haiku-4-5-20251001",
+                            max_tokens=512,
+                            system=(
+                                "Extract a JSON summary from the analysis report. "
+                                "Return ONLY valid JSON, no markdown, no explanation. "
+                                "Schema: {\"overall_sentiment\": \"Positive|Mixed|Negative\", "
+                                "\"top_strength\": str, \"top_weakness\": str, "
+                                "\"sentiment_score\": float 0-100, "
+                                "\"games_ranked\": [{\"name\": str, \"score\": float}], "
+                                "\"key_themes\": [str]}"
+                            ),
+                            messages=[{"role": "user", "content": full_text[:6000]}],
+                        )
+                        import json as _json2
+                        _struct = _json2.loads(_struct_resp.content[0].text)
+                        st.session_state["ai_struct"] = _struct
+                    except Exception:
+                        st.session_state["ai_struct"] = None
+
                 except _anthropic.AuthenticationError:
                     st.error("Invalid API key — check it at console.anthropic.com/settings/keys.")
                 except _anthropic.RateLimitError:
@@ -3331,6 +3688,42 @@ HARD RULES:
 
             if st.session_state.ai_report:
                 _report_slug = st.session_state.get("last_genre", "report").replace(" ", "_")
+
+                # ── Structured summary card ────────────────────────────────
+                _struct = st.session_state.get("ai_struct")
+                if _struct:
+                    import json as _json3
+                    _sc1, _sc2, _sc3, _sc4 = st.columns(4)
+                    _sent_col = {"Positive": "#20c65a", "Mixed": "#f0a500", "Negative": "#ff3d52"}.get(
+                        _struct.get("overall_sentiment", "Mixed"), "#5a5f82"
+                    )
+                    for _col, _label, _val in [
+                        (_sc1, "Overall Sentiment", f'<span style="color:{_sent_col};font-size:1.1rem;font-weight:900;">{_struct.get("overall_sentiment","—")}</span>'),
+                        (_sc2, "Sentiment Score", f'<span style="font-size:1.4rem;font-weight:900;color:var(--text);">{_struct.get("sentiment_score", 0):.0f}/100</span>'),
+                        (_sc3, "Top Strength", f'<span style="font-size:.82rem;color:var(--text);">{_struct.get("top_strength","—")[:60]}</span>'),
+                        (_sc4, "Top Weakness", f'<span style="font-size:.82rem;color:var(--text);">{_struct.get("top_weakness","—")[:60]}</span>'),
+                    ]:
+                        with _col:
+                            st.markdown(
+                                f'<div style="background:var(--surface2);border:1px solid var(--border);'
+                                f'border-radius:8px;padding:.8rem 1rem;">'
+                                f'<div style="font-size:.52rem;font-weight:700;letter-spacing:.18em;'
+                                f'text-transform:uppercase;color:var(--muted);margin-bottom:.4rem;">{_label}</div>'
+                                f'{_val}</div>',
+                                unsafe_allow_html=True,
+                            )
+                    if _struct.get("key_themes"):
+                        _themes_html = " ".join(
+                            f'<span style="background:var(--surface2);border:1px solid var(--border);'
+                            f'border-radius:4px;padding:.15rem .55rem;'
+                            f'font-size:.72rem;color:var(--muted);">{t}</span>'
+                            for t in _struct["key_themes"][:8]
+                        )
+                        st.markdown(
+                            f'<div style="margin:.6rem 0;">{_themes_html}</div>',
+                            unsafe_allow_html=True,
+                        )
+                    st.markdown("<br>", unsafe_allow_html=True)
 
                 # ── Download buttons ──────────────────────────────────────
                 st.markdown(
@@ -3503,6 +3896,23 @@ HARD RULES:
                     "Claude has full context of your dataset and the report above."
                 )
 
+                # Suggested questions (clickable chips)
+                _suggestions = [
+                    "Which game had the sharpest sentiment drop and why?",
+                    "What are the top 3 recurring complaints across all games?",
+                    "Which positive themes are unique to the highest-rated game?",
+                    "What do long-time players (50h+) praise most?",
+                ]
+                _sq_cols = st.columns(len(_suggestions))
+                _sq_clicked = None
+                for _si, (_sc, _sq) in enumerate(zip(_sq_cols, _suggestions)):
+                    with _sc:
+                        if st.button(_sq, key=f"sq_{_si}", use_container_width=False):
+                            _sq_clicked = _sq
+                if _sq_clicked:
+                    st.session_state.ai_chat_history.append({"role": "user", "content": _sq_clicked})
+                    st.rerun()
+
                 # Render existing history
                 for _msg in st.session_state.ai_chat_history:
                     with st.chat_message(_msg["role"]):
@@ -3564,6 +3974,212 @@ HARD RULES:
                     if st.button("Clear conversation", key="clear_chat"):
                         st.session_state.ai_chat_history = []
                         st.rerun()
+
+    with tab7:
+        st.markdown(
+            '<div class="section-header"><span class="dot"></span>STEAM FORUMS</div>',
+            unsafe_allow_html=True,
+        )
+
+        _fdata_all = st.session_state.get("forum_data", {})
+        _all_threads = [t for threads in _fdata_all.values() for t in threads]
+
+        if not _all_threads:
+            st.info(
+                "No forum data loaded yet. Fetch reviews first — forums are "
+                "auto-scraped alongside reviews. You can also enter a Steam App ID "
+                "below to load forums directly."
+            )
+            # Manual load by App ID
+            _fa_col, _fb_col, _ = st.columns([1.2, 1, 4])
+            with _fa_col:
+                _manual_appid = st.number_input(
+                    "App ID", min_value=1, value=3112260, step=1,
+                    key="forum_manual_appid",
+                    label_visibility="visible",
+                )
+            with _fb_col:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("Load Forums", key="btn_load_forums"):
+                    with st.spinner("Scraping forum threads…"):
+                        _manual_threads = fetch_forum_threads(
+                            int(_manual_appid), f"App {_manual_appid}", max_threads=50
+                        )
+                    if _manual_threads:
+                        st.session_state.forum_data[int(_manual_appid)] = _manual_threads
+                        st.rerun()
+                    else:
+                        st.warning("No threads found. The forums may be private or the App ID may be wrong.")
+        else:
+            # ── Controls ──────────────────────────────────────────────
+            _fg_col, _fs_col, _ftype_col, _ = st.columns([1.5, 2, 1.5, 2])
+
+            _forum_games = ["All Games"] + sorted({t["game"] for t in _all_threads})
+            with _fg_col:
+                _fg_sel = st.selectbox(
+                    "Game", _forum_games, key="forum_game_filter",
+                    label_visibility="visible",
+                )
+            with _fs_col:
+                _f_search = st.text_input(
+                    "Search threads", placeholder="keyword in title or post…",
+                    key="forum_search", label_visibility="visible",
+                )
+            with _ftype_col:
+                _f_sort = st.selectbox(
+                    "Sort by", ["Most Replies", "Most Recent", "Dev Posts First"],
+                    key="forum_sort", label_visibility="visible",
+                )
+
+            # Apply filters
+            _fview = _all_threads.copy()
+            if _fg_sel != "All Games":
+                _fview = [t for t in _fview if t["game"] == _fg_sel]
+            if _f_search.strip():
+                _sq = _f_search.strip().lower()
+                _fview = [
+                    t for t in _fview
+                    if _sq in t["title"].lower() or _sq in t["opening_post"].lower()
+                ]
+            if _f_sort == "Most Replies":
+                _fview = sorted(_fview, key=lambda t: t["reply_count"], reverse=True)
+            elif _f_sort == "Most Recent":
+                _fview = sorted(_fview, key=lambda t: t["timestamp"] or 0, reverse=True)
+            elif _f_sort == "Dev Posts First":
+                _fview = sorted(_fview, key=lambda t: (not t["is_dev_post"], -t["reply_count"]))
+
+            # ── Stats strip ───────────────────────────────────────────
+            _n_threads  = len(_fview)
+            _n_dev      = sum(1 for t in _fview if t["is_dev_post"])
+            _n_pinned   = sum(1 for t in _fview if t["is_pinned"])
+            _avg_rep    = sum(t["reply_count"] for t in _fview) / max(_n_threads, 1)
+            _fs1, _fs2, _fs3, _fs4 = st.columns(4)
+            for _fcol, _flabel, _fval in [
+                (_fs1, "Threads", f"{_n_threads:,}"),
+                (_fs2, "Dev Posts", f"{_n_dev}"),
+                (_fs3, "Pinned", f"{_n_pinned}"),
+                (_fs4, "Avg Replies", f"{_avg_rep:.1f}"),
+            ]:
+                with _fcol:
+                    st.markdown(
+                        f'<div style="background:var(--surface2);border:1px solid var(--border);'
+                        f'border-radius:8px;padding:.7rem 1rem;margin-bottom:.75rem;">'
+                        f'<div style="font-size:.52rem;font-weight:700;letter-spacing:.18em;'
+                        f'text-transform:uppercase;color:var(--muted);margin-bottom:.25rem;">{_flabel}</div>'
+                        f'<div style="font-family:Inter Tight,sans-serif;font-size:1.5rem;'
+                        f'font-weight:900;color:var(--text);line-height:1;">{_fval}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+
+            # ── Keyword analysis on opening posts ─────────────────────
+            _post_texts = [t["opening_post"] for t in _fview if t["opening_post"]]
+            if _post_texts:
+                st.markdown(
+                    '<div class="section-header"><span class="dot"></span>'
+                    'TOP FORUM KEYWORDS</div>',
+                    unsafe_allow_html=True,
+                )
+                _fkw = extract_keywords(_post_texts, top_n=30)
+                if _fkw:
+                    _fkw_html = " ".join(
+                        f'<span style="background:var(--surface2);border:1px solid #4080ff44;'
+                        f'border-radius:4px;padding:.2rem .6rem;font-size:.75rem;'
+                        f'color:#4080ff;margin:.15rem .1rem;display:inline-block;">'
+                        f'{w} <span style="opacity:.6">{c}</span></span>'
+                        for w, c in _fkw
+                    )
+                    st.markdown(
+                        f'<div style="margin-bottom:1.25rem;line-height:2;">{_fkw_html}</div>',
+                        unsafe_allow_html=True,
+                    )
+
+            # ── Thread list ───────────────────────────────────────────
+            st.markdown(
+                '<div class="section-header"><span class="dot"></span>'
+                f'THREADS <span style="color:var(--muted);font-weight:400;font-size:.72rem;">'
+                f'— {_n_threads} shown</span></div>',
+                unsafe_allow_html=True,
+            )
+
+            if not _fview:
+                st.info("No threads match the current filters.")
+            else:
+                for _t in _fview[:100]:
+                    _tbadges = ""
+                    if _t["is_pinned"]:
+                        _tbadges += '<span style="background:#f0a50022;color:#f0a500;border:1px solid #f0a50044;font-size:.58rem;font-weight:700;letter-spacing:.1em;padding:.1rem .35rem;border-radius:3px;margin-right:.35rem;">PINNED</span>'
+                    if _t["is_dev_post"]:
+                        _tbadges += '<span style="background:#4080ff22;color:#4080ff;border:1px solid #4080ff44;font-size:.58rem;font-weight:700;letter-spacing:.1em;padding:.1rem .35rem;border-radius:3px;margin-right:.35rem;">DEV</span>'
+                    _treply_col = "#20c65a" if _t["reply_count"] >= 20 else "#f0a500" if _t["reply_count"] >= 5 else "var(--muted)"
+                    _tsnip = _t["opening_post"][:300] + ("…" if len(_t["opening_post"]) > 300 else "") if _t["opening_post"] else "_No preview available_"
+                    _tlink = (
+                        f'<a href="{_t["url"]}" target="_blank" rel="noopener" '
+                        f'style="color:var(--blue);font-size:.72rem;text-decoration:none;'
+                        f'font-weight:600;">View on Steam ↗</a>'
+                        if _t["url"] else ""
+                    )
+                    st.markdown(
+                        f'<div style="background:var(--surface2);border:1px solid var(--border);'
+                        f'border-radius:8px;padding:.9rem 1.1rem;margin-bottom:.6rem;">'
+                        f'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;">'
+                        f'<div style="flex:1;min-width:0;">'
+                        f'<div style="margin-bottom:.3rem;">{_tbadges}'
+                        f'<span style="font-size:.88rem;font-weight:700;color:var(--text);">{_t["title"]}</span>'
+                        f'</div>'
+                        f'<div style="font-size:.72rem;color:var(--muted);margin-bottom:.5rem;">'
+                        f'{_t["game"]} &nbsp;·&nbsp; by <strong style="color:var(--text);">{_t["author"]}</strong>'
+                        f'&nbsp;·&nbsp; {_t["date_str"]}'
+                        f'</div>'
+                        f'<div style="font-size:.8rem;color:var(--text);line-height:1.6;opacity:.85;">{_tsnip}</div>'
+                        f'<div style="margin-top:.5rem;">{_tlink}</div>'
+                        f'</div>'
+                        f'<div style="text-align:right;flex-shrink:0;">'
+                        f'<div style="font-family:Inter Tight,sans-serif;font-size:1.3rem;'
+                        f'font-weight:900;color:{_treply_col};line-height:1;">{_t["reply_count"]}</div>'
+                        f'<div style="font-size:.55rem;font-weight:700;letter-spacing:.12em;'
+                        f'text-transform:uppercase;color:var(--muted);">replies</div>'
+                        f'</div>'
+                        f'</div></div>',
+                        unsafe_allow_html=True,
+                    )
+
+            # ── CSV export ────────────────────────────────────────────
+            if _fview:
+                st.markdown("<br>", unsafe_allow_html=True)
+                _fcsv_col, _ = st.columns([1.2, 4])
+                with _fcsv_col:
+                    _fdf = pd.DataFrame(_fview)
+                    _fg_slug = _fg_sel.replace(" ", "_").lower()
+                    st.download_button(
+                        "Export threads (.csv)",
+                        data=_fdf.to_csv(index=False).encode("utf-8"),
+                        file_name=f"forum_threads_{_fg_slug}.csv",
+                        mime="text/csv",
+                        key="dl_forum_csv",
+                        width="stretch",
+                    )
+
+            # ── Manual refresh ────────────────────────────────────────
+            st.markdown("<br>", unsafe_allow_html=True)
+            _fref_col, _fmax_col, _ = st.columns([1, 1, 4])
+            with _fmax_col:
+                _f_max = st.selectbox(
+                    "Threads to fetch", [50, 100, 200],
+                    key="forum_max_threads", label_visibility="visible",
+                )
+            with _fref_col:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("Refresh Forums", key="btn_refresh_forums"):
+                    with st.spinner("Re-scraping forum threads…"):
+                        _new_forums = {}
+                        for _g in st.session_state.found_games:
+                            if st.session_state.selected_games.get(_g["app_id"]):
+                                _new_forums[_g["app_id"]] = fetch_forum_threads(
+                                    _g["app_id"], _g["name"], max_threads=int(_f_max)
+                                )
+                        st.session_state.forum_data = _new_forums
+                    st.rerun()
 
 # ─────────────────────────────────────────────────────────────
 # EMPTY STATE
