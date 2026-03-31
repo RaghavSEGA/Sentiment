@@ -1451,72 +1451,85 @@ def chart_review_velocity(df: pd.DataFrame) -> "go.Figure":
 
 
 def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100, session_cookie: str = "") -> list[dict]:
-    """Scrape Steam community forum discussion listings for a game.
-    Returns list of thread dicts with title, author, reply_count, timestamp,
-    opening_post, url, is_pinned, is_dev_post."""
+    """Fetch Steam community forum threads via the internal AJAX render endpoint.
+    Steam's discussion pages are JS-rendered, so we call the same /render/ endpoint
+    the page's JavaScript uses, which returns JSON with pre-rendered HTML fragments.
+    Returns (list[dict], debug_lines)."""
     from bs4 import BeautifulSoup
     import re as _re_f
     results = []
-    page = 0
+    _debug = []
+    cookies = {"steamLoginSecure": session_cookie} if session_cookie.strip() else {}
     headers = {
         **BROWSER_HEADERS,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Referer": f"https://store.steampowered.com/app/{app_id}/",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"https://steamcommunity.com/app/{app_id}/discussions/",
     }
-    cookies = {"steamLoginSecure": session_cookie} if session_cookie.strip() else {}
-    _debug = []  # collect debug info, returned if results empty
+
+    start = 0
+    count = 15  # Steam returns 15 threads per page
+
     while len(results) < max_threads:
-        url = f"https://steamcommunity.com/app/{app_id}/discussions/0/?fp={page * 15}"
+        # Steam's internal AJAX endpoint for forum topic listings
+        url = (
+            f"https://steamcommunity.com/forum/app/{app_id}/General/"
+            f"render/?start={start}&count={count}"
+            f"&feature2=-1&gidforum=0"
+        )
         try:
             resp = requests.get(url, headers=headers, cookies=cookies, timeout=15)
             _debug.append(f"GET {url} → {resp.status_code}, {len(resp.content)}b")
             if not resp.ok:
-                _debug.append(f"Non-OK status {resp.status_code}")
+                _debug.append(f"Non-OK status: {resp.status_code}")
                 break
-            soup = BeautifulSoup(resp.text, "html.parser")
-            # Log page title to detect login wall
-            _title = soup.title.string.strip() if soup.title else "no title"
-            _debug.append(f"Page title: {_title}")
-            # Log all div classes that contain 'forum' or 'discuss'
-            _all_cls = set()
-            for d in soup.find_all("div", class_=True):
-                for c in d.get("class", []):
-                    if "forum" in c or "discuss" in c or "topic" in c:
-                        _all_cls.add(c)
-            _debug.append(f"Forum classes found: {sorted(_all_cls)}")
-            # Each thread is a forum_topic div
+
+            try:
+                data = resp.json()
+            except Exception:
+                _debug.append(f"Non-JSON response. First 500 chars: {resp.text[:500]!r}")
+                break
+
+            _debug.append(f"JSON keys: {list(data.keys())}")
+
+            # Response contains 'topics_html' (HTML fragment) and 'total_count'
+            topics_html = data.get("topics_html") or data.get("html") or ""
+            total_count  = data.get("total_count", 0)
+            _debug.append(f"total_count={total_count}, topics_html len={len(topics_html)}")
+
+            if not topics_html:
+                _debug.append("Empty topics_html — no more threads or endpoint mismatch")
+                break
+
+            soup = BeautifulSoup(topics_html, "html.parser")
             topics = soup.select("div.forum_topic")
-            _debug.append(f"Topics found with 'div.forum_topic': {len(topics)}")
+            _debug.append(f"Parsed {len(topics)} forum_topic divs from HTML fragment")
+
             if not topics:
-                # Try alternate selectors
-                for sel in ["div.discussionForum", "div.forum_topic_listing", "a.forum_topic_overlay", ".forum_topic_name"]:
-                    found = soup.select(sel)
-                    if found:
-                        _debug.append(f"Alternate selector '{sel}' found {len(found)} elements")
-                # Save first 2000 chars of HTML for inspection
-                _debug.append(f"HTML snippet: {resp.text[3000:5000]!r}")
+                # Log classes present for diagnosis
+                all_cls = set()
+                for d in soup.find_all(True, class_=True):
+                    all_cls.update(d.get("class", []))
+                _debug.append(f"Classes in fragment: {sorted(all_cls)[:30]}")
+                _debug.append(f"Fragment snippet: {topics_html[:600]!r}")
                 break
+
             for topic in topics:
                 try:
-                    # Title + link
-                    title_el = topic.select_one("div.forum_topic_name a")
+                    title_el   = topic.select_one("div.forum_topic_name a, a.forum_topic_overlay")
                     if not title_el:
                         continue
-                    title    = title_el.get_text(strip=True)
-                    link     = title_el.get("href", "")
-                    # Reply count
-                    replies_el = topic.select_one("div.forum_topic_reply_count")
-                    replies  = int(replies_el.get_text(strip=True).replace(",", "") or 0) if replies_el else 0
-                    # Author
-                    author_el = topic.select_one("div.forum_topic_op a.forum_topic_author")
-                    author   = author_el.get_text(strip=True) if author_el else "Unknown"
-                    # Timestamp (Steam uses a data-timestamp attr or relative text)
-                    ts_el    = topic.select_one("div.forum_topic_lastpost span[data-timestamp]")
-                    ts_val   = int(ts_el["data-timestamp"]) if ts_el and ts_el.get("data-timestamp") else None
-                    ts_str   = ts_el.get_text(strip=True) if ts_el else ""
-                    # Flags
-                    is_pinned  = bool(topic.select_one("span.forum_topic_pinned"))
-                    is_dev     = bool(topic.select_one("span.forum_topic_developer"))
+                    title  = title_el.get_text(strip=True)
+                    link   = title_el.get("href", "")
+                    rep_el = topic.select_one("div.forum_topic_reply_count")
+                    replies = int(rep_el.get_text(strip=True).replace(",", "") or 0) if rep_el else 0
+                    auth_el = topic.select_one("a.forum_topic_author, div.forum_topic_op a")
+                    author  = auth_el.get_text(strip=True) if auth_el else "Unknown"
+                    ts_el   = topic.select_one("span[data-timestamp]")
+                    ts_val  = int(ts_el["data-timestamp"]) if ts_el and ts_el.get("data-timestamp") else None
+                    ts_str  = ts_el.get_text(strip=True) if ts_el else ""
+                    is_pinned = bool(topic.select_one("span.forum_topic_pinned, .sticky"))
+                    is_dev    = bool(topic.select_one("span.forum_topic_developer, .forum_topic_developer"))
                     results.append({
                         "app_id":       app_id,
                         "game":         game_name,
@@ -1528,32 +1541,40 @@ def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100, ses
                         "date_str":     ts_str,
                         "is_pinned":    is_pinned,
                         "is_dev_post":  is_dev,
-                        "opening_post": "",   # filled in second pass below
+                        "opening_post": "",
                     })
                 except Exception:
                     continue
-            # Check if there's a next page
-            next_btn = soup.select_one("div.forum_paging_next a")
-            if not next_btn:
+
+            start += count
+            if start >= total_count or not topics:
                 break
-            page += 1
             time.sleep(0.8)
-        except Exception:
+
+        except Exception as e:
+            _debug.append(f"Exception: {e}")
             break
 
     # ── Second pass: fetch opening post for each thread ────────
+    _op_headers = {
+        **BROWSER_HEADERS,
+        "Accept": "text/html,application/xhtml+xml,*/*",
+        "Referer": f"https://steamcommunity.com/app/{app_id}/discussions/",
+    }
     for thread in results[:max_threads]:
         if not thread["url"]:
             continue
         try:
-            tr = requests.get(thread["url"], headers=headers, cookies=cookies, timeout=12)
+            tr = requests.get(thread["url"], headers=_op_headers, cookies=cookies, timeout=12)
             if not tr.ok:
                 continue
             tsoup = BeautifulSoup(tr.text, "html.parser")
-            # Opening post is the first .forum_op div
-            op_el = tsoup.select_one("div.forum_op div.forum_comment_text")
+            op_el = (
+                tsoup.select_one("div.forum_op div.forum_comment_text") or
+                tsoup.select_one(".forum_op .content") or
+                tsoup.select_one("div.forum_comment_text")
+            )
             if op_el:
-                # Strip BBCode-style tags and excessive whitespace
                 raw = op_el.get_text(separator=" ", strip=True)
                 raw = _re_f.sub(r"\s{2,}", " ", raw)
                 thread["opening_post"] = raw[:1500]
