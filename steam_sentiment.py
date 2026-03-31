@@ -1451,77 +1451,115 @@ def chart_review_velocity(df: pd.DataFrame) -> "go.Figure":
 
 
 def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100, session_cookie: str = "") -> list[dict]:
-    """Fetch Steam community forum threads via the internal AJAX render endpoint.
-    Steam's discussion pages are JS-rendered, so we call the same /render/ endpoint
-    the page's JavaScript uses, which returns JSON with pre-rendered HTML fragments.
+    """Fetch Steam community forum threads.
+    Steam's forum listing is rendered server-side via a POST to a /render/ endpoint
+    that requires sessionid (from the sessionid cookie) as a form field.
     Returns (list[dict], debug_lines)."""
     from bs4 import BeautifulSoup
     import re as _re_f
     results = []
     _debug = []
-    cookies = {"steamLoginSecure": session_cookie} if session_cookie.strip() else {}
+
+    # Build cookies dict — accept either just steamLoginSecure or a full cookie string
+    cookies = {}
+    if session_cookie.strip():
+        if "=" in session_cookie and ";" in session_cookie:
+            # Full cookie string — parse each key=value pair
+            for part in session_cookie.split(";"):
+                part = part.strip()
+                if "=" in part:
+                    k, _, v = part.partition("=")
+                    cookies[k.strip()] = v.strip()
+        else:
+            cookies["steamLoginSecure"] = session_cookie.strip()
+
+    # sessionid is a separate cookie Steam requires as a POST field
+    session_id = cookies.get("sessionid", "")
+    _debug.append(f"Cookies found: {list(cookies.keys())}")
+    _debug.append(f"sessionid present: {bool(session_id)}")
+
     headers = {
         **BROWSER_HEADERS,
-        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept": "text/javascript, text/html, application/xml, text/xml, */*",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
         "X-Requested-With": "XMLHttpRequest",
+        "X-Prototype-Version": "1.7",
         "Referer": f"https://steamcommunity.com/app/{app_id}/discussions/",
+        "Origin": "https://steamcommunity.com",
     }
 
     start = 0
-    count = 15  # Steam returns 15 threads per page
+    count = 15
 
     while len(results) < max_threads:
-        # Steam's internal AJAX endpoint for forum topic listings
-        url = (
-            f"https://steamcommunity.com/forum/app/{app_id}/General/"
-            f"render/?start={start}&count={count}"
-            f"&feature2=-1&gidforum=0"
-        )
+        url = f"https://steamcommunity.com/forum/app/{app_id}/General/render/"
+        post_data = {
+            "start": str(start),
+            "count": str(count),
+            "feature2": "-1",
+            "gidforum": "0",
+            "action": "topics",
+        }
+        if session_id:
+            post_data["sessionid"] = session_id
+
         try:
-            resp = requests.get(url, headers=headers, cookies=cookies, timeout=15)
-            _debug.append(f"GET {url} → {resp.status_code}, {len(resp.content)}b")
+            resp = requests.post(url, data=post_data, headers=headers, cookies=cookies, timeout=15)
+            _debug.append(f"POST {url} → {resp.status_code}, {len(resp.content)}b, CT={resp.headers.get('Content-Type','')!r}")
+
             if not resp.ok:
-                _debug.append(f"Non-OK status: {resp.status_code}")
+                _debug.append(f"Non-OK: {resp.status_code}")
                 break
 
-            try:
-                data = resp.json()
-            except Exception:
-                _debug.append(f"Non-JSON response. First 500 chars: {resp.text[:500]!r}")
-                break
+            # Check content type — JSON vs HTML fallback
+            ct = resp.headers.get("Content-Type", "")
+            if "json" in ct or resp.text.strip().startswith("{"):
+                try:
+                    data = resp.json()
+                    _debug.append(f"JSON keys: {list(data.keys())}")
+                    topics_html  = data.get("topics_html") or data.get("html") or ""
+                    total_count  = int(data.get("total_count", 0))
+                    _debug.append(f"total_count={total_count}, topics_html len={len(topics_html)}")
+                    if not topics_html:
+                        _debug.append("Empty topics_html")
+                        break
+                    soup = BeautifulSoup(topics_html, "html.parser")
+                except Exception as je:
+                    _debug.append(f"JSON parse error: {je}")
+                    _debug.append(f"Raw: {resp.text[:400]!r}")
+                    break
+            else:
+                # Returned HTML — try parsing directly (some authenticated sessions return full page)
+                _debug.append(f"Got HTML, attempting direct parse. Title snippet: {resp.text[resp.text.find('<title'):resp.text.find('<title')+80]!r}")
+                soup = BeautifulSoup(resp.text, "html.parser")
+                total_count = max_threads  # unknown, keep paginating until empty
 
-            _debug.append(f"JSON keys: {list(data.keys())}")
-
-            # Response contains 'topics_html' (HTML fragment) and 'total_count'
-            topics_html = data.get("topics_html") or data.get("html") or ""
-            total_count  = data.get("total_count", 0)
-            _debug.append(f"total_count={total_count}, topics_html len={len(topics_html)}")
-
-            if not topics_html:
-                _debug.append("Empty topics_html — no more threads or endpoint mismatch")
-                break
-
-            soup = BeautifulSoup(topics_html, "html.parser")
             topics = soup.select("div.forum_topic")
-            _debug.append(f"Parsed {len(topics)} forum_topic divs from HTML fragment")
+            _debug.append(f"forum_topic divs found: {len(topics)}")
 
             if not topics:
-                # Log classes present for diagnosis
+                # Try alternate selectors
+                for sel in ["div.forum_topic_overlay", "a.forum_topic_name", ".discussionforum .topic"]:
+                    alt = soup.select(sel)
+                    if alt:
+                        _debug.append(f"Alternate '{sel}': {len(alt)} found")
+                # Show classes present
                 all_cls = set()
-                for d in soup.find_all(True, class_=True):
-                    all_cls.update(d.get("class", []))
-                _debug.append(f"Classes in fragment: {sorted(all_cls)[:30]}")
-                _debug.append(f"Fragment snippet: {topics_html[:600]!r}")
+                for tag in soup.find_all(True, class_=True):
+                    all_cls.update(tag.get("class", []))
+                relevant = [c for c in all_cls if any(k in c for k in ("forum", "topic", "discuss"))]
+                _debug.append(f"Relevant classes: {relevant[:20]}")
+                _debug.append(f"HTML fragment (500c): {resp.text[2000:2500]!r}")
                 break
 
             for topic in topics:
                 try:
-                    title_el   = topic.select_one("div.forum_topic_name a, a.forum_topic_overlay")
+                    title_el = topic.select_one("div.forum_topic_name a, a.forum_topic_overlay")
                     if not title_el:
                         continue
-                    title  = title_el.get_text(strip=True)
-                    link   = title_el.get("href", "")
-                    rep_el = topic.select_one("div.forum_topic_reply_count")
+                    title   = title_el.get_text(strip=True)
+                    link    = title_el.get("href", "")
+                    rep_el  = topic.select_one("div.forum_topic_reply_count")
                     replies = int(rep_el.get_text(strip=True).replace(",", "") or 0) if rep_el else 0
                     auth_el = topic.select_one("a.forum_topic_author, div.forum_topic_op a")
                     author  = auth_el.get_text(strip=True) if auth_el else "Unknown"
@@ -1529,7 +1567,7 @@ def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100, ses
                     ts_val  = int(ts_el["data-timestamp"]) if ts_el and ts_el.get("data-timestamp") else None
                     ts_str  = ts_el.get_text(strip=True) if ts_el else ""
                     is_pinned = bool(topic.select_one("span.forum_topic_pinned, .sticky"))
-                    is_dev    = bool(topic.select_one("span.forum_topic_developer, .forum_topic_developer"))
+                    is_dev    = bool(topic.select_one("span.forum_topic_developer"))
                     results.append({
                         "app_id":       app_id,
                         "game":         game_name,
@@ -1552,15 +1590,13 @@ def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100, ses
             time.sleep(0.8)
 
         except Exception as e:
-            _debug.append(f"Exception: {e}")
+            _debug.append(f"Exception: {type(e).__name__}: {e}")
             break
 
-    # ── Second pass: fetch opening post for each thread ────────
-    _op_headers = {
-        **BROWSER_HEADERS,
-        "Accept": "text/html,application/xhtml+xml,*/*",
-        "Referer": f"https://steamcommunity.com/app/{app_id}/discussions/",
-    }
+    # ── Second pass: fetch opening post body ──────────────────
+    _op_headers = {**BROWSER_HEADERS,
+                   "Accept": "text/html,application/xhtml+xml,*/*",
+                   "Referer": f"https://steamcommunity.com/app/{app_id}/discussions/"}
     for thread in results[:max_threads]:
         if not thread["url"]:
             continue
@@ -1569,16 +1605,13 @@ def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100, ses
             if not tr.ok:
                 continue
             tsoup = BeautifulSoup(tr.text, "html.parser")
-            op_el = (
-                tsoup.select_one("div.forum_op div.forum_comment_text") or
-                tsoup.select_one(".forum_op .content") or
-                tsoup.select_one("div.forum_comment_text")
-            )
+            op_el = (tsoup.select_one("div.forum_op div.forum_comment_text") or
+                     tsoup.select_one("div.forum_comment_text"))
             if op_el:
                 raw = op_el.get_text(separator=" ", strip=True)
                 raw = _re_f.sub(r"\s{2,}", " ", raw)
                 thread["opening_post"] = raw[:1500]
-            time.sleep(0.6)
+            time.sleep(0.5)
         except Exception:
             continue
 
@@ -4036,14 +4069,13 @@ HARD RULES:
         ):
             st.markdown(
                 '<div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem;line-height:1.8;">'
-                'Steam requires you to be logged in to view forum discussions. '
-                'Paste your <code style="color:var(--blue);background:var(--surface2);'
-                'padding:.1rem .3rem;border-radius:3px;">steamLoginSecure</code> '
-                'cookie value below.<br>'
-                '<strong style="color:var(--text);">How to get it:</strong> '
-                'Open <strong>steamcommunity.com</strong> in Chrome/Firefox while signed in → '
-                'F12 → Application tab → Cookies → steamcommunity.com → '
-                'copy the value of <code style="color:var(--blue);">steamLoginSecure</code>'
+                'Steam requires two cookies to access forum data. In your browser, open '
+                '<strong>steamcommunity.com</strong> while signed in → F12 → Application → '
+                'Cookies → steamcommunity.com, then copy <strong>both</strong>:<br>'
+                '<code style="color:var(--blue);">steamLoginSecure</code> and '
+                '<code style="color:var(--blue);">sessionid</code><br><br>'
+                'Paste them below in the format: '
+                '<code style="color:var(--blue);">steamLoginSecure=VALUE; sessionid=VALUE</code>'
                 '</div>',
                 unsafe_allow_html=True,
             )
