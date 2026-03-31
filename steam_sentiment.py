@@ -1450,7 +1450,7 @@ def chart_review_velocity(df: pd.DataFrame) -> "go.Figure":
     return fig
 
 
-def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100) -> list[dict]:
+def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100, session_cookie: str = "") -> list[dict]:
     """Scrape Steam community forum discussion listings for a game.
     Returns list of thread dicts with title, author, reply_count, timestamp,
     opening_post, url, is_pinned, is_dev_post."""
@@ -1463,10 +1463,11 @@ def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100) -> 
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Referer": f"https://store.steampowered.com/app/{app_id}/",
     }
+    cookies = {"steamLoginSecure": session_cookie} if session_cookie.strip() else {}
     while len(results) < max_threads:
         url = f"https://steamcommunity.com/app/{app_id}/discussions/0/?fp={page * 15}"
         try:
-            resp = requests.get(url, headers=headers, timeout=15)
+            resp = requests.get(url, headers=headers, cookies=cookies, timeout=15)
             if not resp.ok:
                 break
             soup = BeautifulSoup(resp.text, "html.parser")
@@ -1524,7 +1525,7 @@ def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100) -> 
         if not thread["url"]:
             continue
         try:
-            tr = requests.get(thread["url"], headers=headers, timeout=12)
+            tr = requests.get(thread["url"], headers=headers, cookies=cookies, timeout=12)
             if not tr.ok:
                 continue
             tsoup = BeautifulSoup(tr.text, "html.parser")
@@ -1902,7 +1903,8 @@ if st.session_state.found_games:
                 # Auto-fetch forum threads for all selected games
                 _all_forums = {}
                 for _g in selected_list:
-                    _fthreads = fetch_forum_threads(_g["app_id"], _g["name"], max_threads=50)
+                    _fthreads = fetch_forum_threads(_g["app_id"], _g["name"], max_threads=50,
+                        session_cookie=st.session_state.get("steam_session_cookie", ""))
                     if _fthreads:
                         _all_forums[_g["app_id"]] = _fthreads
                 st.session_state.forum_data = _all_forums
@@ -3984,12 +3986,42 @@ HARD RULES:
         _fdata_all = st.session_state.get("forum_data", {})
         _all_threads = [t for threads in _fdata_all.values() for t in threads]
 
-        if not _all_threads:
-            st.info(
-                "No forum data loaded yet. Fetch reviews first — forums are "
-                "auto-scraped alongside reviews. You can also enter a Steam App ID "
-                "below to load forums directly."
+        # ── Session cookie input (always visible) ─────────────────
+        _has_cookie = bool(st.session_state.get("steam_session_cookie", "").strip())
+        with st.expander(
+            f"Steam session cookie {'✓ saved' if _has_cookie else '— required for forum access'}",
+            expanded=not _has_cookie,
+        ):
+            st.markdown(
+                '<div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem;line-height:1.8;">'
+                'Steam requires you to be logged in to view forum discussions. '
+                'Paste your <code style="color:var(--blue);background:var(--surface2);'
+                'padding:.1rem .3rem;border-radius:3px;">steamLoginSecure</code> '
+                'cookie value below.<br>'
+                '<strong style="color:var(--text);">How to get it:</strong> '
+                'Open <strong>steamcommunity.com</strong> in Chrome/Firefox while signed in → '
+                'F12 → Application tab → Cookies → steamcommunity.com → '
+                'copy the value of <code style="color:var(--blue);">steamLoginSecure</code>'
+                '</div>',
+                unsafe_allow_html=True,
             )
+            _ck_col, _ck_btn = st.columns([5, 1])
+            with _ck_col:
+                _cookie_val = st.text_input(
+                    "Cookie value",
+                    value=st.session_state.get("steam_session_cookie", ""),
+                    type="password",
+                    placeholder="Paste steamLoginSecure value here…",
+                    key="forum_cookie_input",
+                    label_visibility="collapsed",
+                )
+            with _ck_btn:
+                if st.button("Save", key="btn_save_cookie", use_container_width=False):
+                    st.session_state.steam_session_cookie = _cookie_val.strip()
+                    st.rerun()
+
+        if not _all_threads:
+            st.info("No forum data yet. Add your Steam session cookie above, then load forums below.")
             # Manual load by App ID
             _fa_col, _fb_col, _ = st.columns([1.2, 1, 4])
             with _fa_col:
@@ -4001,15 +4033,19 @@ HARD RULES:
             with _fb_col:
                 st.markdown("<br>", unsafe_allow_html=True)
                 if st.button("Load Forums", key="btn_load_forums"):
-                    with st.spinner("Scraping forum threads…"):
-                        _manual_threads = fetch_forum_threads(
-                            int(_manual_appid), f"App {_manual_appid}", max_threads=50
-                        )
-                    if _manual_threads:
-                        st.session_state.forum_data[int(_manual_appid)] = _manual_threads
-                        st.rerun()
+                    if not st.session_state.get("steam_session_cookie", "").strip():
+                        st.warning("Paste your steamLoginSecure cookie and click Save first.")
                     else:
-                        st.warning("No threads found. The forums may be private or the App ID may be wrong.")
+                        with st.spinner("Scraping forum threads…"):
+                            _manual_threads = fetch_forum_threads(
+                                int(_manual_appid), f"App {_manual_appid}", max_threads=50,
+                                session_cookie=st.session_state.get("steam_session_cookie", ""),
+                            )
+                        if _manual_threads:
+                            st.session_state.forum_data[int(_manual_appid)] = _manual_threads
+                            st.rerun()
+                        else:
+                            st.warning("No threads found. Check the App ID and ensure your cookie is valid and not expired.")
         else:
             # ── Controls ──────────────────────────────────────────────
             _fg_col, _fs_col, _ftype_col, _ = st.columns([1.5, 2, 1.5, 2])
@@ -4176,7 +4212,8 @@ HARD RULES:
                         for _g in st.session_state.found_games:
                             if st.session_state.selected_games.get(_g["app_id"]):
                                 _new_forums[_g["app_id"]] = fetch_forum_threads(
-                                    _g["app_id"], _g["name"], max_threads=int(_f_max)
+                                    _g["app_id"], _g["name"], max_threads=int(_f_max),
+                                    session_cookie=st.session_state.get("steam_session_cookie", ""),
                                 )
                         st.session_state.forum_data = _new_forums
                     st.rerun()
