@@ -1464,16 +1464,37 @@ def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100, ses
         "Referer": f"https://store.steampowered.com/app/{app_id}/",
     }
     cookies = {"steamLoginSecure": session_cookie} if session_cookie.strip() else {}
+    _debug = []  # collect debug info, returned if results empty
     while len(results) < max_threads:
         url = f"https://steamcommunity.com/app/{app_id}/discussions/0/?fp={page * 15}"
         try:
             resp = requests.get(url, headers=headers, cookies=cookies, timeout=15)
+            _debug.append(f"GET {url} → {resp.status_code}, {len(resp.content)}b")
             if not resp.ok:
+                _debug.append(f"Non-OK status {resp.status_code}")
                 break
             soup = BeautifulSoup(resp.text, "html.parser")
+            # Log page title to detect login wall
+            _title = soup.title.string.strip() if soup.title else "no title"
+            _debug.append(f"Page title: {_title}")
+            # Log all div classes that contain 'forum' or 'discuss'
+            _all_cls = set()
+            for d in soup.find_all("div", class_=True):
+                for c in d.get("class", []):
+                    if "forum" in c or "discuss" in c or "topic" in c:
+                        _all_cls.add(c)
+            _debug.append(f"Forum classes found: {sorted(_all_cls)}")
             # Each thread is a forum_topic div
             topics = soup.select("div.forum_topic")
+            _debug.append(f"Topics found with 'div.forum_topic': {len(topics)}")
             if not topics:
+                # Try alternate selectors
+                for sel in ["div.discussionForum", "div.forum_topic_listing", "a.forum_topic_overlay", ".forum_topic_name"]:
+                    found = soup.select(sel)
+                    if found:
+                        _debug.append(f"Alternate selector '{sel}' found {len(found)} elements")
+                # Save first 2000 chars of HTML for inspection
+                _debug.append(f"HTML snippet: {resp.text[3000:5000]!r}")
                 break
             for topic in topics:
                 try:
@@ -1540,7 +1561,7 @@ def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100, ses
         except Exception:
             continue
 
-    return results[:max_threads]
+    return results[:max_threads], _debug
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1903,7 +1924,7 @@ if st.session_state.found_games:
                 # Auto-fetch forum threads for all selected games
                 _all_forums = {}
                 for _g in selected_list:
-                    _fthreads = fetch_forum_threads(_g["app_id"], _g["name"], max_threads=50,
+                    _fthreads, _ = fetch_forum_threads(_g["app_id"], _g["name"], max_threads=50,
                         session_cookie=st.session_state.get("steam_session_cookie", ""))
                     if _fthreads:
                         _all_forums[_g["app_id"]] = _fthreads
@@ -4037,7 +4058,7 @@ HARD RULES:
                         st.warning("Paste your steamLoginSecure cookie and click Save first.")
                     else:
                         with st.spinner("Scraping forum threads…"):
-                            _manual_threads = fetch_forum_threads(
+                            _manual_threads, _forum_debug = fetch_forum_threads(
                                 int(_manual_appid), f"App {_manual_appid}", max_threads=50,
                                 session_cookie=st.session_state.get("steam_session_cookie", ""),
                             )
@@ -4046,6 +4067,9 @@ HARD RULES:
                             st.rerun()
                         else:
                             st.warning("No threads found. Check the App ID and ensure your cookie is valid and not expired.")
+                            with st.expander("Debug info"):
+                                for line in _forum_debug:
+                                    st.text(line)
         else:
             # ── Controls ──────────────────────────────────────────────
             _fg_col, _fs_col, _ftype_col, _ = st.columns([1.5, 2, 1.5, 2])
@@ -4211,7 +4235,7 @@ HARD RULES:
                         _new_forums = {}
                         for _g in st.session_state.found_games:
                             if st.session_state.selected_games.get(_g["app_id"]):
-                                _new_forums[_g["app_id"]] = fetch_forum_threads(
+                                _new_forums[_g["app_id"]], _ = fetch_forum_threads(
                                     _g["app_id"], _g["name"], max_threads=int(_f_max),
                                     session_cookie=st.session_state.get("steam_session_cookie", ""),
                                 )
