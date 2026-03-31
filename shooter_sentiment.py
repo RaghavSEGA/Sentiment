@@ -2674,14 +2674,23 @@ else:
         <div class="metric-sub">of {n_wow} titles with CSV data</div>
         </div>""", unsafe_allow_html=True)
         with st.expander("See titles"):
-            if _wow_up_names:
-                st.markdown(
-                    " ".join(f"<span style='color:#20c65a;margin-right:8px'>▲ {n}</span>" for n in _wow_up_names),
-                    unsafe_allow_html=True)
-            if _wow_down_names:
-                st.markdown(
-                    " ".join(f"<span style='color:#ff4d4d;margin-right:8px'>▼ {n}</span>" for n in _wow_down_names),
-                    unsafe_allow_html=True)
+            if _wow_up_names or _wow_down_names:
+                _html_parts = []
+                if _wow_up_names:
+                    _html_parts.append("<p style='margin:4px 0;line-height:2;font-family:Poppins,sans-serif;'>" + " ".join(
+                        f"<span style='color:#20c65a;font-weight:600;margin-right:6px;white-space:nowrap'>&#9650; {n}</span>"
+                        for n in _wow_up_names) + "</p>")
+                if _wow_down_names:
+                    _html_parts.append("<p style='margin:4px 0;line-height:2;font-family:Poppins,sans-serif;'>" + " ".join(
+                        f"<span style='color:#ff4d4d;font-weight:600;margin-right:6px;white-space:nowrap'>&#9660; {n}</span>"
+                        for n in _wow_down_names) + "</p>")
+                _full_html = f"""<!DOCTYPE html><html><head><style>
+body{margin:0;padding:4px 0;background:transparent;color:#eef0fa;font-family:Poppins,sans-serif;}
+p{margin:4px 0;}
+</style></head><body>{"".join(_html_parts)}</body></html>"""
+                _n_lines = (1 if _wow_up_names else 0) + (1 if _wow_down_names else 0)
+                _est_h = max(len(_wow_up_names) + len(_wow_down_names), 1) * 28 + _n_lines * 8 + 16
+                _st_components.html(_full_html, height=min(_est_h, 500), scrolling=False)
     with k3:
         mom_color = "var(--pos)" if mom_up >= mom_down else "var(--neg)"
         st.markdown(f"""<div class="metric-card amber-top">
@@ -2690,14 +2699,23 @@ else:
         <div class="metric-sub">of {mom_total} titles with CSV data</div>
         </div>""", unsafe_allow_html=True)
         with st.expander("See titles"):
-            if _mom_up_names:
-                st.markdown(
-                    " ".join(f"<span style='color:#20c65a;margin-right:8px'>▲ {n}</span>" for n in _mom_up_names),
-                    unsafe_allow_html=True)
-            if _mom_down_names:
-                st.markdown(
-                    " ".join(f"<span style='color:#ff4d4d;margin-right:8px'>▼ {n}</span>" for n in _mom_down_names),
-                    unsafe_allow_html=True)
+            if _mom_up_names or _mom_down_names:
+                _html_parts = []
+                if _mom_up_names:
+                    _html_parts.append("<p style='margin:4px 0;line-height:2;font-family:Poppins,sans-serif;'>" + " ".join(
+                        f"<span style='color:#20c65a;font-weight:600;margin-right:6px;white-space:nowrap'>&#9650; {n}</span>"
+                        for n in _mom_up_names) + "</p>")
+                if _mom_down_names:
+                    _html_parts.append("<p style='margin:4px 0;line-height:2;font-family:Poppins,sans-serif;'>" + " ".join(
+                        f"<span style='color:#ff4d4d;font-weight:600;margin-right:6px;white-space:nowrap'>&#9660; {n}</span>"
+                        for n in _mom_down_names) + "</p>")
+                _full_html = f"""<!DOCTYPE html><html><head><style>
+body{margin:0;padding:4px 0;background:transparent;color:#eef0fa;font-family:Poppins,sans-serif;}
+p{margin:4px 0;}
+</style></head><body>{"".join(_html_parts)}</body></html>"""
+                _n_lines = (1 if _mom_up_names else 0) + (1 if _mom_down_names else 0)
+                _est_h = max(len(_mom_up_names) + len(_mom_down_names), 1) * 28 + _n_lines * 8 + 16
+                _st_components.html(_full_html, height=min(_est_h, 500), scrolling=False)
     with k4:
         yoy_color = "var(--pos)" if growing >= declining else "var(--neg)"
         st.markdown(f"""<div class="metric-card purple-top">
@@ -2706,14 +2724,23 @@ else:
         <div class="metric-sub">of {len(yoy_titled)} titles with YoY data</div>
         </div>""", unsafe_allow_html=True)
         with st.expander("See titles"):
-            if _yoy_up_names:
-                st.markdown(
-                    " ".join(f"<span style='color:#20c65a;margin-right:8px'>▲ {n}</span>" for n in _yoy_up_names),
-                    unsafe_allow_html=True)
-            if _yoy_down_names:
-                st.markdown(
-                    " ".join(f"<span style='color:#ff4d4d;margin-right:8px'>▼ {n}</span>" for n in _yoy_down_names),
-                    unsafe_allow_html=True)
+            if _yoy_up_names or _yoy_down_names:
+                _html_parts = []
+                if _yoy_up_names:
+                    _html_parts.append("<p style='margin:4px 0;line-height:2;font-family:Poppins,sans-serif;'>" + " ".join(
+                        f"<span style='color:#20c65a;font-weight:600;margin-right:6px;white-space:nowrap'>&#9650; {n}</span>"
+                        for n in _yoy_up_names) + "</p>")
+                if _yoy_down_names:
+                    _html_parts.append("<p style='margin:4px 0;line-height:2;font-family:Poppins,sans-serif;'>" + " ".join(
+                        f"<span style='color:#ff4d4d;font-weight:600;margin-right:6px;white-space:nowrap'>&#9660; {n}</span>"
+                        for n in _yoy_down_names) + "</p>")
+                _full_html = f"""<!DOCTYPE html><html><head><style>
+body{margin:0;padding:4px 0;background:transparent;color:#eef0fa;font-family:Poppins,sans-serif;}
+p{margin:4px 0;}
+</style></head><body>{"".join(_html_parts)}</body></html>"""
+                _n_lines = (1 if _yoy_up_names else 0) + (1 if _yoy_down_names else 0)
+                _est_h = max(len(_yoy_up_names) + len(_yoy_down_names), 1) * 28 + _n_lines * 8 + 16
+                _st_components.html(_full_html, height=min(_est_h, 500), scrolling=False)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
