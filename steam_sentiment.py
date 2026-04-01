@@ -54,6 +54,32 @@ try:
 except ImportError:
     VADER_AVAILABLE = False
 
+# ── Ensure Playwright Chromium is installed (runs once, cached) ──────────────
+@st.cache_resource(show_spinner=False)
+def _ensure_playwright_chromium():
+    """Install playwright chromium browser if not already present."""
+    import subprocess as _sp
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as _pw:
+            # Try launching — if it fails the binary is missing
+            _b = _pw.chromium.launch(headless=True, args=["--no-sandbox"])
+            _b.close()
+        return True, "Chromium ready"
+    except Exception as _e:
+        if "Executable doesn't exist" in str(_e) or "playwright install" in str(_e):
+            # Run playwright install
+            _r = _sp.run(
+                ["python3", "-m", "playwright", "install", "chromium"],
+                capture_output=True, text=True, timeout=120,
+            )
+            if _r.returncode == 0:
+                return True, "Chromium installed"
+            return False, f"Install failed: {_r.stderr[:300]}"
+        return False, str(_e)[:200]
+
+_pw_ready, _pw_msg = _ensure_playwright_chromium()
+
 # ─────────────────────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────
@@ -1466,11 +1492,16 @@ def fetch_forum_threads(app_id: int, game_name: str, max_threads: int = 100,
         return [], _debug
 
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
-                  "--disable-blink-features=AutomationControlled"],
-        )
+        try:
+            browser = pw.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
+                      "--disable-blink-features=AutomationControlled"],
+            )
+        except Exception as _le:
+            _debug.append(f"Browser launch failed: {_le}")
+            _debug.append("Run: python3 -m playwright install chromium")
+            return [], _debug
         ctx_kwargs = {}
         if login_secure.strip() or session_id.strip():
             ctx_kwargs["storage_state"] = {
@@ -1948,15 +1979,7 @@ if st.session_state.found_games:
                     if _evs:
                         _all_events[_g["app_id"]] = _evs
                 st.session_state.game_events = _all_events
-                # Auto-fetch forum threads for all selected games
-                _all_forums = {}
-                for _g in selected_list:
-                    _fthreads, _ = fetch_forum_threads(_g["app_id"], _g["name"], max_threads=50,
-                        login_secure=st.session_state.get("steam_login_secure", ""),
-                            session_id=st.session_state.get("steam_session_id", ""))
-                    if _fthreads:
-                        _all_forums[_g["app_id"]] = _fthreads
-                st.session_state.forum_data = _all_forums
+                # Forums loaded on-demand from the Forums tab (Playwright)
             else:
                 st.error("No reviews collected. Try different games or a higher review limit.")
 
