@@ -37,3 +37,4 @@ python-docx
 boto3
 extra-streamlit-components
 beautifulsoup4
+playwright
