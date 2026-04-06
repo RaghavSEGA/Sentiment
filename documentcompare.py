@@ -349,11 +349,11 @@ def extract_text(uploaded_file) -> tuple[str, str]:
         except Exception as e:
             return f"[DOCX extraction error: {e}]", "docx"
 
-    elif name.endswith((".xlsx", ".xls")):
+    elif name.endswith((".xlsx", ".xls", ".xlsm")):
         if not XLSX_AVAILABLE:
             return "[ERROR: openpyxl not installed — run: pip install openpyxl]", "xlsx"
         try:
-            wb    = _openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+            wb    = _openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True, keep_vba=True)
             lines = []
             for sheet in wb.worksheets:
                 lines.append(f"\n[Sheet: {sheet.title}]")
@@ -708,8 +708,7 @@ with col_a:
     st.markdown('<div class="field-label">Document A</div>', unsafe_allow_html=True)
     file_a = st.file_uploader(
         "doc_a", label_visibility="collapsed",
-        type=["pdf", "docx", "xlsx"],
-        key="uploader_a",
+        type=["pdf", "docx", "xlsx", "xlsm"],
     )
     if file_a:
         ext_a = file_a.name.rsplit(".", 1)[-1].upper()
@@ -725,8 +724,7 @@ with col_b:
     st.markdown('<div class="field-label">Document B</div>', unsafe_allow_html=True)
     file_b = st.file_uploader(
         "doc_b", label_visibility="collapsed",
-        type=["pdf", "docx", "xlsx"],
-        key="uploader_b",
+        type=["pdf", "docx", "xlsx", "xlsm"],
     )
     if file_b:
         ext_b = file_b.name.rsplit(".", 1)[-1].upper()
