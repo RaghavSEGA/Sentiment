@@ -3018,73 +3018,19 @@ else:
     mom_total= mom_up + mom_down
 
     #  Row 1: Primary KPI cards 
-    k1, k2, k3, k4 = st.columns(4)
-    with k1:
+    _kc1, _kc2 = st.columns(2)
+    with _kc1:
         st.markdown(f"""<div class="metric-card blue-top">
         <div class="metric-label">{T("kpi_total_ccu")}</div>
         <div class="metric-value">{total_ccu:,}</div>
         <div class="metric-sub">{T("kpi_total_sub", n=len(ccu_data))}</div>
         </div>""", unsafe_allow_html=True)
-    # Build title lists for clickable cards
-    _wow_up_names   = [r["name"] for r in ccu_data if wow_diff.get(r["app_id"], {}).get("delta", 0) > 0]
-    _wow_down_names = [r["name"] for r in ccu_data if wow_diff.get(r["app_id"], {}).get("delta", 0) < 0]
-    _mom_up_names   = [r["name"] for r in ccu_data if ((r.get("hist_summary") or {}).get("mom_pct") or 0) > 0]
-    _mom_down_names = [r["name"] for r in ccu_data if ((r.get("hist_summary") or {}).get("mom_pct") or 0) < 0]
-    _yoy_up_names   = [r["name"] for r in ccu_data if r.get("yoy_val", 0) > 0]
-    _yoy_down_names = [r["name"] for r in ccu_data if r.get("yoy_val", 0) < 0]
-
-    with k2:
-        wow_color = "var(--pos)" if wow_up >= wow_down else "var(--neg)"
-        st.markdown(f"""<div class="metric-card pos-top">
-        <div class="metric-label">{T("kpi_wow")}</div>
-        <div class="metric-value" style="color:{wow_color}">{wow_up}↑ / {wow_down}↓</div>
-        <div class="metric-sub">of {n_wow} titles with CSV data</div>
-        </div>""", unsafe_allow_html=True)
-    with k3:
-        mom_color = "var(--pos)" if mom_up >= mom_down else "var(--neg)"
-        st.markdown(f"""<div class="metric-card amber-top">
-        <div class="metric-label">{T("kpi_mom")}</div>
-        <div class="metric-value" style="color:{mom_color}">{mom_up}↑ / {mom_down}↓</div>
-        <div class="metric-sub">of {mom_total} titles with CSV data</div>
-        </div>""", unsafe_allow_html=True)
-    with k4:
-        yoy_color = "var(--pos)" if growing >= declining else "var(--neg)"
-        st.markdown(f"""<div class="metric-card purple-top">
-        <div class="metric-label">{T("kpi_yoy")}</div>
-        <div class="metric-value" style="color:{yoy_color}">{growing}↑ / {declining}↓</div>
-        <div class="metric-sub">of {len(yoy_titled)} titles with YoY data</div>
-        </div>""", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    #  Row 2: CSV-derived stat cards 
-    s1, s2, s3, s4 = st.columns(4)
-    with s1:
-        st.markdown(f"""<div class="metric-card blue-top">
-        <div class="metric-label">{T("kpi_csvs")}</div>
-        <div class="metric-value">{hist_count}/{len(ccu_data)}</div>
-        <div class="metric-sub">{T("kpi_csvs_sub")}</div>
-        </div>""", unsafe_allow_html=True)
-    with s2:
+    with _kc2:
         health_color = "var(--pos)" if avg_health > 50 else "var(--amber)" if avg_health > 25 else "var(--neg)"
         st.markdown(f"""<div class="metric-card amber-top">
         <div class="metric-label">{T("kpi_health")}</div>
         <div class="metric-value" style="color:{health_color}">{avg_health:.0f}%</div>
         <div class="metric-sub">{T("kpi_health_sub")}</div>
-        </div>""", unsafe_allow_html=True)
-    with s3:
-        bm_pct = f"+{round(best_mover[1])}%" if best_mover[1] >= 0 else f"{round(best_mover[1])}%"
-        st.markdown(f"""<div class="metric-card pos-top">
-        <div class="metric-label">{T("kpi_best_grower")}</div>
-        <div class="metric-value" style="font-size:1rem;color:var(--pos)">{best_mover[0][:18]}</div>
-        <div class="metric-sub">{T("kpi_best_sub", pct=bm_pct)}</div>
-        </div>""", unsafe_allow_html=True)
-    with s4:
-        wm_pct = f"{round(worst_mover[1])}%"
-        st.markdown(f"""<div class="metric-card purple-top">
-        <div class="metric-label">{T("kpi_worst_decline")}</div>
-        <div class="metric-value" style="font-size:1rem;color:var(--neg)">{worst_mover[0][:18]}</div>
-        <div class="metric-sub">{T("kpi_worst_sub", pct=wm_pct)}</div>
         </div>""", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
