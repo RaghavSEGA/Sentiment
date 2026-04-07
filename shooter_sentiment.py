@@ -2490,6 +2490,24 @@ with st.sidebar:
         )
 
     st.markdown("---")
+    _age = cache_age_str()
+    if _age:
+        st.caption(f"📦 Data cached: {_age}")
+        st.caption("Re-fetches automatically every 24 hours.")
+    else:
+        st.caption("No cache yet — fetching on load.")
+    if st.button("🔄 Refresh Now", key="force_refresh_btn", use_container_width=True,
+                 help="Force a fresh CCU fetch, ignoring the 24-hour cache"):
+        st.session_state.force_refresh = True
+        st.session_state.ccu_data      = []
+        st.session_state.ai_report     = ""
+        st.session_state.report_cache  = {}
+        try:
+            _cache_path().unlink(missing_ok=True)
+        except Exception:
+            pass
+        st.rerun()
+    st.markdown("---")
     st.caption("Model: claude-sonnet-4-20250514")
     st.caption("CCU: Steam public API (5 min cache)")
     st.caption("Engagement: SteamSpy API (1 hr cache)")
@@ -2646,6 +2664,22 @@ if _overlap_shown:
 # 
 
 if not st.session_state.ccu_data:
+    # Try daily cache first
+    _active_ids_for_cache = [g["app_id"] for g in st.session_state.get("_active_roster", [])]
+    _cache = load_daily_cache(st.session_state.roster_genre, _active_ids_for_cache)
+    if _cache and not st.session_state.get("force_refresh"):
+        st.session_state.ccu_data  = _cache["ccu_data"]
+        st.session_state.ai_report = _cache.get("ai_report", "")
+        if st.session_state.ai_report:
+            st.session_state.active_query = "weekly_report"
+            st.session_state.report_label = _cache.get("report_label",
+                f"Weekly Report — {st.session_state.roster_genre}")
+        st.toast(f"Loaded from cache ({cache_age_str()})", icon="📦")
+        st.rerun()
+    else:
+        st.session_state.force_refresh = False
+
+if not st.session_state.ccu_data:
     with st.spinner(T("fetch_spinner")):
         # Load historical SteamDB data from /data folder
         historical = load_all_historical()
@@ -2708,6 +2742,11 @@ if not st.session_state.ccu_data:
         results.sort(key=lambda x: x["ccu"], reverse=True)
         st.session_state.ccu_data = results
         save_ccu_snapshot(results)  # persist live CCU for future WoW comparison
+        save_daily_cache(
+            st.session_state.get("roster_genre", "FPS"),
+            [r["app_id"] for r in results],
+            results, "",
+        )
         if not st.session_state.active_query:
             _genre_for_label = st.session_state.get("roster_genre", "FPS")
             st.session_state.active_query    = "weekly_report"
@@ -2756,6 +2795,13 @@ else:
                         )
                         st.session_state.ai_report = _r2.content[0].text
                         st.session_state.report_cache[_ck] = st.session_state.ai_report
+                        save_daily_cache(
+                            st.session_state.get("roster_genre", "FPS"),
+                            [r["app_id"] for r in ccu_data],
+                            ccu_data,
+                            st.session_state.ai_report,
+                            st.session_state.get("report_label", ""),
+                        )
                         _ag = st.session_state.get("roster_genre", "FPS")
                         if should_auto_archive(_ag):
                             _af = save_report_to_archive(
