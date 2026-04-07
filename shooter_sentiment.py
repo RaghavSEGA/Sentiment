@@ -686,49 +686,49 @@ PLOTLY_BASE = dict(
 # Sub-genre and publisher are looked up by app_id; the two ranked lists
 # below reference these by ID only to avoid duplication.
 GAME_CATALOG = {
-    730:     {"name": "Counter-Strike 2",             "sub": "Tactical / Competitive",   "publisher": "Valve",                  "f2p": True},
-    578080:  {"name": "PUBG: Battlegrounds",          "sub": "Battle Royale",            "publisher": "Krafton",                "f2p": True},
-    252490:  {"name": "Rust",                         "sub": "Open World / Survival",    "publisher": "Facepunch",              "f2p": False},
-    1172470: {"name": "Apex Legends",                 "sub": "Battle Royale / Hero",     "publisher": "EA / Respawn",           "f2p": True},
-    3764200: {"name": "Monster Hunter Wilds",         "sub": "Action / Co-op",           "publisher": "Capcom",                 "f2p": False},
-    2357570: {"name": "Overwatch 2",                  "sub": "Hero Shooter",             "publisher": "Blizzard",               "f2p": True},
-    2507950: {"name": "Delta Force",                  "sub": "Military FPS / Extraction","publisher": "Team Jade",              "f2p": True},
-    359550:  {"name": "Rainbow Six Siege",            "sub": "Tactical / Competitive",   "publisher": "Ubisoft",                "f2p": False},
-    440:     {"name": "Team Fortress 2",              "sub": "Arena / Class FPS",        "publisher": "Valve",                  "f2p": True},
-    221100:  {"name": "DayZ",                         "sub": "Survival / Open World",    "publisher": "Bohemia Interactive",    "f2p": False},
-    2767030: {"name": "Marvel Rivals",                "sub": "Hero Shooter",             "publisher": "NetEase Games",          "f2p": True},
-    1366800: {"name": "Crosshair X",                  "sub": "Aim Trainer / Utility",    "publisher": "Vanguard",               "f2p": False},
-    2807960: {"name": "Battlefield 6",                "sub": "Military FPS",             "publisher": "EA / DICE",              "f2p": False},
-    3065800: {"name": "Marathon",                     "sub": "Extraction Shooter",       "publisher": "Bungie / Sony",          "f2p": False},
-    4465480: {"name": "CS:GO",                        "sub": "Tactical / Competitive",   "publisher": "Valve",                  "f2p": True},
-    1938090: {"name": "Call of Duty",                 "sub": "Military FPS",             "publisher": "Activision",             "f2p": True},
-    1174180: {"name": "Red Dead Redemption 2",        "sub": "Open World / TPS",         "publisher": "Rockstar Games",         "f2p": False},
-    4000:    {"name": "Garry's Mod",                  "sub": "Sandbox / Shooter",        "publisher": "Facepunch",              "f2p": False},
-    1091500: {"name": "Cyberpunk 2077",               "sub": "FPS / RPG",                "publisher": "CD Projekt Red",         "f2p": False},
-    2073620: {"name": "Arena Breakout: Infinite",     "sub": "Extraction Shooter",       "publisher": "Level Infinite",         "f2p": True},
-    251570:  {"name": "7 Days to Die",                "sub": "Survival / FPS",           "publisher": "The Fun Pimps",          "f2p": False},
-    1818450: {"name": "The Finals",                   "sub": "Arena / Team FPS",         "publisher": "Embark Studios",         "f2p": True},
-    377160:  {"name": "Fallout 4",                    "sub": "Open World FPS / RPG",     "publisher": "Bethesda",               "f2p": False},
-    550:     {"name": "Left 4 Dead 2",                "sub": "Co-op / Survival FPS",     "publisher": "Valve",                  "f2p": False},
-    1151340: {"name": "Fallout 76",                   "sub": "Online FPS / RPG",         "publisher": "Bethesda",               "f2p": False},
-    1808500: {"name": "ARC Raiders",                  "sub": "Extraction Shooter",       "publisher": "Embark Studios",         "f2p": False},
-    271590:  {"name": "GTA V Legacy",                 "sub": "Open World / Action",      "publisher": "Rockstar Games",         "f2p": False},
-    236390:  {"name": "War Thunder",                  "sub": "Vehicle Combat / MMO",     "publisher": "Gaijin",                 "f2p": True},
-    1422450: {"name": "Deadlock",                     "sub": "Hero Shooter / MOBA",      "publisher": "Valve",                  "f2p": True},
-    230410:  {"name": "Warframe",                     "sub": "Looter Shooter / Co-op",   "publisher": "Digital Extremes",       "f2p": True},
-    3240220: {"name": "GTA V Enhanced",               "sub": "Open World / Action",      "publisher": "Rockstar Games",         "f2p": False},
-    553850:  {"name": "Helldivers 2",                 "sub": "Co-op / Third-Person",     "publisher": "PlayStation Studios",    "f2p": False},
-    1623730: {"name": "Palworld",                     "sub": "Survival / Action",        "publisher": "Pocketpair",             "f2p": False},
-    2050650: {"name": "Resident Evil 4 Remake",       "sub": "Survival Horror / TPS",    "publisher": "Capcom",                 "f2p": False},
-    2221490: {"name": "Tom Clancy's The Division 2",  "sub": "Cover Shooter / MMO",      "publisher": "Ubisoft",                "f2p": False},
-    2183900: {"name": "Warhammer 40K: Space Marine 2","sub": "TPS / Co-op Action",       "publisher": "Saber Interactive",      "f2p": False},
-    107410:  {"name": "Arma 3",                       "sub": "Tactical / Mil-Sim",       "publisher": "Bohemia Interactive",    "f2p": False},
-    1407200: {"name": "World of Tanks",               "sub": "Vehicle Combat / MMO",     "publisher": "Wargaming",              "f2p": True},
-    3405340: {"name": "Split Fiction",                "sub": "Co-op / Action",           "publisher": "Hazelight / EA",         "f2p": False},
-    3659280: {"name": "Atomfall",                     "sub": "Open World FPS / RPG",     "publisher": "Rebellion",              "f2p": False},
-    552990:  {"name": "Borderlands 3",                "sub": "Looter Shooter",           "publisher": "2K / Gearbox",           "f2p": False},
-    240:     {"name": "Counter-Strike: Source",        "sub": "Tactical / Competitive",   "publisher": "Valve",                  "f2p": False},
-    1659040: {"name": "HITMAN World of Assassination",  "sub": "Stealth / TPS",            "publisher": "IO Interactive",         "f2p": False},
+    730:     {"name": "Counter-Strike 2",             "sub": "Tactical / Competitive",   "publisher": "Valve",                  "f2p": True, "year": 2023},
+    578080:  {"name": "PUBG: Battlegrounds",          "sub": "Battle Royale",            "publisher": "Krafton",                "f2p": True, "year": 2022},
+    252490:  {"name": "Rust",                         "sub": "Open World / Survival",    "publisher": "Facepunch",              "f2p": False, "year": 2013},
+    1172470: {"name": "Apex Legends",                 "sub": "Battle Royale / Hero",     "publisher": "EA / Respawn",           "f2p": True, "year": 2022},
+    3764200: {"name": "Monster Hunter Wilds",         "sub": "Action / Co-op",           "publisher": "Capcom",                 "f2p": False, "year": 2025},
+    2357570: {"name": "Overwatch 2",                  "sub": "Hero Shooter",             "publisher": "Blizzard",               "f2p": True, "year": 2022},
+    2507950: {"name": "Delta Force",                  "sub": "Military FPS / Extraction","publisher": "Team Jade",              "f2p": True, "year": 2024},
+    359550:  {"name": "Rainbow Six Siege",            "sub": "Tactical / Competitive",   "publisher": "Ubisoft",                "f2p": False, "year": 2015},
+    440:     {"name": "Team Fortress 2",              "sub": "Arena / Class FPS",        "publisher": "Valve",                  "f2p": True, "year": 2007},
+    221100:  {"name": "DayZ",                         "sub": "Survival / Open World",    "publisher": "Bohemia Interactive",    "f2p": False, "year": 2018},
+    2767030: {"name": "Marvel Rivals",                "sub": "Hero Shooter",             "publisher": "NetEase Games",          "f2p": True, "year": 2024},
+    1366800: {"name": "Crosshair X",                  "sub": "Aim Trainer / Utility",    "publisher": "Vanguard",               "f2p": False, "year": 2021},
+    2807960: {"name": "Battlefield 6",                "sub": "Military FPS",             "publisher": "EA / DICE",              "f2p": False, "year": 2025},
+    3065800: {"name": "Marathon",                     "sub": "Extraction Shooter",       "publisher": "Bungie / Sony",          "f2p": False, "year": 2025},
+    4465480: {"name": "CS:GO",                        "sub": "Tactical / Competitive",   "publisher": "Valve",                  "f2p": True, "year": 2012},
+    1938090: {"name": "Call of Duty",                 "sub": "Military FPS",             "publisher": "Activision",             "f2p": True, "year": 2023},
+    1174180: {"name": "Red Dead Redemption 2",        "sub": "Open World / TPS",         "publisher": "Rockstar Games",         "f2p": False, "year": 2018},
+    4000:    {"name": "Garry's Mod",                  "sub": "Sandbox / Shooter",        "publisher": "Facepunch",              "f2p": False, "year": 2004},
+    1091500: {"name": "Cyberpunk 2077",               "sub": "FPS / RPG",                "publisher": "CD Projekt Red",         "f2p": False, "year": 2020},
+    2073620: {"name": "Arena Breakout: Infinite",     "sub": "Extraction Shooter",       "publisher": "Level Infinite",         "f2p": True, "year": 2024},
+    251570:  {"name": "7 Days to Die",                "sub": "Survival / FPS",           "publisher": "The Fun Pimps",          "f2p": False, "year": 2013},
+    1818450: {"name": "The Finals",                   "sub": "Arena / Team FPS",         "publisher": "Embark Studios",         "f2p": True, "year": 2023},
+    377160:  {"name": "Fallout 4",                    "sub": "Open World FPS / RPG",     "publisher": "Bethesda",               "f2p": False, "year": 2015},
+    550:     {"name": "Left 4 Dead 2",                "sub": "Co-op / Survival FPS",     "publisher": "Valve",                  "f2p": False, "year": 2009},
+    1151340: {"name": "Fallout 76",                   "sub": "Online FPS / RPG",         "publisher": "Bethesda",               "f2p": False, "year": 2018},
+    1808500: {"name": "ARC Raiders",                  "sub": "Extraction Shooter",       "publisher": "Embark Studios",         "f2p": False, "year": 2025},
+    271590:  {"name": "GTA V Legacy",                 "sub": "Open World / Action",      "publisher": "Rockstar Games",         "f2p": False, "year": 2015},
+    236390:  {"name": "War Thunder",                  "sub": "Vehicle Combat / MMO",     "publisher": "Gaijin",                 "f2p": True, "year": 2013},
+    1422450: {"name": "Deadlock",                     "sub": "Hero Shooter / MOBA",      "publisher": "Valve",                  "f2p": True, "year": 2024},
+    230410:  {"name": "Warframe",                     "sub": "Looter Shooter / Co-op",   "publisher": "Digital Extremes",       "f2p": True, "year": 2013},
+    3240220: {"name": "GTA V Enhanced",               "sub": "Open World / Action",      "publisher": "Rockstar Games",         "f2p": False, "year": 2025},
+    553850:  {"name": "Helldivers 2",                 "sub": "Co-op / Third-Person",     "publisher": "PlayStation Studios",    "f2p": False, "year": 2024},
+    1623730: {"name": "Palworld",                     "sub": "Survival / Action",        "publisher": "Pocketpair",             "f2p": False, "year": 2024},
+    2050650: {"name": "Resident Evil 4 Remake",       "sub": "Survival Horror / TPS",    "publisher": "Capcom",                 "f2p": False, "year": 2023},
+    2221490: {"name": "Tom Clancy's The Division 2",  "sub": "Cover Shooter / MMO",      "publisher": "Ubisoft",                "f2p": False, "year": 2019},
+    2183900: {"name": "Warhammer 40K: Space Marine 2","sub": "TPS / Co-op Action",       "publisher": "Saber Interactive",      "f2p": False, "year": 2024},
+    107410:  {"name": "Arma 3",                       "sub": "Tactical / Mil-Sim",       "publisher": "Bohemia Interactive",    "f2p": False, "year": 2013},
+    1407200: {"name": "World of Tanks",               "sub": "Vehicle Combat / MMO",     "publisher": "Wargaming",              "f2p": True, "year": 2011},
+    3405340: {"name": "Split Fiction",                "sub": "Co-op / Action",           "publisher": "Hazelight / EA",         "f2p": False, "year": 2025},
+    3659280: {"name": "Atomfall",                     "sub": "Open World FPS / RPG",     "publisher": "Rebellion",              "f2p": False, "year": 2025},
+    552990:  {"name": "Borderlands 3",                "sub": "Looter Shooter",           "publisher": "2K / Gearbox",           "f2p": False, "year": 2019},
+    240:     {"name": "Counter-Strike: Source",        "sub": "Tactical / Competitive",   "publisher": "Valve",                  "f2p": False, "year": 2004},
+    1659040: {"name": "HITMAN World of Assassination",  "sub": "Stealth / TPS",            "publisher": "IO Interactive",         "f2p": False, "year": 2021},
 }
 
 # Ranked list of top 25 FPS titles (by Steam CCU, Mar 2026)
@@ -1097,7 +1097,7 @@ def compute_period_diff(
                     dts = dts.dt.tz_localize("UTC")
                 diff = (dts - target).abs()
                 idx  = diff.idxmin()
-                gap  = diff.iloc[idx] if hasattr(diff, "iloc") else diff[idx]
+                gap  = diff[idx]
                 if gap <= tol:
                     prev_ccu  = int(df.loc[idx, "Players"])
                     ref_dt    = df.loc[idx, "DateTime"]
@@ -1128,11 +1128,246 @@ def compute_period_diff(
         }
     return result
 
+# ─────────────────────────────────────────────────────────────
+# REPORT ARCHIVE  (weekly auto-archive + monthly comparison)
+# Reports saved to /data/report_archive/ as JSON files.
+# ─────────────────────────────────────────────────────────────
+
+def _archive_dir() -> Path:
+    base = DATA_DIR if DATA_DIR and DATA_DIR.exists() else Path(__file__).parent
+    d = base / "report_archive"
+    try:
+        d.mkdir(exist_ok=True)
+    except Exception:
+        pass
+    return d
+
+def list_archived_reports() -> list[dict]:
+    """Return archive metadata dicts, newest first."""
+    reports = []
+    try:
+        for p in sorted(_archive_dir().glob("report_*.json"), reverse=True):
+            try:
+                with open(p) as f:
+                    meta = json.load(f)
+                meta["_filename"] = p.name
+                reports.append(meta)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return reports
+
+def save_report_to_archive(report_md: str, label: str, genre: str,
+                            ccu_data: list[dict]) -> str | None:
+    """Save report to archive. Returns filename or None on failure."""
+    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    filename = f"report_{date_str}_{genre.lower()}.json"
+    # Recompute WoW for archival if available
+    _wow_snap = {}
+    try:
+        _raw_snap = load_all_raw()
+        _lmap     = {r["app_id"]: r["ccu"] for r in ccu_data}
+        _wow_snap = compute_period_diff(_raw_snap, _lmap, days=7)
+    except Exception:
+        pass
+
+    payload  = {
+        "date":        date_str,
+        "label":       label,
+        "genre":       genre,
+        "report_md":   report_md,
+        "ccu_snapshot": [{
+            "app_id": r["app_id"], "name": r["name"], "ccu": r["ccu"],
+            "yoy":    r.get("yoy", "N/A"),
+            "mom":    (r.get("hist_summary") or {}).get("mom_trend", "—"),
+            "wow":    (f"+{round(_wow_snap[r['app_id']]['delta_pct'])}%"
+                       if r["app_id"] in _wow_snap and _wow_snap[r["app_id"]]["delta_pct"] >= 0
+                       else f"{round(_wow_snap[r['app_id']]['delta_pct'])}%"
+                       if r["app_id"] in _wow_snap else "N/A"),
+        } for r in ccu_data],
+        "archived_at": datetime.utcnow().isoformat(),
+    }
+    try:
+        with open(_archive_dir() / filename, "w") as f:
+            json.dump(payload, f, indent=2)
+        return filename
+    except Exception:
+        return None
+
+def load_archived_report(filename: str) -> dict | None:
+    """Load a full archived report by filename."""
+    try:
+        with open(_archive_dir() / filename) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+def should_auto_archive(genre: str) -> bool:
+    """True if today is Monday and this week+genre hasn't been archived yet."""
+    today = datetime.utcnow()
+    if today.weekday() != 0:  # Monday = 0
+        return False
+    week_str = today.strftime("%Y-%m-%d")
+    return not (_archive_dir() / f"report_{week_str}_{genre.lower()}.json").exists()
+
 def data_hash(ccu_data: list[dict]) -> str:
     """Stable hash of CCU values for cache-key purposes."""
     import hashlib, json
     payload = json.dumps([{"id": r["app_id"], "ccu": r["ccu"]} for r in ccu_data], sort_keys=True)
     return hashlib.md5(payload.encode()).hexdigest()[:12]
+
+# ─────────────────────────────────────────────────────────────
+# BACKGROUND SCHEDULER  (Monday 09:00 UTC auto-archive)
+# Uses APScheduler BackgroundScheduler so it fires even when no
+# user is actively on the page — as long as the Streamlit process
+# is alive (e.g. Streamlit Cloud always-on).
+# ─────────────────────────────────────────────────────────────
+
+def _run_monday_archive() -> None:
+    """Called by the scheduler every Monday at 09:00 UTC.
+    Fetches live CCU for all genres, generates a report via Claude,
+    and saves it to the archive.  Requires ANTHROPIC_API_KEY in
+    st.secrets (accessed via env var fallback)."""
+    import os
+    try:
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            return  # no key configured — skip silently
+
+        # Build full BOTH roster
+        both_ids    = list(dict.fromkeys(FPS_ROSTER_IDS + TPS_ROSTER_IDS))
+        roster      = [{"app_id": a, **GAME_CATALOG[a]} for a in both_ids if a in GAME_CATALOG]
+        historical  = load_all_historical()
+        raw_data    = load_all_raw()
+        results     = []
+
+        for game in roster:
+            ccu  = fetch_ccu(game["app_id"])
+            hist_df  = historical.get(game["app_id"])
+            has_hist = hist_df is not None and not hist_df.empty
+            if has_hist:
+                yoy_str, yoy_pct = compute_yoy(hist_df)
+                hist_summary = get_historical_summary(hist_df)
+            else:
+                hist_summary = {}
+                yoy_str, yoy_pct = "N/A", 0
+            ss = fetch_steamspy(game["app_id"])
+            pos = ss.get("positive", 0) or 0
+            neg = ss.get("negative", 0) or 0
+            tot = pos + neg
+            review_pct = round(pos / tot * 100) if tot else None
+            if review_pct is None:
+                review_pct = fetch_steam_reviews(game["app_id"])
+            if not ccu and game["app_id"] in raw_data and not raw_data[game["app_id"]].empty:
+                ccu = int(raw_data[game["app_id"]].dropna(subset=["Players"])["Players"].iloc[-1])
+            results.append({
+                **game,
+                "ccu": ccu or 0, "ccu_from_csv": False, "ccu_live": ccu is not None,
+                "yoy": yoy_str, "yoy_val": yoy_pct,
+                "has_hist": has_hist, "hist_summary": hist_summary,
+                "avg_2w_hrs": 0, "review_pct": review_pct,
+                "pos_reviews": pos, "neg_reviews": neg,
+            })
+            time.sleep(0.4)
+
+        results.sort(key=lambda x: x["ccu"], reverse=True)
+        save_ccu_snapshot(results)
+
+        # Compute WoW and inject into session-like dict for prompt builder
+        live_ccu_map = {r["app_id"]: r["ccu"] for r in results}
+        wow_diff     = compute_period_diff(raw_data, live_ccu_map, days=7)
+
+        # Build prompt manually (can't use st.session_state in background thread)
+        from datetime import datetime as _dt, timezone as _tz
+        today_str = _dt.now(_tz.utc).strftime("%B %d, %Y")
+        rows = []
+        for rank, r in enumerate(results[:25], 1):
+            hs   = r.get("hist_summary", {})
+            wow_d = wow_diff.get(r["app_id"])
+            wow_s = (f"+{round(wow_d['delta_pct'])}%" if wow_d and wow_d["delta_pct"] > 0
+                     else f"{round(wow_d['delta_pct'])}%" if wow_d else "N/A")
+            rows.append(
+                f"{rank}. {r['name']} ({r['sub']}): {r['ccu']:,} CCU | "
+                f"WoW {wow_s} | MoM {hs.get('mom_trend','—')} | "
+                f"YoY {r.get('yoy','N/A')} | Review {r.get('review_pct','?')}%"
+            )
+        prompt = (
+            f"You are producing SEGA's internal weekly shooter market intelligence report "
+            f"for the week of {today_str}.\n\n"
+            f"LIVE CCU SNAPSHOT — {today_str}:\n" + "\n".join(rows) +
+            "\n\n---\n\n## SECTION 1: EXECUTIVE SUMMARY\n\n"
+            "Write 150–200 words covering:\n"
+            "- Overall market mood this week (Rising / Flat / Declining)\n"
+            "- 3 headline bullet findings\n"
+            "- Story of the Week\n\n---\n\n"
+            "## SECTION 2: SHOOTERS RANKED BY CCU\n\n"
+            "| Rank | Title | Sub-genre | Live CCU | WoW | MoM | YoY | Review Score | Notes |\n\n"
+            "Rules:\n- Use ONLY the CCU figures provided.\n"
+            "- Notes: one short observation per title.\n"
+            "- Flag YoY > +50% or YoY < -30% in Notes.\n\n"
+            "Do not write Section 3 or beyond."
+        )
+
+        import anthropic as _anth_sched
+        client = _anth_sched.Anthropic(api_key=api_key)
+        resp   = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        report_md = resp.content[0].text
+
+        # Save for each genre (BOTH + FPS + TPS)
+        for _genre in ["BOTH", "FPS", "TPS"]:
+            if should_auto_archive(_genre):
+                label = f"Weekly Report — {_genre} — {today_str}"
+                save_report_to_archive(report_md, label, _genre, results)
+
+    except Exception as _exc:
+        # Log to a file so failures are discoverable
+        try:
+            log_path = (_archive_dir() / "scheduler.log")
+            with open(log_path, "a") as _lf:
+                _lf.write(f"{datetime.utcnow().isoformat()} ERROR: {_exc}\n")
+        except Exception:
+            pass
+
+
+def _start_scheduler() -> None:
+    """Start the APScheduler background thread (idempotent — safe to call on every Streamlit rerun)."""
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.cron import CronTrigger
+        import streamlit as _st_sched
+
+        # Use a module-level flag so we only start once per process
+        import shooter_sentiment as _self_module
+        if getattr(_self_module, "_scheduler_started", False):
+            return
+        _self_module._scheduler_started = True
+
+        scheduler = BackgroundScheduler(timezone="UTC")
+        scheduler.add_job(
+            _run_monday_archive,
+            CronTrigger(day_of_week="mon", hour=9, minute=0, timezone="UTC"),
+            id="monday_archive",
+            replace_existing=True,
+            misfire_grace_time=3600,  # fire up to 1h late if process was down
+        )
+        scheduler.start()
+
+        import atexit
+        atexit.register(scheduler.shutdown)
+
+    except ImportError:
+        pass  # APScheduler not installed — scheduler silently disabled
+    except Exception:
+        pass  # Already running or other issue — fail silently
+
+
+# Start scheduler on module load
+_start_scheduler()
 
 # ─────────────────────────────────────────────────────────────
 # CCU SNAPSHOT PERSISTENCE
@@ -2521,6 +2756,14 @@ else:
                         )
                         st.session_state.ai_report = _r2.content[0].text
                         st.session_state.report_cache[_ck] = st.session_state.ai_report
+                        _ag = st.session_state.get("roster_genre", "FPS")
+                        if should_auto_archive(_ag):
+                            _af = save_report_to_archive(
+                                st.session_state.ai_report,
+                                st.session_state.report_label,
+                                _ag, ccu_data)
+                            if _af:
+                                st.toast(f"📋 Auto-archived: {_af}", icon="✅")
                     except Exception as _e2:
                         st.error(f"Analysis failed: {_e2}")
         if st.session_state.ai_report:
@@ -2528,7 +2771,7 @@ else:
             st.markdown("<br>", unsafe_allow_html=True)
             _fn2 = re.sub(r"[^a-z0-9]+", "_", st.session_state.report_label.lower())[:40]
             fname2 = f"sega_shooter_intel_{_fn2}"
-            _da1, _da2, _da3, _da4, _da5 = st.columns(5)
+            _da1, _da2, _da3, _da4, _da5, _da6 = st.columns(6)
             with _da1:
                 st.download_button(T("dl_md"), data=st.session_state.ai_report,
                     file_name=f"{fname2}.md", mime="text/markdown",
@@ -2567,6 +2810,14 @@ else:
                     st.session_state.ai_report = ""
                     st.session_state.report_cache = {}
                     st.rerun()
+            with _da6:
+                if st.button("🗄 Archive", key="archive_btn", use_container_width=True):
+                    _ag2 = st.session_state.get("roster_genre", "FPS")
+                    _af2 = save_report_to_archive(
+                        st.session_state.ai_report,
+                        st.session_state.report_label,
+                        _ag2, ccu_data)
+                    st.toast(f"Saved: {_af2}" if _af2 else "Archive failed", icon="✅" if _af2 else "⚠️")
 
             # Follow-up chat
             st.markdown("<br>", unsafe_allow_html=True)
@@ -2673,27 +2924,6 @@ else:
         <div class="metric-value" style="color:{wow_color}">{wow_up}↑ / {wow_down}↓</div>
         <div class="metric-sub">of {n_wow} titles with CSV data</div>
         </div>""", unsafe_allow_html=True)
-        with st.expander("See titles"):
-            if _wow_up_names or _wow_down_names:
-                _html_parts = []
-                if _wow_up_names:
-                    _html_parts.append("<p style='margin:4px 0;line-height:2;font-family:Poppins,sans-serif;'>" + " ".join(
-                        f"<span style='color:#20c65a;font-weight:600;margin-right:6px;white-space:nowrap'>&#9650; {n}</span>"
-                        for n in _wow_up_names) + "</p>")
-                if _wow_down_names:
-                    _html_parts.append("<p style='margin:4px 0;line-height:2;font-family:Poppins,sans-serif;'>" + " ".join(
-                        f"<span style='color:#ff4d4d;font-weight:600;margin-right:6px;white-space:nowrap'>&#9660; {n}</span>"
-                        for n in _wow_down_names) + "</p>")
-                _joined = "".join(_html_parts)
-                _full_html = (
-                    "<!DOCTYPE html><html><head><style>"
-                    "body{margin:0;padding:4px 0;background:#0a0c1a;color:#eef0fa;font-family:Poppins,sans-serif;}"
-                    "p{margin:4px 0;}"
-                    f"</style></head><body>{_joined}</body></html>"
-                )
-                _n_lines = (1 if _wow_up_names else 0) + (1 if _wow_down_names else 0)
-                _est_h = max(len(_wow_up_names) + len(_wow_down_names), 1) * 28 + _n_lines * 8 + 16
-                _st_components.html(_full_html, height=min(_est_h, 500), scrolling=False)
     with k3:
         mom_color = "var(--pos)" if mom_up >= mom_down else "var(--neg)"
         st.markdown(f"""<div class="metric-card amber-top">
@@ -2701,27 +2931,6 @@ else:
         <div class="metric-value" style="color:{mom_color}">{mom_up}↑ / {mom_down}↓</div>
         <div class="metric-sub">of {mom_total} titles with CSV data</div>
         </div>""", unsafe_allow_html=True)
-        with st.expander("See titles"):
-            if _mom_up_names or _mom_down_names:
-                _html_parts = []
-                if _mom_up_names:
-                    _html_parts.append("<p style='margin:4px 0;line-height:2;font-family:Poppins,sans-serif;'>" + " ".join(
-                        f"<span style='color:#20c65a;font-weight:600;margin-right:6px;white-space:nowrap'>&#9650; {n}</span>"
-                        for n in _mom_up_names) + "</p>")
-                if _mom_down_names:
-                    _html_parts.append("<p style='margin:4px 0;line-height:2;font-family:Poppins,sans-serif;'>" + " ".join(
-                        f"<span style='color:#ff4d4d;font-weight:600;margin-right:6px;white-space:nowrap'>&#9660; {n}</span>"
-                        for n in _mom_down_names) + "</p>")
-                _joined = "".join(_html_parts)
-                _full_html = (
-                    "<!DOCTYPE html><html><head><style>"
-                    "body{margin:0;padding:4px 0;background:#0a0c1a;color:#eef0fa;font-family:Poppins,sans-serif;}"
-                    "p{margin:4px 0;}"
-                    f"</style></head><body>{_joined}</body></html>"
-                )
-                _n_lines = (1 if _mom_up_names else 0) + (1 if _mom_down_names else 0)
-                _est_h = max(len(_mom_up_names) + len(_mom_down_names), 1) * 28 + _n_lines * 8 + 16
-                _st_components.html(_full_html, height=min(_est_h, 500), scrolling=False)
     with k4:
         yoy_color = "var(--pos)" if growing >= declining else "var(--neg)"
         st.markdown(f"""<div class="metric-card purple-top">
@@ -2729,27 +2938,6 @@ else:
         <div class="metric-value" style="color:{yoy_color}">{growing}↑ / {declining}↓</div>
         <div class="metric-sub">of {len(yoy_titled)} titles with YoY data</div>
         </div>""", unsafe_allow_html=True)
-        with st.expander("See titles"):
-            if _yoy_up_names or _yoy_down_names:
-                _html_parts = []
-                if _yoy_up_names:
-                    _html_parts.append("<p style='margin:4px 0;line-height:2;font-family:Poppins,sans-serif;'>" + " ".join(
-                        f"<span style='color:#20c65a;font-weight:600;margin-right:6px;white-space:nowrap'>&#9650; {n}</span>"
-                        for n in _yoy_up_names) + "</p>")
-                if _yoy_down_names:
-                    _html_parts.append("<p style='margin:4px 0;line-height:2;font-family:Poppins,sans-serif;'>" + " ".join(
-                        f"<span style='color:#ff4d4d;font-weight:600;margin-right:6px;white-space:nowrap'>&#9660; {n}</span>"
-                        for n in _yoy_down_names) + "</p>")
-                _joined = "".join(_html_parts)
-                _full_html = (
-                    "<!DOCTYPE html><html><head><style>"
-                    "body{margin:0;padding:4px 0;background:#0a0c1a;color:#eef0fa;font-family:Poppins,sans-serif;}"
-                    "p{margin:4px 0;}"
-                    f"</style></head><body>{_joined}</body></html>"
-                )
-                _n_lines = (1 if _yoy_up_names else 0) + (1 if _yoy_down_names else 0)
-                _est_h = max(len(_yoy_up_names) + len(_yoy_down_names), 1) * 28 + _n_lines * 8 + 16
-                _st_components.html(_full_html, height=min(_est_h, 500), scrolling=False)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -2800,10 +2988,12 @@ else:
                 if d:
                     wow_rows.append({
                         "Title":          r["name"],
+                        "Year":           str(r.get("year", "—")),
                         "Live CCU":       f"{d['curr_ccu']:,}",
                         "7 Days Ago":     f"{d['prev_ccu']:,}",
                         "Change (CCU)":   d["delta"],
                         "Weekly Change":  round(d["delta_pct"]),
+                        "Steam Page":     f'<a href="https://store.steampowered.com/app/{r["app_id"]}/" target="_blank" style="color:#4080ff">↗ Store</a>',
                     })
             if wow_rows:
                 wow_rows_sorted = sorted(wow_rows, key=lambda x: x["Weekly Change"], reverse=True)
@@ -2811,7 +3001,7 @@ else:
                     r2["Change (CCU)"] = f"+{r2['Change (CCU)']:,}" if r2["Change (CCU)"] > 0 else f"{r2['Change (CCU)']:,}"
                     r2["Weekly Change"] = f"+{r2['Weekly Change']}%" if r2["Weekly Change"] > 0 else f"{r2['Weekly Change']}%"
                 render_table(wow_rows_sorted,
-                    ["Title", "Live CCU", "7 Days Ago", "Change (CCU)", "Weekly Change"])
+                    ["Title", "Year", "Live CCU", "7 Days Ago", "Change (CCU)", "Weekly Change", "Steam Page"])
         else:
             st.info(T("wow_none"))
 
@@ -2878,6 +3068,13 @@ else:
                     ["Title", "Live CCU", "1 Year Ago", "Annual Change"])
         else:
             st.info(T("yoy_none"))
+
+    st.caption(
+        "**WoW%** = (Live CCU − CCU 7 days ago) ÷ CCU 7 days ago × 100  |  "
+        "**MoM%** = (Last month avg − Prior month avg) ÷ Prior month avg × 100  |  "
+        "**YoY%** = (Current month avg − Same month last year avg) ÷ Same month last year avg × 100  |  "
+        "Source: SteamDB CSV data · WoW falls back to latest CSV row if no 7-day snapshot exists"
+    )
 
     #  Sub-genre heatmap 
     with st.expander(T("heatmap_expander")):
@@ -3291,6 +3488,151 @@ if st.session_state.get("ai_report") and st.session_state.get("claude_key"):
         st.session_state.ai_chat_history.append({"role": "user", "content": _user_msg})
         st.session_state.ai_chat_pending = True
         st.rerun()
+
+# 
+# MONTHLY ANALYSIS
+# 
+
+if st.session_state.get("ccu_data"):
+    st.markdown("""
+<div class="section-header">
+  <span class="dot"></span>MONTHLY ANALYSIS
+</div>
+""", unsafe_allow_html=True)
+
+    _all_archives = list_archived_reports()
+
+    if not _all_archives:
+        st.info("No archived reports yet. Reports are auto-archived every Monday, or use the Archive button above to save the current report.")
+    else:
+        # Build month selector — group archives by YYYY-MM
+        from collections import defaultdict as _dd
+        _by_month: dict[str, list[dict]] = _dd(list)
+        for _ar in _all_archives:
+            _month_key = _ar["date"][:7]   # "2026-03"
+            _by_month[_month_key].append(_ar)
+        _month_keys = sorted(_by_month.keys(), reverse=True)
+
+        st.caption(f"{len(_all_archives)} archived reports across {len(_month_keys)} month(s) · stored in /data/report_archive/")
+
+        with st.expander("📅 Monthly Comparison — compare weekly reports & run accuracy check", expanded=False):
+            _sel_month = st.selectbox(
+                "Select month to analyse",
+                options=_month_keys,
+                format_func=lambda m: datetime.strptime(m, "%Y-%m").strftime("%B %Y"),
+                key="monthly_sel_month",
+            )
+
+            _month_reports = _by_month[_sel_month]
+            st.markdown(f"**{len(_month_reports)} report(s)** archived for {datetime.strptime(_sel_month, '%Y-%m').strftime('%B %Y')}:")
+
+            # Show report cards
+            _report_cols = st.columns(min(len(_month_reports), 4))
+            for _ci, _rep in enumerate(_month_reports):
+                with _report_cols[_ci % 4]:
+                    _genre_badge = _rep.get("genre", "?")
+                    _n_titles = len(_rep.get("ccu_snapshot", []))
+                    st.markdown(f"""<div class="metric-card blue-top" style="padding:.8rem 1rem;">
+                    <div class="metric-label">{_rep['date']}</div>
+                    <div style="font-size:.85rem;font-weight:600;color:var(--text)">{_genre_badge}</div>
+                    <div class="metric-sub">{_n_titles} titles</div>
+                    </div>""", unsafe_allow_html=True)
+
+            st.markdown("---")
+
+            # CCU drift table — compare first vs last report of the month
+            if len(_month_reports) >= 2:
+                _sorted_month = sorted(_month_reports, key=lambda x: x["date"])
+                _first = _sorted_month[0]
+                _last  = _sorted_month[-1]
+
+                _first_snap = {r["app_id"]: r["ccu"] for r in _first.get("ccu_snapshot", [])}
+                _last_snap  = {r["app_id"]: r["ccu"] for r in _last.get("ccu_snapshot",  [])}
+                _names       = {r["app_id"]: r["name"] for r in _last.get("ccu_snapshot", [])}
+
+                # Build lookup for WoW from last snapshot
+                _last_wow  = {r["app_id"]: r.get("wow", "N/A") for r in _last.get("ccu_snapshot", [])}
+
+                _drift_rows = []
+                for _aid, _ccu_end in _last_snap.items():
+                    _ccu_start = _first_snap.get(_aid)
+                    if _ccu_start and _ccu_start > 0:
+                        _drift_pct = round((_ccu_end - _ccu_start) / _ccu_start * 100)
+                        _sign = "+" if _drift_pct >= 0 else ""
+                        _drift_rows.append({
+                            "Title":           _names.get(_aid, str(_aid)),
+                            f"CCU {_first['date']}": f"{_ccu_start:,}",
+                            f"CCU {_last['date']}":  f"{_ccu_end:,}",
+                            "Monthly Drift":   f"{_sign}{_drift_pct}%",
+                            "Latest WoW":      _last_wow.get(_aid, "N/A"),
+                        })
+                _drift_rows.sort(key=lambda x: int(x["Monthly Drift"].replace("%","").replace("+","")), reverse=True)
+
+                st.markdown(f"**Month-long CCU drift** ({_first['date']} → {_last['date']}):")
+                render_table(_drift_rows, ["Title", f"CCU {_first['date']}", f"CCU {_last['date']}", "Monthly Drift", "Latest WoW"])
+            elif len(_month_reports) == 1:
+                st.info("Only 1 report this month — need at least 2 to show drift. More will accumulate each Monday.")
+
+            st.markdown("---")
+
+            # AI monthly comparison
+            st.markdown("**AI Accuracy & Trend Check**")
+            st.caption("Claude compares the weekly archived reports for this month and flags any divergence from the month-long drift.")
+
+            if not st.session_state.get("claude_key"):
+                st.warning("Enter your Claude API key in the sidebar to run the monthly analysis.")
+            else:
+                if st.button("Run Monthly Analysis", key="run_monthly_btn"):
+                    _month_prompts = []
+                    for _rep in sorted(_month_reports, key=lambda x: x["date"]):
+                        _snap_lines = "  ".join(
+                            f"{r['name']}: {r['ccu']:,} CCU | WoW {r.get('wow','N/A')} | MoM {r.get('mom','—')} | YoY {r.get('yoy','N/A')}"
+                            for r in _rep.get("ccu_snapshot", [])
+                        )
+                        _excerpt = _rep.get('report_md','')[:1500]
+                        _genre_label = _rep.get('genre','?')
+                        _week_date = _rep['date']
+                        _month_prompts.append(
+                            f"=== WEEK OF {_week_date} ({_genre_label}) ===\n"
+                            f"{_snap_lines}\n\nREPORT EXCERPT:\n{_excerpt}"
+                        )
+
+                    _monthly_prompt = f"""You are reviewing {len(_month_reports)} weekly shooter market intelligence reports from {_sel_month}.
+
+{chr(10).join(_month_prompts)}
+
+Produce a MONTHLY ACCURACY & TREND REPORT covering:
+1. TREND CONSISTENCY — do the weekly CCU numbers tell a coherent story across the month? Flag any titles where the reported trend reversed unexpectedly.
+2. NOTABLE MOVES — which titles showed the largest sustained gains or losses across the full month?
+3. ACCURACY CHECK — compare the narrative in each week's report against the raw CCU numbers. Flag any cases where the commentary overstated or understated a move.
+4. MONTH SUMMARY — one paragraph summarising the overall market direction for {datetime.strptime(_sel_month, "%Y-%m").strftime("%B %Y")}.
+
+Be specific and data-driven. Use the CCU numbers directly."""
+
+                    try:
+                        import anthropic as _anth_m
+                        _mc = _anth_m.Anthropic(api_key=st.session_state.claude_key)
+                        with st.spinner("Running monthly analysis…"):
+                            _mr = _mc.messages.create(
+                                model="claude-sonnet-4-20250514",
+                                max_tokens=2000,
+                                messages=[{"role": "user", "content": _monthly_prompt}],
+                            )
+                        _monthly_report = _mr.content[0].text
+                        st.session_state[f"monthly_report_{_sel_month}"] = _monthly_report
+                    except Exception as _me:
+                        st.error(f"Monthly analysis failed: {_me}")
+
+                if st.session_state.get(f"monthly_report_{_sel_month}"):
+                    st.markdown("---")
+                    st.markdown(st.session_state[f"monthly_report_{_sel_month}"])
+                    # Download
+                    _mfn = f"sega_monthly_{_sel_month}.md"
+                    st.download_button("⬇ Download Monthly Report (.md)",
+                        data=st.session_state[f"monthly_report_{_sel_month}"],
+                        file_name=_mfn, mime="text/markdown",
+                        key="dl_monthly_md")
+
 
 # 
 # FOOTER

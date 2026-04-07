@@ -38,3 +38,4 @@ boto3
 streamlit-cookies-controller
 beautifulsoup4
 playwright
+apscheduler>=3.10
