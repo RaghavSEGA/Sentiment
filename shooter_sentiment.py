@@ -1218,6 +1218,76 @@ def data_hash(ccu_data: list[dict]) -> str:
     return hashlib.md5(payload.encode()).hexdigest()[:12]
 
 # ─────────────────────────────────────────────────────────────
+# DAILY CACHE  (persists ccu_data + ai_report across refreshes)
+# Stored at /data/daily_cache.json. Re-fetched once per 24h or
+# when roster/genre changes. Force-refresh via sidebar button.
+# ─────────────────────────────────────────────────────────────
+
+CACHE_TTL_HOURS = 24
+
+def _cache_path() -> Path:
+    base = DATA_DIR if DATA_DIR and DATA_DIR.exists() else Path(__file__).parent
+    return base / "daily_cache.json"
+
+def load_daily_cache(genre: str, roster_ids: list[int]) -> dict | None:
+    """Load cache if < CACHE_TTL_HOURS old and roster/genre match."""
+    try:
+        p = _cache_path()
+        if not p.exists():
+            return None
+        with open(p) as f:
+            cache = json.load(f)
+        cached_at = datetime.fromisoformat(cache.get("cached_at", "2000-01-01"))
+        age_hours = (datetime.utcnow() - cached_at).total_seconds() / 3600
+        if age_hours > CACHE_TTL_HOURS:
+            return None
+        if cache.get("genre") != genre:
+            return None
+        if sorted(cache.get("roster_ids", [])) != sorted(roster_ids):
+            return None
+        return cache
+    except Exception:
+        return None
+
+def save_daily_cache(genre: str, roster_ids: list[int],
+                     ccu_data: list[dict], ai_report: str,
+                     report_label: str = "") -> None:
+    """Persist fetch results to disk so next page load skips re-fetching."""
+    try:
+        payload = {
+            "cached_at":    datetime.utcnow().isoformat(),
+            "genre":        genre,
+            "roster_ids":   roster_ids,
+            "ccu_data":     ccu_data,
+            "ai_report":    ai_report,
+            "report_label": report_label,
+        }
+        with open(_cache_path(), "w") as f:
+            json.dump(payload, f)
+    except Exception:
+        pass
+
+def cache_age_str() -> str:
+    """Human-readable string for how old the current cache is."""
+    try:
+        p = _cache_path()
+        if not p.exists():
+            return ""
+        with open(p) as f:
+            cached_at = datetime.fromisoformat(json.load(f).get("cached_at", ""))
+        delta = datetime.utcnow() - cached_at
+        mins  = int(delta.total_seconds() // 60)
+        if mins < 60:
+            return f"{mins}m ago"
+        hours = mins // 60
+        if hours < 24:
+            return f"{hours}h {mins % 60}m ago"
+        return f"{delta.days}d ago"
+    except Exception:
+        return ""
+
+
+# ─────────────────────────────────────────────────────────────
 # BACKGROUND SCHEDULER  (Monday 09:00 UTC auto-archive)
 # Uses APScheduler BackgroundScheduler so it fires even when no
 # user is actively on the page — as long as the Streamlit process
