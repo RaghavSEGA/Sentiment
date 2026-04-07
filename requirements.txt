@@ -35,6 +35,6 @@ openpyxl
 python-docx
 
 boto3
-extra-streamlit-components
+streamlit-cookies-controller
 beautifulsoup4
 playwright

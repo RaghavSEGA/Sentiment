@@ -3,7 +3,7 @@ Document Comparator — SEGA-branded Streamlit App
 =================================================
 Run with:  streamlit run doc_compare.py
 
-Required:  pip install streamlit anthropic python-docx openpyxl pymupdf boto3 extra-streamlit-components
+Required:  pip install streamlit anthropic python-docx openpyxl pymupdf boto3 streamlit-cookies-controller python-pptx
 """
 
 import io
@@ -323,7 +323,7 @@ except ImportError:
 def extract_text(uploaded_file) -> tuple[str, str]:
     """
     Returns (text_content, file_type) from an uploaded Streamlit file.
-    file_type is one of: 'pdf', 'docx', 'xlsx', 'unknown'
+    file_type is one of: 'pdf', 'docx', 'xlsx', 'csv', 'pptx', 'unknown'
     """
     name = uploaded_file.name.lower()
     raw  = uploaded_file.read()
@@ -366,6 +366,48 @@ def extract_text(uploaded_file) -> tuple[str, str]:
             return "\n".join(lines).strip() or "[XLSX contained no extractable text]", "xlsx"
         except Exception as e:
             return f"[XLSX extraction error: {e}]", "xlsx"
+
+    elif name.endswith(".csv"):
+        try:
+            import csv as _csv
+            text_raw = raw.decode("utf-8-sig", errors="replace")
+            reader   = _csv.reader(io.StringIO(text_raw))
+            rows     = list(reader)
+            if not rows:
+                return "[CSV contained no data]", "csv"
+            lines = []
+            headers = rows[0]
+            for ri, row in enumerate(rows):
+                # Label each cell as Row,Col so Claude can cite exact locations
+                for ci, val in enumerate(row):
+                    if val.strip():
+                        col_label = headers[ci] if ri > 0 and ci < len(headers) else f"Col{ci+1}"
+                        lines.append(f"Row{ri+1},{col_label}: {val}")
+            return "\n".join(lines).strip() or "[CSV contained no extractable text]", "csv"
+        except Exception as e:
+            return f"[CSV extraction error: {e}]", "csv"
+
+    elif name.endswith((".pptx", ".ppt")):
+        try:
+            from pptx import Presentation as _Presentation
+            prs   = _Presentation(io.BytesIO(raw))
+            lines = []
+            for si, slide in enumerate(prs.slides, start=1):
+                slide_texts = []
+                for shape in slide.shapes:
+                    if shape.has_text_frame:
+                        for para in shape.text_frame.paragraphs:
+                            text = para.text.strip()
+                            if text:
+                                slide_texts.append(text)
+                if slide_texts:
+                    lines.append(f"[Slide {si}]")
+                    lines.extend(slide_texts)
+            return "\n".join(lines).strip() or "[PPTX contained no extractable text]", "pptx"
+        except ImportError:
+            return "[ERROR: python-pptx not installed — run: pip install python-pptx]", "pptx"
+        except Exception as e:
+            return f"[PPTX extraction error: {e}]", "pptx"
 
     else:
         return "[Unsupported file type]", "unknown"
@@ -491,8 +533,8 @@ def _verify_cookie(token: str) -> str | None:
 
 # ── Check for existing valid cookie ──────────────────────────
 try:
-    import extra_streamlit_components as stx
-    _cookie_manager = stx.CookieManager(key="auth_cookies")
+    from streamlit_cookies_controller import CookieController
+    _cookie_manager = CookieController(key="auth_cookie_ctrl")
     _existing_cookie = _cookie_manager.get(COOKIE_NAME)
 except Exception:
     _cookie_manager = None
@@ -599,11 +641,7 @@ if not st.session_state.auth_verified:
                     # Set persistent cookie
                     if _cookie_manager:
                         _token = _sign_cookie(st.session_state.auth_email)
-                        _cookie_manager.set(
-                            COOKIE_NAME, _token,
-                            expires_at=None,  # session-managed expiry via signature
-                            key="set_auth_cookie"
-                        )
+                        _cookie_manager.set(COOKIE_NAME, _token)
                     st.rerun()
 
             _resend_col, _ = st.columns([1, 1])
@@ -635,7 +673,7 @@ with st.sidebar:
     )
     if st.button("Sign out", key="sign_out_btn"):
         if _cookie_manager:
-            _cookie_manager.delete(COOKIE_NAME, key="delete_auth_cookie")
+            _cookie_manager.remove(COOKIE_NAME)
         for _k in ["auth_verified", "auth_email", "otp_sent", "otp_code",
                    "otp_email", "otp_expiry", "otp_attempts"]:
             st.session_state[_k] = False if _k == "auth_verified" else ""
@@ -708,7 +746,7 @@ with col_a:
     st.markdown('<div class="field-label">Document A</div>', unsafe_allow_html=True)
     file_a = st.file_uploader(
         "doc_a", label_visibility="collapsed",
-        type=["pdf", "docx", "xlsx", "xlsm"],
+        type=["pdf", "docx", "xlsx", "xlsm", "csv", "pptx"],
     )
     if file_a:
         ext_a = file_a.name.rsplit(".", 1)[-1].upper()
@@ -724,7 +762,7 @@ with col_b:
     st.markdown('<div class="field-label">Document B</div>', unsafe_allow_html=True)
     file_b = st.file_uploader(
         "doc_b", label_visibility="collapsed",
-        type=["pdf", "docx", "xlsx", "xlsm"],
+        type=["pdf", "docx", "xlsx", "xlsm", "csv", "pptx"],
     )
     if file_b:
         ext_b = file_b.name.rsplit(".", 1)[-1].upper()
@@ -901,7 +939,11 @@ Provide a thorough, structured analysis addressing the user's stated focus. Use 
 
     _xlsx_rule = ""
     if type_a == "xlsx" or type_b == "xlsx":
-        _xlsx_rule = "\n- EXCEL FILES: For every difference found in a spreadsheet, state the exact sheet name and cell reference (e.g. Sheet1!B4, Financial Model!C12). Do not describe a change without citing its precise location."
+        _xlsx_rule += "\n- EXCEL FILES: For every difference found in a spreadsheet, state the exact sheet name and cell reference (e.g. Sheet1!B4, Financial Model!C12). Do not describe a change without citing its precise location."
+    if type_a == "csv" or type_b == "csv":
+        _xlsx_rule += "\n- CSV FILES: For every difference found, cite the exact row number and column header (e.g. Row12,Revenue or Row3,Date). Do not describe a change without citing its precise location."
+    if type_a == "pptx" or type_b == "pptx":
+        _xlsx_rule += "\n- POWERPOINT FILES: Compare text content only — slide titles, body text, and speaker notes. Cite the slide number for every difference (e.g. Slide 4). Ignore all styling, formatting, colours, fonts, and layout differences entirely."
 
     prompt = f"""You are a senior document analyst. You will compare two documents in depth.
 
