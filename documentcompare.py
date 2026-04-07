@@ -977,7 +977,7 @@ HARD RULES:
     aws_region       = st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
 )
         with client.messages.stream(
-            model = "bedrock/us.anthropic.claude-sonnet-4-6",
+            model = "us.anthropic.claude-sonnet-4-6",
             max_tokens=4096,
             system=(
                 "You are a senior document analyst. "
