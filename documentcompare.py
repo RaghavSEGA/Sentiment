@@ -971,7 +971,11 @@ HARD RULES:
     full_text = ""
 
     try:
-        client = _anthropic.Anthropic(api_key=claude_key)
+        client = _anthropic.AnthropicBedrock(
+    aws_access_key   = st.secrets.get("AWS_ACCESS_KEY_ID_API", ""),
+    aws_secret_key   = st.secrets.get("AWS_SECRET_ACCESS_KEY_API", ""),
+    aws_region       = st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
+)
         with client.messages.stream(
             model=model,
             max_tokens=4096,
