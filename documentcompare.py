@@ -3,7 +3,7 @@ Document Comparator — SEGA-branded Streamlit App
 =================================================
 Run with:  streamlit run doc_compare.py
 
-Required:  pip install streamlit anthropic python-docx openpyxl pymupdf boto3 streamlit-cookies-controller python-pptx
+Required:  pip install streamlit anthropic python-docx openpyxl pymupdf boto3 python-pptx
 """
 
 import io
@@ -507,21 +507,22 @@ def _send_otp(email: str, code: str) -> bool:
         st.error(f"Failed to send email: {e}")
         return False
 
-def _sign_cookie(email: str) -> str:
-    """Create an HMAC-signed token: email|expiry|signature."""
-    secret = st.secrets.get("COOKIE_SIGNING_KEY", "fallback-change-this")
-    expiry = int(time.time()) + (COOKIE_EXPIRY_DAYS * 86400)
+# ── Token helpers (replaces cookie library) ───────────────────
+def _make_token(email: str) -> str:
+    """Create a signed URL token: base64(email|expiry|hmac)."""
+    secret  = st.secrets.get("COOKIE_SIGNING_KEY", "fallback-change-this")
+    expiry  = int(time.time()) + (COOKIE_EXPIRY_DAYS * 86400)
     payload = f"{email}|{expiry}"
-    sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    sig     = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
     return base64.urlsafe_b64encode(f"{payload}|{sig}".encode()).decode()
 
-def _verify_cookie(token: str) -> str | None:
-    """Verify signed cookie. Returns email if valid, None otherwise."""
+def _verify_token(token: str) -> str | None:
+    """Verify token. Returns email if valid, None otherwise."""
     try:
-        secret = st.secrets.get("COOKIE_SIGNING_KEY", "fallback-change-this")
-        decoded = base64.urlsafe_b64decode(token.encode()).decode()
+        secret   = st.secrets.get("COOKIE_SIGNING_KEY", "fallback-change-this")
+        decoded  = base64.urlsafe_b64decode(token.encode()).decode()
         email, expiry_str, sig = decoded.rsplit("|", 2)
-        payload = f"{email}|{expiry_str}"
+        payload  = f"{email}|{expiry_str}"
         expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(sig, expected):
             return None
@@ -531,21 +532,15 @@ def _verify_cookie(token: str) -> str | None:
     except Exception:
         return None
 
-# ── Check for existing valid cookie ──────────────────────────
-try:
-    from streamlit_cookies_controller import CookieController
-    _cookie_manager = CookieController(key="auth_cookie_ctrl")
-    _existing_cookie = _cookie_manager.get(COOKIE_NAME)
-except Exception:
-    _cookie_manager = None
-    _existing_cookie = None
-
-_cookie_email = _verify_cookie(_existing_cookie) if _existing_cookie else None
+# ── Read token from URL query param ──────────────────────────
+_url_token   = st.query_params.get("t", "")
+_token_email = _verify_token(_url_token) if _url_token else None
 
 # ── Auth state init ───────────────────────────────────────────
 for _k, _v in [
     ("auth_verified",   False),
     ("auth_email",      ""),
+    ("auth_token",      ""),
     ("otp_code",        ""),
     ("otp_email",       ""),
     ("otp_expiry",      0),
@@ -555,10 +550,11 @@ for _k, _v in [
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
-# If valid cookie found, mark as verified
-if _cookie_email and not st.session_state.auth_verified:
+# If valid token in URL, mark as verified
+if _token_email and not st.session_state.auth_verified:
     st.session_state.auth_verified = True
-    st.session_state.auth_email    = _cookie_email
+    st.session_state.auth_email    = _token_email
+    st.session_state.auth_token    = _url_token
 
 # ── Render login gate if not verified ────────────────────────
 if not st.session_state.auth_verified:
@@ -634,14 +630,13 @@ if not st.session_state.auth_verified:
                     _remaining = 5 - st.session_state.otp_attempts
                     st.error(f"Incorrect code. {_remaining} attempt{'s' if _remaining != 1 else ''} remaining.")
                 else:
-                    # Success
+                    # Success — generate token and inject into URL
                     st.session_state.auth_verified = True
                     st.session_state.auth_email    = st.session_state.otp_email
-                    st.session_state.otp_code      = ""  # clear code from state
-                    # Set persistent cookie
-                    if _cookie_manager:
-                        _token = _sign_cookie(st.session_state.auth_email)
-                        _cookie_manager.set(COOKIE_NAME, _token)
+                    st.session_state.otp_code      = ""
+                    _token = _make_token(st.session_state.auth_email)
+                    st.session_state.auth_token    = _token
+                    st.query_params["t"] = _token
                     st.rerun()
 
             _resend_col, _ = st.columns([1, 1])
@@ -672,10 +667,9 @@ with st.sidebar:
         unsafe_allow_html=True
     )
     if st.button("Sign out", key="sign_out_btn"):
-        if _cookie_manager:
-            _cookie_manager.remove(COOKIE_NAME)
-        for _k in ["auth_verified", "auth_email", "otp_sent", "otp_code",
-                   "otp_email", "otp_expiry", "otp_attempts"]:
+        st.query_params.clear()
+        for _k in ["auth_verified", "auth_email", "auth_token", "otp_sent",
+                   "otp_code", "otp_email", "otp_expiry", "otp_attempts"]:
             st.session_state[_k] = False if _k == "auth_verified" else ""
         st.rerun()
 
