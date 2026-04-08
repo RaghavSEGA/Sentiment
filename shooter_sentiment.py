@@ -1380,9 +1380,13 @@ def _run_monday_archive() -> None:
         )
 
         import anthropic as _anth_sched
-        client = _anth_sched.Anthropic(api_key=api_key)
+        client = _anthropic.AnthropicBedrock(
+    aws_access_key   = st.secrets.get("AWS_ACCESS_KEY_ID_API", ""),
+    aws_secret_key   = st.secrets.get("AWS_SECRET_ACCESS_KEY_API", ""),
+    aws_region       = st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
+)
         resp   = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="us.anthropic.claude-sonnet-4-6",
             max_tokens=2000,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -2968,12 +2972,16 @@ else:
                 api_msgs = [{"role": m["role"], "content": m["content"]}
                             for m in st.session_state.ai_chat_history]
                 try:
-                    _cc = _anthropic.Anthropic(api_key=st.session_state.claude_key)
+                    _cc = _anthropic.AnthropicBedrock(
+    aws_access_key   = st.secrets.get("AWS_ACCESS_KEY_ID_API", ""),
+    aws_secret_key   = st.secrets.get("AWS_SECRET_ACCESS_KEY_API", ""),
+    aws_region       = st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
+)
                     with st.chat_message("assistant"):
                         _reply = ""
                         _ph_chat = st.empty()
                         with _cc.messages.stream(
-                            model="claude-sonnet-4-20250514",
+                            model="us.anthropic.claude-sonnet-4-6",
                             max_tokens=2048,
                             system=build_chat_system_top(),
                             messages=api_msgs,
