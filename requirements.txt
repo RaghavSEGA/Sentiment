@@ -39,4 +39,3 @@ streamlit-cookies-controller
 beautifulsoup4
 playwright
 apscheduler>=3.10
-psycopg2
