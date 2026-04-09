@@ -161,31 +161,34 @@ div[data-baseweb="tab-border"]{background:var(--border)!important;}
 .auth-sub{font-size:0.8rem;color:var(--muted)!important;margin-bottom:1.5rem;}
 .auth-note{font-size:0.72rem;color:var(--muted)!important;margin-top:1rem;text-align:center;line-height:1.5;}
 
-/* HIDE SIDEBAR COMPLETELY */
+/* HIDE SIDEBAR */
 [data-testid="stSidebar"]{display:none!important;}
 [data-testid="collapsedControl"]{display:none!important;}
 .block-container{padding-left:2.5rem!important;padding-right:2.5rem!important;}
 
-/* TOPBAR USER PILL */
+/* TOPBAR USER */
 .topbar-user{display:flex;align-items:center;gap:0.6rem;margin-left:auto;}
-.topbar-user-email{font-size:0.65rem;color:var(--text-dim)!important;font-weight:500;letter-spacing:0.02em;}
-.topbar-signout{font-family:'Inter Tight',sans-serif;font-size:0.6rem;font-weight:800;letter-spacing:0.14em;
-    text-transform:uppercase;color:var(--muted)!important;background:transparent;border:1px solid var(--border-hi);
-    border-radius:4px;padding:0.2rem 0.55rem;cursor:pointer;transition:all 0.15s;}
-.topbar-signout:hover{color:var(--blue)!important;border-color:var(--blue);}
+.topbar-user-email{font-size:0.65rem;color:var(--text-dim)!important;font-weight:500;}
 
-/* UPLOAD PANEL */
-.upload-panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;
-    padding:1.25rem 1.5rem;margin-bottom:1.25rem;}
-.upload-panel-title{font-family:'Inter Tight',sans-serif;font-size:0.65rem;font-weight:800;
-    letter-spacing:0.2em;text-transform:uppercase;color:var(--muted)!important;margin-bottom:0.75rem;}
-
-/* LOADED FILE BADGE */
+/* FILE BADGE */
 .file-badge{display:inline-flex;align-items:center;gap:0.4rem;background:var(--surface2);
     border:1px solid var(--border-hi);border-radius:5px;padding:0.25rem 0.65rem;
     font-size:0.72rem;color:var(--text-dim)!important;margin:0.2rem 0.2rem 0 0;}
 .file-badge .ext{font-family:'Inter Tight',sans-serif;font-weight:800;font-size:0.65rem;
     color:var(--blue)!important;letter-spacing:0.06em;}
+
+/* PROJECT PANEL */
+.proj-panel{background:var(--surface);border:1px solid var(--border);
+    border-left:3px solid var(--blue);border-radius:0 10px 10px 0;
+    padding:1.1rem 1.4rem;margin-bottom:1rem;}
+.proj-name{font-family:'Inter Tight',sans-serif;font-size:1rem;font-weight:900;
+    color:var(--text)!important;letter-spacing:-0.01em;margin-bottom:0.15rem;}
+.proj-meta{font-size:0.65rem;color:var(--muted)!important;}
+.proj-empty{background:var(--surface2);border:1px dashed var(--border-hi);border-radius:10px;
+    padding:2.5rem;text-align:center;margin-bottom:1.5rem;}
+.proj-empty-title{font-family:'Inter Tight',sans-serif;font-size:1rem;font-weight:800;
+    color:var(--border-hi)!important;margin-bottom:0.4rem;}
+.proj-empty-sub{font-size:0.8rem;color:var(--muted)!important;}
 
 /* FOOTER */
 .footer{margin-top:4rem;padding:1.5rem 0;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
@@ -215,6 +218,22 @@ try:
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
+
+# ─────────────────────────────────────────────────────────────
+# POSTGRES PROJECT STORAGE
+# ─────────────────────────────────────────────────────────────
+
+try:
+    from storage_sentiment import (
+        init_db as _init_db,
+        get_projects, project_exists, create_project,
+        rename_project, delete_project, load_project, save_project,
+    )
+    _init_db()
+    DB_AVAILABLE = True
+except Exception as _db_err:
+    DB_AVAILABLE = False
+    _db_err_msg = str(_db_err)
 
 # ─────────────────────────────────────────────────────────────
 # SECRETS
@@ -401,35 +420,80 @@ if not st.session_state.auth_verified:
     st.stop()
 
 # ─────────────────────────────────────────────────────────────
-# SIGNED-IN: topbar (rendered after auth gate, before main UI)
-# Sign-out and upload both live on the main page.
+# APP SESSION STATE  (init before any widgets)
 # ─────────────────────────────────────────────────────────────
 
-# initialise uploaded to None; will be set in the upload panel below
-uploaded = None
-
-# ─────────────────────────────────────────────────────────────
-# APP SESSION STATE
-# ─────────────────────────────────────────────────────────────
+OWNER = st.session_state.auth_email
 
 for _k, _v in [
-    ("datasets",      {}),
-    ("analysed_dfs",  {}),
-    ("chat_history",  []),
-    ("chat_pending",  False),
-    ("analysis_done", False),
+    ("datasets",        {}),
+    ("analysed_dfs",    {}),
+    ("chat_history",    []),
+    ("chat_pending",    False),
+    ("analysis_done",   False),
+    ("active_project",  ""),
+    ("col_config",      {}),
 ]:
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
-# Process uploads
-if uploaded:
-    for f in uploaded:
-        if f.name not in st.session_state.datasets:
-            st.session_state.datasets[f.name] = pd.read_excel(f)
+# ─────────────────────────────────────────────────────────────
+# PROJECT HELPERS
+# ─────────────────────────────────────────────────────────────
+
+def _load_project(name: str):
+    if not DB_AVAILABLE:
+        return
+    data = load_project(OWNER, name)
+    if not data:
+        return
+    st.session_state["active_project"] = name
+
+    # doc_names — file names belonging to this project
+    stored_names = data.get("doc_names", [])
+
+    # Keep only datasets/results that still belong to this project
+    st.session_state["datasets"] = {
+        k: v for k, v in st.session_state["datasets"].items() if k in stored_names
+    }
+
+    # Restore analysed DataFrames from results_json if not already in session
+    import pandas as pd
+    results = data.get("results_json", {})
+    for fname, rows in results.items():
+        if fname not in st.session_state["analysed_dfs"] and rows:
+            try:
+                st.session_state["analysed_dfs"][fname] = pd.DataFrame(rows)
+            except Exception:
+                pass
+
+    # Restore column/batch config choices
+    st.session_state["col_config"] = data.get("col_config", {})
+
+    # Restore chat history
+    st.session_state["chat_history"] = data.get("chat_history", [])
+
+    st.session_state["analysis_done"] = bool(st.session_state["analysed_dfs"])
+
+def _clear_project():
+    st.session_state["active_project"]  = ""
+    st.session_state["datasets"]        = {}
+    st.session_state["analysed_dfs"]    = {}
+    st.session_state["chat_history"]    = []
+    st.session_state["col_config"]      = {}
+    st.session_state["analysis_done"]   = False
+
+def _save_current_project():
+    ap = st.session_state.get("active_project", "")
+    if not ap or not DB_AVAILABLE:
+        return
+    save_project(
+        OWNER, ap,
+        doc_names=list(st.session_state.get("datasets", {}).keys()),
+    )
 
 # ─────────────────────────────────────────────────────────────
-# TOP NAV  (includes user identity + sign-out)
+# TOP NAV  (user email + sign-out, no sidebar)
 # ─────────────────────────────────────────────────────────────
 
 st.markdown(f"""
@@ -440,12 +504,11 @@ st.markdown(f"""
   <div class="topbar-pill">Claude</div>
   <div class="topbar-divider" style="margin-left:0.5rem;"></div>
   <div class="topbar-user">
-    <span class="topbar-user-email">{st.session_state.auth_email}</span>
+    <span class="topbar-user-email">{OWNER}</span>
   </div>
 </div>
 """, unsafe_allow_html=True)
 
-# Sign-out button rendered just after the topbar HTML so Streamlit can wire it up
 _so_col, _ = st.columns([1, 11])
 with _so_col:
     if st.button("Sign out", key="sign_out_btn"):
@@ -467,29 +530,178 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────
-# UPLOAD PANEL  (main page, replaces sidebar uploader)
+# PROJECT MANAGEMENT PANEL
 # ─────────────────────────────────────────────────────────────
 
-st.markdown('<div class="section-header"><span class="dot"></span>UPLOAD DATASETS</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-header"><span class="dot"></span>PROJECTS</div>', unsafe_allow_html=True)
+
+if not DB_AVAILABLE:
+    st.warning(f"⚠️ Database unavailable — projects disabled. Add `DATABASE_URL` to secrets.toml. ({_db_err_msg})")
+else:
+    # Sync URL param → session on first load
+    _qp_proj = st.query_params.get("project", "")
+    _all_proj = get_projects(OWNER)
+    _proj_names = [p["name"] for p in _all_proj]
+
+    if _qp_proj and _qp_proj in _proj_names and not st.session_state.get("active_project"):
+        _load_project(_qp_proj)
+
+    _active = st.session_state.get("active_project", "")
+
+    # ── Top row: selector + new project input ──
+    _sel_col, _new_col = st.columns([3, 2], gap="large")
+
+    with _sel_col:
+        _opts = ["— select a project —"] + _proj_names + ["＋ New project"]
+        _def  = _opts.index(_active) if _active in _opts else 0
+        _sel  = st.selectbox("Project", _opts, index=_def, label_visibility="collapsed",
+                             key="project_selector")
+
+    with _new_col:
+        if _sel == "＋ New project":
+            _nn_col, _btn_col = st.columns([3, 1], gap="small")
+            _new_name = _nn_col.text_input("Name", placeholder="e.g. Q3 Analysis",
+                                           label_visibility="collapsed", key="new_proj_name")
+            if _btn_col.button("Create", key="create_proj_btn", use_container_width=True):
+                _nn = _new_name.strip()
+                if not _nn:
+                    st.error("Enter a project name.")
+                elif project_exists(OWNER, _nn):
+                    st.error(f"'{_nn}' already exists.")
+                else:
+                    create_project(OWNER, _nn)
+                    _clear_project()
+                    _load_project(_nn)
+                    st.query_params["project"] = _nn
+                    st.rerun()
+
+    # ── Handle selector changes ──
+    if _sel == "— select a project —" and _active:
+        _clear_project()
+        st.query_params.pop("project", None)
+        st.rerun()
+    elif _sel not in ("— select a project —", "＋ New project") and _sel != _active:
+        _clear_project()
+        _load_project(_sel)
+        st.query_params["project"] = _sel
+        st.rerun()
+
+    # ── Active project actions bar ──
+    if _active and _active in _proj_names:
+        _proj_meta = next((p for p in _all_proj if p["name"] == _active), {})
+        _updated   = (_proj_meta.get("updated_at", "")[:16].replace("T", " ") + " UTC"
+                      if _proj_meta.get("updated_at") else "unsaved")
+        st.markdown(
+            f'<div class="proj-panel">'
+            f'<div class="proj-name">📁 {_active}</div>'
+            f'<div class="proj-meta">Last saved: {_updated}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        _a1, _a2, _a3, _a4 = st.columns([2, 2, 2, 4])
+        with _a1:
+            if st.button("💾 Save", key="proj_save", use_container_width=True,
+                         help="Save current state to this project"):
+                # Serialise analysed DataFrames → list of row dicts
+                _results = {
+                    fname: df.to_dict("records")
+                    for fname, df in st.session_state.get("analysed_dfs", {}).items()
+                }
+                save_project(
+                    OWNER, _active,
+                    doc_names=list(st.session_state.get("datasets", {}).keys()),
+                    col_config=st.session_state.get("col_config", {}),
+                    results_json=_results,
+                    chat_history=st.session_state.get("chat_history", []),
+                )
+                st.toast(f'Saved "{_active}"', icon="✅")
+                st.rerun()
+        with _a2:
+            if st.button("✏️ Rename", key="proj_rename_btn", use_container_width=True):
+                st.session_state["_renaming_proj"] = True
+        with _a3:
+            if st.button("🗑 Delete", key="proj_del_btn", use_container_width=True):
+                st.session_state["_confirm_del_proj"] = True
+        with _a4:
+            pass  # spacer
+
+        # Rename UI
+        if st.session_state.pop("_renaming_proj", False):
+            _rn = st.text_input("New project name", value=_active, key="_rename_proj_input")
+            _rc1, _rc2 = st.columns(2)
+            if _rc1.button("Rename", key="_rename_proj_confirm"):
+                try:
+                    rename_project(OWNER, _active, _rn.strip())
+                    _clear_project()
+                    _load_project(_rn.strip())
+                    st.query_params["project"] = _rn.strip()
+                    st.rerun()
+                except Exception as _re:
+                    st.error(str(_re))
+            if _rc2.button("Cancel", key="_rename_proj_cancel"):
+                st.rerun()
+
+        # Delete confirmation UI
+        if st.session_state.pop("_confirm_del_proj", False):
+            st.warning(f"Delete **{_active}**? This cannot be undone.")
+            _dc1, _dc2 = st.columns(2)
+            if _dc1.button("Yes, delete", type="primary", key="_del_proj_yes"):
+                delete_project(OWNER, _active)
+                _clear_project()
+                st.query_params.pop("project", None)
+                st.rerun()
+            if _dc2.button("Cancel", key="_del_proj_no"):
+                st.rerun()
+
+    elif not _active:
+        st.markdown(
+            '<div class="proj-empty">'
+            '<div class="proj-empty-title">NO PROJECT SELECTED</div>'
+            '<div class="proj-empty-sub">Select an existing project or create a new one above '
+            'to save and restore your file sets.</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+# ─────────────────────────────────────────────────────────────
+# UPLOAD PANEL  (main page — files register immediately on rerun)
+# ─────────────────────────────────────────────────────────────
+
+st.markdown('<div class="section-header"><span class="dot"></span>UPLOAD DATASETS</div>',
+            unsafe_allow_html=True)
 
 _up_col, _info_col = st.columns([3, 2], gap="large")
+
 with _up_col:
     uploaded = st.file_uploader(
         "Drop XLSX files here or click to browse",
         type=["xlsx"],
         accept_multiple_files=True,
         label_visibility="collapsed",
+        key="main_uploader",
     )
+    # ── FIX: process uploads immediately inside the same column block ──
+    if uploaded:
+        _changed = False
+        for _f in uploaded:
+            if _f.name not in st.session_state.datasets:
+                st.session_state.datasets[_f.name] = pd.read_excel(_f)
+                _changed = True
+        if _changed:
+            st.rerun()  # rerun so info_col reflects new state instantly
 
 with _info_col:
     if st.session_state.get("datasets"):
-        st.markdown('<div class="upload-panel-title">Loaded files</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.65rem;font-weight:800;letter-spacing:0.2em;'
+                    'text-transform:uppercase;color:var(--muted);">Loaded files</div>',
+                    unsafe_allow_html=True)
         badges = "".join(
-            f'<span class="file-badge"><span class="ext">XLSX</span>{fn} &nbsp;'
+            f'<span class="file-badge"><span class="ext">XLSX</span>&nbsp;{fn}&nbsp;'
             f'<span style="color:var(--muted);">({len(df):,} rows)</span></span>'
             for fn, df in st.session_state.datasets.items()
         )
-        st.markdown(badges, unsafe_allow_html=True)
+        st.markdown(badges + "<br>", unsafe_allow_html=True)
         if st.button("🗑 Clear all files", key="clear_files"):
             st.session_state.datasets     = {}
             st.session_state.analysed_dfs = {}
@@ -627,10 +839,22 @@ with tab_analysis:
             if not text_cols:
                 st.warning("No suitable text columns detected.")
                 continue
-            col_choice = st.selectbox("Text column to analyse", text_cols, key=f"col_{fname}")
+            # Restore saved col choice if available
+            _saved_cfg  = st.session_state.get("col_config", {}).get(fname, {})
+            _saved_col  = _saved_cfg.get("col", text_cols[0])
+            _col_default = _saved_col if _saved_col in text_cols else text_cols[0]
+            _saved_batch = _saved_cfg.get("batch", 20)
+
+            col_choice = st.selectbox("Text column to analyse", text_cols,
+                                      index=text_cols.index(_col_default),
+                                      key=f"col_{fname}")
             c1, c2 = st.columns(2)
             n_rows = c1.slider("Max rows (0 = all)", 0, len(df), min(500, len(df)), key=f"rows_{fname}")
-            batch  = c2.select_slider("Batch size", options=[5, 10, 20, 30, 50], value=20, key=f"batch_{fname}")
+            batch  = c2.select_slider("Batch size", options=[5, 10, 20, 30, 50],
+                                       value=_saved_batch if _saved_batch in [5,10,20,30,50] else 20,
+                                       key=f"batch_{fname}")
+            # Keep col_config in sync so Save captures the latest choices
+            st.session_state["col_config"][fname] = {"col": col_choice, "batch": batch}
             dataset_configs[fname] = {"col": col_choice, "n_rows": n_rows or len(df), "batch": batch}
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -658,6 +882,21 @@ with tab_analysis:
 
         st.session_state.analysis_done = True
         st.success("🎉 All analyses complete!")
+
+        # Auto-save results to active project if one is selected
+        _ap = st.session_state.get("active_project", "")
+        if _ap and DB_AVAILABLE:
+            _results_to_save = {
+                fname: df.to_dict("records")
+                for fname, df in st.session_state.analysed_dfs.items()
+            }
+            save_project(
+                OWNER, _ap,
+                doc_names=list(st.session_state.datasets.keys()),
+                col_config=st.session_state.get("col_config", {}),
+                results_json=_results_to_save,
+            )
+            st.toast(f'Auto-saved to "{_ap}"', icon="💾")
 
     if st.session_state.analysed_dfs:
         st.markdown('<div class="section-header"><span class="dot"></span>RESULTS PREVIEW</div>', unsafe_allow_html=True)
@@ -870,6 +1109,11 @@ with tab_chat:
                         _ph.markdown(_reply + "▌")
                 _ph.markdown(_reply)
             st.session_state.chat_history.append({"role": "assistant", "content": _reply})
+            # Auto-save chat to active project
+            _ap = st.session_state.get("active_project", "")
+            if _ap and DB_AVAILABLE:
+                save_project(OWNER, _ap,
+                             chat_history=st.session_state.chat_history)
         except _anthropic.AuthenticationError:
             st.error("Invalid API key.")
         except _anthropic.RateLimitError:
