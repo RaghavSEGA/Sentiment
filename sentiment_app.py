@@ -456,7 +456,11 @@ if not ANTHROPIC_AVAILABLE:
     st.error("⚠️  Run: `pip install anthropic`")
     st.stop()
 
-client = _anthropic.Anthropic(api_key=claude_key)
+client = _anthropic.AnthropicBedrock(
+    aws_access_key   = st.secrets.get("AWS_ACCESS_KEY_ID_API", ""),
+    aws_secret_key   = st.secrets.get("AWS_SECRET_ACCESS_KEY_API", ""),
+    aws_region       = st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
+)
 
 if not st.session_state.datasets:
     st.info("👈 Upload one or more XLSX files in the sidebar to get started.")
@@ -502,7 +506,7 @@ JSON array:"""
 
 def analyse_batch(texts: list, col_name: str) -> list:
     msg = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="us.anthropic.claude-sonnet-4-6",
         max_tokens=1500,
         messages=[{"role": "user", "content": build_prompt(texts, col_name)}],
     )
@@ -798,7 +802,7 @@ with tab_chat:
                 _reply = ""
                 _ph    = st.empty()
                 with client.messages.stream(
-                    model="claude-haiku-4-5-20251001",
+                    model="us.anthropic.claude-sonnet-4-6",
                     max_tokens=1000,
                     system=_build_system(),
                     messages=_api_msgs,
