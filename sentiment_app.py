@@ -32,7 +32,7 @@ st.set_page_config(
     page_title="Sentiment Analysis Studio",
     page_icon=":material/sentiment_satisfied:",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 # ─────────────────────────────────────────────────────────────
@@ -67,32 +67,15 @@ p,span,div,li,td,th,label,h1,h2,h3,h4,h5,h6,
 .stCaption,[data-testid="stCaptionContainer"],[data-testid="stCaptionContainer"] p{color:var(--muted)!important;}
 code{background:var(--surface3)!important;color:var(--blue)!important;padding:0.1em 0.4em;border-radius:3px;}
 #MainMenu,footer,header{visibility:hidden;}
-.block-container{padding:0 2.5rem 4rem!important;max-width:1440px!important;}
+[data-testid="stToolbar"]{display:none!important;}
+[data-testid="stDecoration"]{display:none!important;}
+header[data-testid="stHeader"]{display:none!important;}
+h1{font-size:2rem!important;font-weight:700!important;color:#f1f5f9!important;
+   letter-spacing:-.02em!important;margin-bottom:.15rem!important;}
 ::-webkit-scrollbar{width:5px;height:5px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:4px;}
 ::-webkit-scrollbar-thumb:hover{background:var(--muted);}
-
-/* TOP NAV */
-.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0.8rem 2.5rem;
-    margin:0 -2.5rem 1.75rem;display:flex;align-items:center;gap:1.25rem;position:relative;}
-.topbar::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;
-    background:linear-gradient(90deg,var(--blue) 0%,rgba(64,128,255,0) 55%);}
-.topbar-logo{font-family:'Inter Tight',sans-serif;font-size:0.95rem;font-weight:900;
-    color:var(--text)!important;letter-spacing:0.12em;text-transform:uppercase;}
-.topbar-logo .acc{color:var(--blue);}
-.topbar-divider{width:1px;height:18px;background:var(--border-hi);flex-shrink:0;}
-.topbar-label{font-size:0.6rem;font-weight:600;color:var(--muted)!important;letter-spacing:0.2em;text-transform:uppercase;}
-.topbar-pill{margin-left:auto;background:var(--blue-glow);border:1px solid rgba(64,128,255,0.28);
-    border-radius:20px;padding:0.18rem 0.7rem;font-size:0.58rem;font-weight:700;
-    letter-spacing:0.14em;text-transform:uppercase;color:var(--blue)!important;}
-
-/* HERO */
-.hero{padding:1.5rem 0 0.75rem;}
-.hero-title{font-family:'Inter Tight',sans-serif;font-size:2.4rem;font-weight:900;line-height:1.05;
-    color:var(--text)!important;letter-spacing:-0.03em;margin-bottom:0.5rem;}
-.hero-title .accent{color:var(--blue);}
-.hero-sub{font-size:0.87rem;font-weight:300;color:var(--muted)!important;max-width:520px;line-height:1.65;}
 
 /* SECTION HEADER */
 .section-header{display:flex;align-items:center;gap:0.55rem;font-family:'Inter Tight',sans-serif;
@@ -161,14 +144,13 @@ div[data-baseweb="tab-border"]{background:var(--border)!important;}
 .auth-sub{font-size:0.8rem;color:var(--muted)!important;margin-bottom:1.5rem;}
 .auth-note{font-size:0.72rem;color:var(--muted)!important;margin-top:1rem;text-align:center;line-height:1.5;}
 
-/* HIDE SIDEBAR */
-[data-testid="stSidebar"]{display:none!important;}
-[data-testid="collapsedControl"]{display:none!important;}
-.block-container{padding-left:2.5rem!important;padding-right:2.5rem!important;}
-
-/* TOPBAR USER */
-.topbar-user{display:flex;align-items:center;gap:0.6rem;margin-left:auto;}
-.topbar-user-email{font-size:0.65rem;color:var(--text-dim)!important;font-weight:500;}
+/* SIDEBAR */
+[data-testid="stSidebar"]{background:#0f172a!important;border-right:1px solid #1e293b!important;}
+[data-testid="stSidebar"] *{color:#cbd5e1!important;}
+[data-testid="stSidebar"] .block-container{padding:1.25rem 1rem!important;max-width:100%!important;}
+.sidebar-section{font-size:.7rem;font-weight:600;text-transform:uppercase;
+    letter-spacing:.1em;color:#64748b;margin:1.2rem 0 .4rem;display:block;}
+.block-container{padding:1.5rem 2rem 3rem!important;max-width:1400px!important;margin:0 auto!important;}
 
 /* FILE BADGE */
 .file-badge{display:inline-flex;align-items:center;gap:0.4rem;background:var(--surface2);
@@ -176,19 +158,6 @@ div[data-baseweb="tab-border"]{background:var(--border)!important;}
     font-size:0.72rem;color:var(--text-dim)!important;margin:0.2rem 0.2rem 0 0;}
 .file-badge .ext{font-family:'Inter Tight',sans-serif;font-weight:800;font-size:0.65rem;
     color:var(--blue)!important;letter-spacing:0.06em;}
-
-/* PROJECT PANEL */
-.proj-panel{background:var(--surface);border:1px solid var(--border);
-    border-left:3px solid var(--blue);border-radius:0 10px 10px 0;
-    padding:1.1rem 1.4rem;margin-bottom:1rem;}
-.proj-name{font-family:'Inter Tight',sans-serif;font-size:1rem;font-weight:900;
-    color:var(--text)!important;letter-spacing:-0.01em;margin-bottom:0.15rem;}
-.proj-meta{font-size:0.65rem;color:var(--muted)!important;}
-.proj-empty{background:var(--surface2);border:1px dashed var(--border-hi);border-radius:10px;
-    padding:2.5rem;text-align:center;margin-bottom:1.5rem;}
-.proj-empty-title{font-family:'Inter Tight',sans-serif;font-size:1rem;font-weight:800;
-    color:var(--border-hi)!important;margin-bottom:0.4rem;}
-.proj-empty-sub{font-size:0.8rem;color:var(--muted)!important;}
 
 /* FOOTER */
 .footer{margin-top:4rem;padding:1.5rem 0;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
@@ -493,24 +462,28 @@ def _save_current_project():
     )
 
 # ─────────────────────────────────────────────────────────────
-# TOP NAV  (user email + sign-out, no sidebar)
+# SIDEBAR — user info + sign-out + projects
 # ─────────────────────────────────────────────────────────────
 
-st.markdown(f"""
-<div class="topbar">
-  <div class="topbar-logo"><span class="acc">SENTIMENT</span> STUDIO</div>
-  <div class="topbar-divider"></div>
-  <div class="topbar-label">AI-Powered Analysis Platform</div>
-  <div class="topbar-pill">Claude</div>
-  <div class="topbar-divider" style="margin-left:0.5rem;"></div>
-  <div class="topbar-user">
-    <span class="topbar-user-email">{OWNER}</span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+with st.sidebar:
+    # App title
+    st.markdown(
+        "<div style='font-size:1rem;font-weight:700;color:#f1f5f9;margin-bottom:.25rem;'>Sentiment Studio</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div style='font-size:.65rem;color:#475569;text-transform:uppercase;letter-spacing:.1em;margin-bottom:1rem;'>AI-Powered Analysis Platform</div>",
+        unsafe_allow_html=True,
+    )
 
-_so_col, _ = st.columns([1, 11])
-with _so_col:
+    # User + sign out
+    st.markdown(
+        f'<div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;'
+        f'color:#5a5f82;margin-bottom:.3rem;">Signed in</div>'
+        f'<div style="font-size:.7rem;font-weight:600;color:#b8bcd4;margin-bottom:.75rem;">'
+        f'{OWNER}</div>',
+        unsafe_allow_html=True,
+    )
     if st.button("Sign out", key="sign_out_btn"):
         st.query_params.clear()
         for _k in ["auth_verified", "auth_email", "auth_token",
@@ -518,51 +491,38 @@ with _so_col:
             st.session_state[_k] = False if _k == "auth_verified" else ""
         st.rerun()
 
-# ─────────────────────────────────────────────────────────────
-# HERO
-# ─────────────────────────────────────────────────────────────
+    st.markdown("<hr style='border:none;border-top:1px solid #232640;margin:.5rem 0 1rem;'>",
+                unsafe_allow_html=True)
 
-st.markdown("""
-<div class="hero">
-  <div class="hero-title">SENTIMENT <span class="accent">ANALYSIS</span></div>
-  <div class="hero-sub">Upload datasets, run Claude-powered sentiment analysis at scale, explore the interactive dashboard, and chat with your data.</div>
-</div>
-""", unsafe_allow_html=True)
+    # Projects section
+    st.markdown(
+        "<div style='font-size:.6rem;font-weight:700;letter-spacing:.12em;"
+        "text-transform:uppercase;color:#475569;margin-bottom:.3rem;'>Projects</div>",
+        unsafe_allow_html=True,
+    )
 
-# ─────────────────────────────────────────────────────────────
-# PROJECT MANAGEMENT PANEL
-# ─────────────────────────────────────────────────────────────
+    if not DB_AVAILABLE:
+        st.warning(f"⚠️ Database unavailable. ({_db_err_msg})")
+    else:
+        # Sync URL param → session on first load
+        _qp_proj = st.query_params.get("project", "")
+        _all_proj = get_projects(OWNER)
+        _proj_names = [p["name"] for p in _all_proj]
 
-st.markdown('<div class="section-header"><span class="dot"></span>PROJECTS</div>', unsafe_allow_html=True)
+        if _qp_proj and _qp_proj in _proj_names and not st.session_state.get("active_project"):
+            _load_project(_qp_proj)
 
-if not DB_AVAILABLE:
-    st.warning(f"⚠️ Database unavailable — projects disabled. Add `DATABASE_URL` to secrets.toml. ({_db_err_msg})")
-else:
-    # Sync URL param → session on first load
-    _qp_proj = st.query_params.get("project", "")
-    _all_proj = get_projects(OWNER)
-    _proj_names = [p["name"] for p in _all_proj]
+        _active = st.session_state.get("active_project", "")
 
-    if _qp_proj and _qp_proj in _proj_names and not st.session_state.get("active_project"):
-        _load_project(_qp_proj)
-
-    _active = st.session_state.get("active_project", "")
-
-    # ── Top row: selector + new project input ──
-    _sel_col, _new_col = st.columns([3, 2], gap="large")
-
-    with _sel_col:
         _opts = ["— select a project —"] + _proj_names + ["＋ New project"]
         _def  = _opts.index(_active) if _active in _opts else 0
         _sel  = st.selectbox("Project", _opts, index=_def, label_visibility="collapsed",
                              key="project_selector")
 
-    with _new_col:
         if _sel == "＋ New project":
-            _nn_col, _btn_col = st.columns([3, 1], gap="small")
-            _new_name = _nn_col.text_input("Name", placeholder="e.g. Q3 Analysis",
-                                           label_visibility="collapsed", key="new_proj_name")
-            if _btn_col.button("Create", key="create_proj_btn", use_container_width=True):
+            _new_name = st.text_input("Project name", placeholder="e.g. Q3 Analysis",
+                                      key="new_proj_name")
+            if st.button("Create project", use_container_width=True, type="primary"):
                 _nn = _new_name.strip()
                 if not _nn:
                     st.error("Enter a project name.")
@@ -575,94 +535,110 @@ else:
                     st.query_params["project"] = _nn
                     st.rerun()
 
-    # ── Handle selector changes ──
-    if _sel == "— select a project —" and _active:
-        _clear_project()
-        st.query_params.pop("project", None)
-        st.rerun()
-    elif _sel not in ("— select a project —", "＋ New project") and _sel != _active:
-        _clear_project()
-        _load_project(_sel)
-        st.query_params["project"] = _sel
-        st.rerun()
-
-    # ── Active project actions bar ──
-    if _active and _active in _proj_names:
-        _proj_meta = next((p for p in _all_proj if p["name"] == _active), {})
-        _updated   = (_proj_meta.get("updated_at", "")[:16].replace("T", " ") + " UTC"
-                      if _proj_meta.get("updated_at") else "unsaved")
-        st.markdown(
-            f'<div class="proj-panel">'
-            f'<div class="proj-name">📁 {_active}</div>'
-            f'<div class="proj-meta">Last saved: {_updated}</div>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
-        _a1, _a2, _a3, _a4 = st.columns([2, 2, 2, 4])
-        with _a1:
-            if st.button("💾 Save", key="proj_save", use_container_width=True,
-                         help="Save current state to this project"):
-                # Serialise analysed DataFrames → list of row dicts
-                _results = {
-                    fname: df.to_dict("records")
-                    for fname, df in st.session_state.get("analysed_dfs", {}).items()
-                }
-                save_project(
-                    OWNER, _active,
-                    doc_names=list(st.session_state.get("datasets", {}).keys()),
-                    col_config=st.session_state.get("col_config", {}),
-                    results_json=_results,
-                    chat_history=st.session_state.get("chat_history", []),
-                )
-                st.toast(f'Saved "{_active}"', icon="✅")
-                st.rerun()
-        with _a2:
-            if st.button("✏️ Rename", key="proj_rename_btn", use_container_width=True):
-                st.session_state["_renaming_proj"] = True
-        with _a3:
-            if st.button("🗑 Delete", key="proj_del_btn", use_container_width=True):
-                st.session_state["_confirm_del_proj"] = True
-        with _a4:
-            pass  # spacer
-
-        # Rename UI
-        if st.session_state.pop("_renaming_proj", False):
-            _rn = st.text_input("New project name", value=_active, key="_rename_proj_input")
-            _rc1, _rc2 = st.columns(2)
-            if _rc1.button("Rename", key="_rename_proj_confirm"):
-                try:
-                    rename_project(OWNER, _active, _rn.strip())
-                    _clear_project()
-                    _load_project(_rn.strip())
-                    st.query_params["project"] = _rn.strip()
-                    st.rerun()
-                except Exception as _re:
-                    st.error(str(_re))
-            if _rc2.button("Cancel", key="_rename_proj_cancel"):
-                st.rerun()
-
-        # Delete confirmation UI
-        if st.session_state.pop("_confirm_del_proj", False):
-            st.warning(f"Delete **{_active}**? This cannot be undone.")
-            _dc1, _dc2 = st.columns(2)
-            if _dc1.button("Yes, delete", type="primary", key="_del_proj_yes"):
-                delete_project(OWNER, _active)
+        elif _sel == "— select a project —":
+            if _active:
                 _clear_project()
                 st.query_params.pop("project", None)
                 st.rerun()
-            if _dc2.button("Cancel", key="_del_proj_no"):
-                st.rerun()
 
-    elif not _active:
-        st.markdown(
-            '<div class="proj-empty">'
-            '<div class="proj-empty-title">NO PROJECT SELECTED</div>'
-            '<div class="proj-empty-sub">Select an existing project or create a new one above '
-            'to save and restore your file sets.</div>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
+        elif _sel != _active:
+            _clear_project()
+            _load_project(_sel)
+            st.query_params["project"] = _sel
+            st.rerun()
+
+        # Active project actions
+        if _active and _active in _proj_names:
+            _proj_meta = next((p for p in _all_proj if p["name"] == _active), {})
+            _updated   = (_proj_meta.get("updated_at", "")[:16].replace("T", " ") + " UTC"
+                          if _proj_meta.get("updated_at") else "unsaved")
+            st.caption(f"Last saved: {_updated}")
+
+            _col_save, _col_rename, _col_del = st.columns([3, 2, 1])
+
+            with _col_save:
+                if st.button("💾 Save", use_container_width=True,
+                             help="Save current state to this project"):
+                    _results = {
+                        fname: df.to_dict("records")
+                        for fname, df in st.session_state.get("analysed_dfs", {}).items()
+                    }
+                    save_project(
+                        OWNER, _active,
+                        doc_names=list(st.session_state.get("datasets", {}).keys()),
+                        col_config=st.session_state.get("col_config", {}),
+                        results_json=_results,
+                        chat_history=st.session_state.get("chat_history", []),
+                    )
+                    st.toast(f'Saved "{_active}"', icon="✅")
+
+            with _col_rename:
+                if st.button("✏️", help="Rename project", use_container_width=True):
+                    st.session_state["_renaming_proj"] = True
+
+            with _col_del:
+                if st.button("🗑", help="Delete project", use_container_width=True):
+                    st.session_state["_confirm_del_proj"] = True
+
+            # Rename UI
+            if st.session_state.pop("_renaming_proj", False):
+                _rn = st.text_input("New name", value=_active, key="_rename_proj_input")
+                if st.button("Rename", key="_rename_proj_confirm"):
+                    try:
+                        rename_project(OWNER, _active, _rn.strip())
+                        _clear_project()
+                        _load_project(_rn.strip())
+                        st.query_params["project"] = _rn.strip()
+                        st.rerun()
+                    except Exception as _re:
+                        st.error(str(_re))
+
+            # Delete confirmation UI
+            if st.session_state.pop("_confirm_del_proj", False):
+                st.warning(f"Delete **{_active}**? This cannot be undone.")
+                _dc1, _dc2 = st.columns(2)
+                with _dc1:
+                    if st.button("Yes, delete", type="primary", key="_del_proj_yes"):
+                        delete_project(OWNER, _active)
+                        _clear_project()
+                        st.query_params.pop("project", None)
+                        st.rerun()
+                with _dc2:
+                    if st.button("Cancel", key="_del_proj_no"):
+                        st.rerun()
+
+    st.markdown(
+        "<hr style='border:none;border-top:1px solid #1e293b;margin:.75rem 0 .5rem;'>",
+        unsafe_allow_html=True,
+    )
+
+# ─────────────────────────────────────────────────────────────
+# GATE: require active project
+# ─────────────────────────────────────────────────────────────
+
+if DB_AVAILABLE and not st.session_state.get("active_project"):
+    st.markdown(
+        "<div style='text-align:center;padding:4rem 2rem;color:#475569;'>"
+        "<div style='font-size:2.5rem;margin-bottom:1rem;'>📁</div>"
+        "<div style='font-size:1.1rem;font-weight:600;color:#94a3b8;margin-bottom:.5rem;'>"
+        "No project selected</div>"
+        "<div style='font-size:.85rem;'>Select an existing project or create a new one in the sidebar to get started.</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    st.stop()
+
+# ─────────────────────────────────────────────────────────────
+# PAGE HEADER
+# ─────────────────────────────────────────────────────────────
+
+st.markdown(
+    "<h1>Sentiment Analysis Studio</h1>"
+    "<div style='font-size:.78rem;color:#475569;margin-bottom:1.5rem;'>"
+    "Upload datasets &nbsp;·&nbsp; Run Claude-powered analysis &nbsp;·&nbsp; Explore dashboard &nbsp;·&nbsp; Chat with your data"
+    "</div>",
+    unsafe_allow_html=True,
+)
 
 # ─────────────────────────────────────────────────────────────
 # UPLOAD PANEL  (main page — files register immediately on rerun)
