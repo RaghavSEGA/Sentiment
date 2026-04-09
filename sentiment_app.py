@@ -161,6 +161,32 @@ div[data-baseweb="tab-border"]{background:var(--border)!important;}
 .auth-sub{font-size:0.8rem;color:var(--muted)!important;margin-bottom:1.5rem;}
 .auth-note{font-size:0.72rem;color:var(--muted)!important;margin-top:1rem;text-align:center;line-height:1.5;}
 
+/* HIDE SIDEBAR COMPLETELY */
+[data-testid="stSidebar"]{display:none!important;}
+[data-testid="collapsedControl"]{display:none!important;}
+.block-container{padding-left:2.5rem!important;padding-right:2.5rem!important;}
+
+/* TOPBAR USER PILL */
+.topbar-user{display:flex;align-items:center;gap:0.6rem;margin-left:auto;}
+.topbar-user-email{font-size:0.65rem;color:var(--text-dim)!important;font-weight:500;letter-spacing:0.02em;}
+.topbar-signout{font-family:'Inter Tight',sans-serif;font-size:0.6rem;font-weight:800;letter-spacing:0.14em;
+    text-transform:uppercase;color:var(--muted)!important;background:transparent;border:1px solid var(--border-hi);
+    border-radius:4px;padding:0.2rem 0.55rem;cursor:pointer;transition:all 0.15s;}
+.topbar-signout:hover{color:var(--blue)!important;border-color:var(--blue);}
+
+/* UPLOAD PANEL */
+.upload-panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:1.25rem 1.5rem;margin-bottom:1.25rem;}
+.upload-panel-title{font-family:'Inter Tight',sans-serif;font-size:0.65rem;font-weight:800;
+    letter-spacing:0.2em;text-transform:uppercase;color:var(--muted)!important;margin-bottom:0.75rem;}
+
+/* LOADED FILE BADGE */
+.file-badge{display:inline-flex;align-items:center;gap:0.4rem;background:var(--surface2);
+    border:1px solid var(--border-hi);border-radius:5px;padding:0.25rem 0.65rem;
+    font-size:0.72rem;color:var(--text-dim)!important;margin:0.2rem 0.2rem 0 0;}
+.file-badge .ext{font-family:'Inter Tight',sans-serif;font-weight:800;font-size:0.65rem;
+    color:var(--blue)!important;letter-spacing:0.06em;}
+
 /* FOOTER */
 .footer{margin-top:4rem;padding:1.5rem 0;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
 .footer-brand{font-family:'Inter Tight',sans-serif;font-size:0.72rem;font-weight:900;letter-spacing:0.18em;color:var(--muted)!important;}
@@ -195,7 +221,7 @@ except ImportError:
 # ─────────────────────────────────────────────────────────────
 
 claude_key     = st.secrets.get("ANTHROPIC_API_KEY", "")
-ALLOWED_DOMAIN = st.secrets.get("ALLOWED_DOMAIN", "@yourdomain.com")
+ALLOWED_DOMAIN = st.secrets.get("ALLOWED_DOMAIN", "@segaamerica.com")
 
 # ─────────────────────────────────────────────────────────────
 # OTP AUTH — identical pattern to documentcompare.py
@@ -375,30 +401,12 @@ if not st.session_state.auth_verified:
     st.stop()
 
 # ─────────────────────────────────────────────────────────────
-# SIGNED-IN: sidebar + sign-out
+# SIGNED-IN: topbar (rendered after auth gate, before main UI)
+# Sign-out and upload both live on the main page.
 # ─────────────────────────────────────────────────────────────
 
-with st.sidebar:
-    st.markdown(
-        f'<div style="font-size:.7rem;font-weight:600;color:var(--muted);margin-bottom:.5rem;">'
-        f'Signed in as<br>'
-        f'<span style="color:var(--text);font-weight:700;">{st.session_state.auth_email}</span>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-    if st.button("Sign out", key="sign_out_btn"):
-        st.query_params.clear()
-        for _k in ["auth_verified", "auth_email", "auth_token",
-                   "otp_sent", "otp_code", "otp_email", "otp_expiry", "otp_attempts"]:
-            st.session_state[_k] = False if _k == "auth_verified" else ""
-        st.rerun()
-
-    st.divider()
-    st.markdown("### 📂 Upload Files")
-    uploaded = st.file_uploader(
-        "Upload XLSX files", type=["xlsx"], accept_multiple_files=True,
-        help="Upload one or more Excel files for analysis",
-    )
+# initialise uploaded to None; will be set in the upload panel below
+uploaded = None
 
 # ─────────────────────────────────────────────────────────────
 # APP SESSION STATE
@@ -421,17 +429,31 @@ if uploaded:
             st.session_state.datasets[f.name] = pd.read_excel(f)
 
 # ─────────────────────────────────────────────────────────────
-# TOP NAV
+# TOP NAV  (includes user identity + sign-out)
 # ─────────────────────────────────────────────────────────────
 
-st.markdown("""
+st.markdown(f"""
 <div class="topbar">
   <div class="topbar-logo"><span class="acc">SENTIMENT</span> STUDIO</div>
   <div class="topbar-divider"></div>
   <div class="topbar-label">AI-Powered Analysis Platform</div>
   <div class="topbar-pill">Claude</div>
+  <div class="topbar-divider" style="margin-left:0.5rem;"></div>
+  <div class="topbar-user">
+    <span class="topbar-user-email">{st.session_state.auth_email}</span>
+  </div>
 </div>
 """, unsafe_allow_html=True)
+
+# Sign-out button rendered just after the topbar HTML so Streamlit can wire it up
+_so_col, _ = st.columns([1, 11])
+with _so_col:
+    if st.button("Sign out", key="sign_out_btn"):
+        st.query_params.clear()
+        for _k in ["auth_verified", "auth_email", "auth_token",
+                   "otp_sent", "otp_code", "otp_email", "otp_expiry", "otp_attempts"]:
+            st.session_state[_k] = False if _k == "auth_verified" else ""
+        st.rerun()
 
 # ─────────────────────────────────────────────────────────────
 # HERO
@@ -443,6 +465,42 @@ st.markdown("""
   <div class="hero-sub">Upload datasets, run Claude-powered sentiment analysis at scale, explore the interactive dashboard, and chat with your data.</div>
 </div>
 """, unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────────────────────
+# UPLOAD PANEL  (main page, replaces sidebar uploader)
+# ─────────────────────────────────────────────────────────────
+
+st.markdown('<div class="section-header"><span class="dot"></span>UPLOAD DATASETS</div>', unsafe_allow_html=True)
+
+_up_col, _info_col = st.columns([3, 2], gap="large")
+with _up_col:
+    uploaded = st.file_uploader(
+        "Drop XLSX files here or click to browse",
+        type=["xlsx"],
+        accept_multiple_files=True,
+        label_visibility="collapsed",
+    )
+
+with _info_col:
+    if st.session_state.get("datasets"):
+        st.markdown('<div class="upload-panel-title">Loaded files</div>', unsafe_allow_html=True)
+        badges = "".join(
+            f'<span class="file-badge"><span class="ext">XLSX</span>{fn} &nbsp;'
+            f'<span style="color:var(--muted);">({len(df):,} rows)</span></span>'
+            for fn, df in st.session_state.datasets.items()
+        )
+        st.markdown(badges, unsafe_allow_html=True)
+        if st.button("🗑 Clear all files", key="clear_files"):
+            st.session_state.datasets     = {}
+            st.session_state.analysed_dfs = {}
+            st.session_state.analysis_done = False
+            st.rerun()
+    else:
+        st.markdown(
+            '<div style="font-size:0.8rem;color:var(--muted);padding-top:0.5rem;">'
+            'Upload one or more <code>.xlsx</code> files to get started.</div>',
+            unsafe_allow_html=True,
+        )
 
 # ─────────────────────────────────────────────────────────────
 # API KEY CHECK
@@ -463,7 +521,7 @@ client = _anthropic.AnthropicBedrock(
 )
 
 if not st.session_state.datasets:
-    st.info("👈 Upload one or more XLSX files in the sidebar to get started.")
+    st.info("⬆️ Upload one or more XLSX files above to get started.")
     st.stop()
 
 # ─────────────────────────────────────────────────────────────
@@ -506,7 +564,7 @@ JSON array:"""
 
 def analyse_batch(texts: list, col_name: str) -> list:
     msg = client.messages.create(
-        model="us.anthropic.claude-sonnet-4-6",
+        model="us.anthropic.claude-haiku-4-6",
         max_tokens=1500,
         messages=[{"role": "user", "content": build_prompt(texts, col_name)}],
     )
@@ -802,7 +860,7 @@ with tab_chat:
                 _reply = ""
                 _ph    = st.empty()
                 with client.messages.stream(
-                    model="us.anthropic.claude-sonnet-4-6",
+                    model="us.anthropic.claude-haiku-4-6",
                     max_tokens=1000,
                     system=_build_system(),
                     messages=_api_msgs,
