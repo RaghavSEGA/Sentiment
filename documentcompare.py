@@ -450,7 +450,7 @@ claude_key = st.secrets.get("ANTHROPIC_API_KEY", "")
 
 ALLOWED_DOMAIN   = "@segaamerica.com"
 OTP_EXPIRY_SECS  = 600   # 10 minutes
-COOKIE_EXPIRY_DAYS = 1
+COOKIE_EXPIRY_DAYS = 7
 COOKIE_NAME      = "sega_doc_auth"
 
 def _send_otp(email: str, code: str) -> bool:
