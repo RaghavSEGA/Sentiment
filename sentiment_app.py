@@ -734,46 +734,68 @@ def detect_text_columns(df) -> list:
     return candidates
 
 
-def build_prompt(texts: list, col_name: str) -> str:
-    numbered = "\n".join(f"{i+1}. {t[:500]}" for i, t in enumerate(texts))
-    return f"""Analyse the sentiment of each text below (column: "{col_name}").
-Return ONLY a valid JSON array — no preamble, no markdown fences — with one object per text in the same order.
-Each object must have exactly:
-  "sentiment": one of "positive","negative","neutral","mixed"
-  "score":     float -1.0 to 1.0
-  "confidence":float 0.0–1.0
-  "reason":    one concise sentence (max 15 words)
-
-Texts:
-{numbered}
-
-JSON array:"""
-
-
-def analyse_batch(texts: list, col_name: str) -> list:
-    msg = client.messages.create(
-        model="us.anthropic.claude-haiku-4-6",
-        max_tokens=1500,
-        messages=[{"role": "user", "content": build_prompt(texts, col_name)}],
+def build_prompt(texts: list, col_names) -> str:
+    """col_names is a str or list of str (multi-column mode)."""
+    col_label = ", ".join(col_names) if isinstance(col_names, list) else col_names
+    numbered = "\n".join(f"{i+1}. {t[:600]}" for i, t in enumerate(texts))
+    return (
+        f'Analyse the sentiment of each entry below (from columns: "{col_label}").\n'
+        "Return ONLY a valid JSON array with no preamble, no markdown fences, "
+        "one object per entry in the same order.\n"
+        "Each object must have exactly:\n"
+        "  \"sentiment\": one of \"positive\",\"negative\",\"neutral\",\"mixed\"\n"
+        "  \"score\":     float -1.0 to 1.0\n"
+        "  \"confidence\":float 0.0 to 1.0\n"
+        "  \"reason\":    one concise sentence (max 15 words)\n\n"
+        f"Entries:\n{numbered}\n\nJSON array:"
     )
-    raw = msg.content[0].text.strip()
+
+
+
+def analyse_batch(texts: list, col_names, token_cb=None) -> list:
+    """Call Claude with streaming. col_names is str or list of str."""
+    raw_parts = []
+    with client.messages.stream(
+        model="us.anthropic.claude-haiku-4-6",
+        max_tokens=2000,
+        messages=[{"role": "user", "content": build_prompt(texts, col_names)}],
+    ) as stream:
+        for text_chunk in stream.text_stream:
+            raw_parts.append(text_chunk)
+            if token_cb:
+                token_cb(len(text_chunk))
+    raw = "".join(raw_parts).strip()
     m   = re.search(r'\[[\s\S]*\]', raw)
     if m:
-        return json.loads(m.group())
+        try:
+            return json.loads(m.group())
+        except json.JSONDecodeError:
+            pass
     return [{"sentiment": "unknown", "score": 0.0, "confidence": 0.0, "reason": "parse error"}] * len(texts)
 
 
-def run_analysis(df, col: str, batch_size: int = 20, progress_cb=None):
-    df    = df.copy()
-    texts = df[col].fillna("").astype(str).tolist()
+def run_analysis(df, cols, batch_size: int = 20, progress_cb=None, token_cb=None):
+    """cols is a list of column names to combine for analysis."""
+    df = df.copy()
+    if isinstance(cols, str):
+        cols = [cols]
+    # Combine selected columns into one string per row
+    def _combine(row):
+        parts = []
+        for c in cols:
+            val = str(row[c]).strip() if c in row and pd.notna(row[c]) else ""
+            if val:
+                parts.append(f"[{c}] {val}" if len(cols) > 1 else val)
+        return " | ".join(parts) if parts else ""
+    texts = df.apply(_combine, axis=1).tolist()
     results, total_batches = [], (len(texts) + batch_size - 1) // batch_size
     for i in range(0, len(texts), batch_size):
         batch = texts[i:i + batch_size]
-        results.extend(analyse_batch(batch, col))
+        results.extend(analyse_batch(batch, cols, token_cb=token_cb))
         if progress_cb:
             progress_cb((i + len(batch)) / len(texts), i // batch_size + 1, total_batches)
         if i + batch_size < len(texts):
-            time.sleep(0.25)
+            time.sleep(0.15)
     rdf = pd.DataFrame(results)
     for c in ["sentiment", "score", "confidence", "reason"]:
         if c not in rdf.columns:
@@ -808,53 +830,145 @@ tab_analysis, tab_dashboard, tab_chat = st.tabs(["🔬  ANALYSIS", "📊  DASHBO
 with tab_analysis:
     st.markdown('<div class="section-header"><span class="dot"></span>CONFIGURE DATASETS</div>', unsafe_allow_html=True)
 
+    # ── Per-file configuration ──────────────────────────────────
     dataset_configs = {}
     for fname, df in st.session_state.datasets.items():
-        with st.expander(f"📄 {fname}  —  {len(df):,} rows × {len(df.columns)} cols", expanded=True):
-            text_cols = detect_text_columns(df)
-            if not text_cols:
-                st.warning("No suitable text columns detected.")
-                continue
-            # Restore saved col choice if available
-            _saved_cfg  = st.session_state.get("col_config", {}).get(fname, {})
-            _saved_col  = _saved_cfg.get("col", text_cols[0])
-            _col_default = _saved_col if _saved_col in text_cols else text_cols[0]
-            _saved_batch = _saved_cfg.get("batch", 20)
+        all_cols     = list(df.columns)
+        text_cols    = detect_text_columns(df)   # suggested defaults
+        _saved_cfg   = st.session_state.get("col_config", {}).get(fname, {})
+        _saved_cols  = _saved_cfg.get("cols", text_cols or all_cols[:1])
+        _saved_batch = _saved_cfg.get("batch", 20)
 
-            col_choice = st.selectbox("Text column to analyse", text_cols,
-                                      index=text_cols.index(_col_default),
-                                      key=f"col_{fname}")
+        # Keep only valid saved cols
+        _default_cols = [c for c in _saved_cols if c in all_cols] or (text_cols or all_cols[:1])
+
+        with st.expander(f"📄 {fname}  —  {len(df):,} rows × {len(df.columns)} cols", expanded=True):
+            # Column type legend
+            _suggested = set(text_cols)
+            _col_labels = [
+                f"{c}  ✦" if c in _suggested else c
+                for c in all_cols
+            ]
+            _label_to_col = {lbl: col for lbl, col in zip(_col_labels, all_cols)}
+            _default_labels = [
+                lbl for lbl, col in zip(_col_labels, all_cols) if col in _default_cols
+            ]
+
+            st.caption(f"✦ = suggested text column  ·  {len(all_cols)} columns available")
+
+            chosen_labels = st.multiselect(
+                "Columns to analyse",
+                options=_col_labels,
+                default=_default_labels,
+                key=f"cols_{fname}",
+                help="Select one or more columns. Their text will be combined per row before analysis.",
+            )
+            chosen_cols = [_label_to_col[lbl] for lbl in chosen_labels]
+
+            if not chosen_cols:
+                st.warning("Select at least one column to enable analysis.")
+                continue
+
             c1, c2 = st.columns(2)
-            n_rows = c1.slider("Max rows (0 = all)", 0, len(df), min(500, len(df)), key=f"rows_{fname}")
+            n_rows = c1.slider("Max rows (0 = all)", 0, len(df), min(500, len(df)),
+                               key=f"rows_{fname}")
             batch  = c2.select_slider("Batch size", options=[5, 10, 20, 30, 50],
                                        value=_saved_batch if _saved_batch in [5,10,20,30,50] else 20,
                                        key=f"batch_{fname}")
-            # Keep col_config in sync so Save captures the latest choices
-            st.session_state["col_config"][fname] = {"col": col_choice, "batch": batch}
-            dataset_configs[fname] = {"col": col_choice, "n_rows": n_rows or len(df), "batch": batch}
+
+            actual_rows = n_rows or len(df)
+
+            # ── Time estimate ──────────────────────────────────────
+            # Empirical: ~4-8 s per batch on Haiku via Bedrock (use 6 s as mid estimate)
+            SECS_PER_BATCH = 6
+            n_batches_est  = (actual_rows + batch - 1) // batch
+            secs_est       = n_batches_est * SECS_PER_BATCH
+            if secs_est < 60:
+                time_est = f"~{secs_est}s"
+            else:
+                m, s = divmod(secs_est, 60)
+                time_est = f"~{m}m {s}s" if s else f"~{m}m"
+
+            col_label = ", ".join(f"`{c}`" for c in chosen_cols)
+            st.info(
+                f"**{actual_rows:,} rows** · {n_batches_est} batches · "
+                f"analysing {col_label} · estimated time **{time_est}**"
+            )
+
+            # Persist config
+            st.session_state["col_config"][fname] = {"cols": chosen_cols, "batch": batch}
+            dataset_configs[fname] = {
+                "cols":   chosen_cols,
+                "n_rows": actual_rows,
+                "batch":  batch,
+            }
 
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🚀  RUN SENTIMENT ANALYSIS", use_container_width=True):
+    _can_run = bool(dataset_configs)
+    if st.button("🚀  RUN SENTIMENT ANALYSIS", use_container_width=True,
+                 disabled=not _can_run):
         for fname, cfg in dataset_configs.items():
             df_sub = st.session_state.datasets[fname].head(cfg["n_rows"]).copy()
-            st.markdown(
-                f'<div class="section-header"><span class="dot"></span>{fname} — <code>{cfg["col"]}</code></div>',
-                unsafe_allow_html=True,
-            )
-            status_txt = st.empty()
-            prog_bar   = st.progress(0)
+            total_rows    = len(df_sub)
+            total_batches = (total_rows + cfg["batch"] - 1) // cfg["batch"]
+            col_label     = ", ".join(cfg["cols"])
 
-            def _cb(pct, bn, bt, fname=fname):
-                prog_bar.progress(pct)
-                status_txt.markdown(f"Batch {bn}/{bt} — {int(pct*100)}% complete")
+            # ── Live status container ──────────────────────────────
+            with st.status(
+                f"Analysing **{fname}** — {total_rows:,} rows in {total_batches} batches…",
+                expanded=True,
+            ) as status_box:
+                prog_bar   = st.progress(0.0)
+                stat_line  = st.empty()
+                token_line = st.empty()
 
-            try:
-                df_result = run_analysis(df_sub, cfg["col"], cfg["batch"], _cb)
-                st.session_state.analysed_dfs[fname] = df_result
-                prog_bar.progress(1.0)
-                status_txt.markdown(f"✅ {len(df_result):,} rows analysed")
-            except Exception as e:
-                st.error(f"Error: {e}")
+                _state = {"tokens": 0, "batch_num": 0}
+
+                def _progress_cb(pct, bn, bt, _s=_state):
+                    _s["batch_num"] = bn
+                    prog_bar.progress(min(pct, 1.0))
+                    stat_line.markdown(
+                        f"**Batch {bn} / {bt}** — {int(pct * 100)}% of rows scored"
+                    )
+                    token_line.markdown(
+                        f"<span style='color:#64748b;font-size:.78rem;'>"
+                        f"⚡ {_s['tokens']:,} tokens received so far</span>",
+                        unsafe_allow_html=True,
+                    )
+
+                def _token_cb(n, _s=_state):
+                    _s["tokens"] += n
+                    token_line.markdown(
+                        f"<span style='color:#64748b;font-size:.78rem;'>"
+                        f"⚡ {_s['tokens']:,} tokens received — batch {_s['batch_num'] + 1}</span>",
+                        unsafe_allow_html=True,
+                    )
+
+                try:
+                    st.write(f"Columns: `{col_label}` · batch size: {cfg['batch']}")
+                    df_result = run_analysis(
+                        df_sub, cfg["cols"], cfg["batch"],
+                        progress_cb=_progress_cb,
+                        token_cb=_token_cb,
+                    )
+                    st.session_state.analysed_dfs[fname] = df_result
+                    prog_bar.progress(1.0)
+                    pos = (df_result["sentiment"] == "positive").sum()
+                    neg = (df_result["sentiment"] == "negative").sum()
+                    neu = (df_result["sentiment"] == "neutral").sum()
+                    stat_line.markdown(
+                        f"✅ **{len(df_result):,} rows scored** — "
+                        f"🟢 {pos} pos · 🔴 {neg} neg · 🔵 {neu} neutral"
+                    )
+                    token_line.empty()
+                    status_box.update(
+                        label=f"✅ {fname} — {len(df_result):,} rows complete",
+                        state="complete",
+                        expanded=False,
+                    )
+                except Exception as e:
+                    status_box.update(label=f"❌ {fname} — error", state="error")
+                    st.error(f"Error analysing **{fname}**: {e}")
 
         st.session_state.analysis_done = True
         st.success("🎉 All analyses complete!")
