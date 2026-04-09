@@ -9,6 +9,9 @@ Example secrets.toml entry:
 On Supabase: use the Session mode connection string from
 Settings → Database → Connection string → URI  (port 5432, NOT 6543).
 
+Install dependency (use the binary wheel — no pg_config / libpq-dev required):
+    pip install psycopg2-binary
+
 Run this SQL once in your database before first use:
 
     CREATE TABLE IF NOT EXISTS sentiment_projects (
@@ -39,9 +42,18 @@ updated_at   — auto-updated timestamp on every save
 
 import json
 import streamlit as st
-import psycopg2
-import psycopg2.extras
 from contextlib import contextmanager
+
+# psycopg2-binary ships its own libpq and requires no system pg_config.
+# Fall back to the source build (psycopg2) if somehow only that is installed.
+try:
+    import psycopg2
+    import psycopg2.extras
+except ImportError:
+    raise ImportError(
+        "psycopg2-binary is required. Install it with:\n"
+        "    pip install psycopg2-binary"
+    )
 
 
 # ── Connection ────────────────────────────────────────────────────────────────
