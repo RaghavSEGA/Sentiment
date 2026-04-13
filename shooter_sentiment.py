@@ -1380,11 +1380,11 @@ def _run_monday_archive() -> None:
         )
 
         import anthropic as _anth_sched
-        client = _anthropic.AnthropicBedrock(
-    aws_access_key   = st.secrets.get("AWS_ACCESS_KEY_ID_API", ""),
-    aws_secret_key   = st.secrets.get("AWS_SECRET_ACCESS_KEY_API", ""),
-    aws_region       = st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
-)
+        client = _anth_sched.AnthropicBedrock(
+            aws_access_key=st.secrets.get("AWS_ACCESS_KEY_ID_API", ""),
+            aws_secret_key=st.secrets.get("AWS_SECRET_ACCESS_KEY_API", ""),
+            aws_region=st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
+        )
         resp   = client.messages.create(
             model="us.anthropic.claude-sonnet-4-6",
             max_tokens=2000,
@@ -2511,9 +2511,9 @@ with _tc[0]:
   <div class="topbar-label">{subtitle}</div>
 </div>""".format(subtitle=T("topbar_subtitle")), unsafe_allow_html=True)
 with _tc[1]:
-    _lang = st.segmented_control(
+    _lang = st.selectbox(
         "Language", options=["EN", "JP"],
-        default="JP" if st.session_state.report_language == "Japanese" else "EN",
+        index=1 if st.session_state.report_language == "Japanese" else 0,
         label_visibility="collapsed", key="lang_toggle",
     )
     _new_lang = "Japanese" if _lang == "JP" else "English"
@@ -2551,15 +2551,14 @@ with st.sidebar:
 
     st.markdown("---")
 
-    _cl_ok = bool(st.session_state.claude_key)
-    if _cl_ok:
-        st.success("\u2713 Anthropic API key loaded", icon="\U0001f511")
+    _bedrock_ok = bool(st.secrets.get("AWS_ACCESS_KEY_ID_API"))
+    if _bedrock_ok:
+        st.success("✓ AWS Bedrock credentials loaded", icon="🔑")
     else:
-        st.error("Anthropic API key missing")
+        st.error("AWS Bedrock credentials missing")
         st.markdown(
             "Add to <code>.streamlit/secrets.toml</code>:<br>"
-            "<pre>CLAUDE_KEY = \"sk-ant-your-key-here\"</pre>"
-            "Or set the <code>CLAUDE_KEY</code> environment variable.",
+            "<pre>AWS_ACCESS_KEY_ID_API = ...\nAWS_SECRET_ACCESS_KEY_API = ...\nAWS_BEDROCK_REGION = us-east-1</pre>",
             unsafe_allow_html=True,
         )
 
@@ -2840,7 +2839,7 @@ else:
   <span class="dot"></span>AI ANALYSIS — {st.session_state.report_label.upper()}
 </div>
 """, unsafe_allow_html=True)
-        if not st.session_state.claude_key:
+        if not st.secrets.get("AWS_ACCESS_KEY_ID_API"):
             st.warning(T("no_key_warning"))
         elif not ANTHROPIC_AVAILABLE:
             st.error(T("no_anthropic_error"))
@@ -2860,9 +2859,13 @@ else:
                             _up2 = build_ccu_mecha_prompt(ccu_data[:10], genre=_genre_lbl)
                         else:
                             _up2 = st.session_state.custom_query or build_weekly_report_prompt(ccu_data[:25])
-                        _cl2 = _ant2.Anthropic(api_key=st.session_state.claude_key)
+                        _cl2 = _ant2.AnthropicBedrock(
+                            aws_access_key=st.secrets.get("AWS_ACCESS_KEY_ID_API", ""),
+                            aws_secret_key=st.secrets.get("AWS_SECRET_ACCESS_KEY_API", ""),
+                            aws_region=st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
+                        )
                         _r2  = _cl2.messages.create(
-                            model="claude-sonnet-4-20250514",
+                            model="us.anthropic.claude-sonnet-4-6",
                             max_tokens=2000,
                             system=build_system_prompt(st.session_state.report_language),
                             messages=[{"role": "user", "content": _up2}],
@@ -2973,10 +2976,10 @@ else:
                             for m in st.session_state.ai_chat_history]
                 try:
                     _cc = _anthropic.AnthropicBedrock(
-    aws_access_key   = st.secrets.get("AWS_ACCESS_KEY_ID_API", ""),
-    aws_secret_key   = st.secrets.get("AWS_SECRET_ACCESS_KEY_API", ""),
-    aws_region       = st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
-)
+                    aws_access_key=st.secrets.get("AWS_ACCESS_KEY_ID_API", ""),
+                    aws_secret_key=st.secrets.get("AWS_SECRET_ACCESS_KEY_API", ""),
+                    aws_region=st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
+                )
                     with st.chat_message("assistant"):
                         _reply = ""
                         _ph_chat = st.empty()
@@ -3514,7 +3517,7 @@ else:
     #  AI deep-dive report 
     if _dd_btn or st.session_state.drilldown_report:
         if _dd_btn and not st.session_state.drilldown_cache.get(_dd_selected_id):
-            if not st.session_state.claude_key:
+            if not st.secrets.get("AWS_ACCESS_KEY_ID_API"):
                 st.warning(T("drilldown_no_key"))
             else:
                 if _dd_game_data:
@@ -3524,9 +3527,13 @@ else:
                             _dd_prompt = build_drilldown_prompt(
                                 _dd_game_data, _dd_hist_all, st.session_state.report_language
                             )
-                            _dd_client = _ant.Anthropic(api_key=st.session_state.claude_key)
+                            _dd_client = _ant.AnthropicBedrock(
+                            aws_access_key=st.secrets.get("AWS_ACCESS_KEY_ID_API", ""),
+                            aws_secret_key=st.secrets.get("AWS_SECRET_ACCESS_KEY_API", ""),
+                            aws_region=st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
+                        )
                             _dd_resp = _dd_client.messages.create(
-                                model="claude-sonnet-4-20250514",
+                                model="us.anthropic.claude-sonnet-4-6",
                                 max_tokens=2000,
                                 system=build_system_prompt(st.session_state.report_language),
                                 messages=[{"role": "user", "content": _dd_prompt}],
@@ -3552,7 +3559,7 @@ else:
 # FOLLOW-UP CHAT INPUT (must be top-level for Streamlit)
 # 
 
-if st.session_state.get("ai_report") and st.session_state.get("claude_key"):
+if st.session_state.get("ai_report") and st.secrets.get("AWS_ACCESS_KEY_ID_API"):
     _user_msg = st.chat_input("Ask a follow-up question about this report…", key="ai_chat_input_top")
     if _user_msg:
         st.session_state.ai_chat_history.append({"role": "user", "content": _user_msg})
@@ -3649,7 +3656,7 @@ if st.session_state.get("ccu_data"):
             st.markdown("**AI Accuracy & Trend Check**")
             st.caption("Claude compares the weekly archived reports for this month and flags any divergence from the month-long drift.")
 
-            if not st.session_state.get("claude_key"):
+            if not st.secrets.get("AWS_ACCESS_KEY_ID_API"):
                 st.warning("Enter your Claude API key in the sidebar to run the monthly analysis.")
             else:
                 if st.button("Run Monthly Analysis", key="run_monthly_btn"):
@@ -3681,10 +3688,14 @@ Be specific and data-driven. Use the CCU numbers directly."""
 
                     try:
                         import anthropic as _anth_m
-                        _mc = _anth_m.Anthropic(api_key=st.session_state.claude_key)
+                        _mc = _anth_m.AnthropicBedrock(
+                        aws_access_key=st.secrets.get("AWS_ACCESS_KEY_ID_API", ""),
+                        aws_secret_key=st.secrets.get("AWS_SECRET_ACCESS_KEY_API", ""),
+                        aws_region=st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
+                    )
                         with st.spinner("Running monthly analysis…"):
                             _mr = _mc.messages.create(
-                                model="claude-sonnet-4-20250514",
+                                model="us.anthropic.claude-sonnet-4-6",
                                 max_tokens=2000,
                                 messages=[{"role": "user", "content": _monthly_prompt}],
                             )
