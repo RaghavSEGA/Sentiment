@@ -3253,7 +3253,7 @@ with st.sidebar:
         f'<span style="color:var(--text);font-weight:700;">{st.session_state.auth_email}</span>'
         f'</div>',
         unsafe_allow_html=True)
-    if st.button(T("sign_out"), key="sign_out_btn"):
+    if st.button(T("sign_out"), key="auth_sign_out_btn"):
         if _cookie_manager:
             _cookie_manager.delete(COOKIE_NAME, key="delete_auth_cookie")
         for _k in ["auth_verified","auth_email","otp_sent","otp_code",
