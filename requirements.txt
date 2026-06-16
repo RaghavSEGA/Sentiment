@@ -40,3 +40,28 @@ beautifulsoup4
 playwright
 apscheduler>=3.10
 psycopg2-binary
+
+# ── Core (required) ────────────────────────────────────────────────────────
+streamlit>=1.35.0
+requests>=2.31.0
+pandas>=2.0.0
+plotly>=5.20.0
+anthropic>=0.28.0          # AnthropicBedrock client
+boto3>=1.34.0              # AWS SES (OTP email) + Bedrock region config
+python-pptx>=1.0.0         # text-based PPTX fallback export
+extra-streamlit-components>=0.1.60  # cookie-based auth persistence
+
+# ── Optional: PDF export ────────────────────────────────────────────────────
+reportlab>=4.1.0
+
+# ── Optional: Markdown→HTML rendering ──────────────────────────────────────
+markdown>=3.5.0
+
+# ── Optional: Snapshot PPTX export (page screenshot → slides) ──────────────
+# After installing, run:  playwright install chromium
+playwright>=1.44.0
+Pillow>=10.3.0             # slice tall screenshots into 16:9 slide segments
+kaleido>=0.2.1             # render Plotly charts to PNG inside the snapshot
+
+# ── Optional: Background scheduler (Monday auto-archive) ───────────────────
+apscheduler>=3.10.0
