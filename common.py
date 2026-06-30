@@ -4204,6 +4204,83 @@ def run_connectivity_probe(test_app_id: int = 730, test_name: str = "Counter-Str
     return results
 
 
+# Every non-underscore symbol any page references via `from common import *`,
+# plus every explicitly-imported underscore name — i.e. everything that MUST
+# exist in common.py for the app to run. Mirrors the AST-based cross-check
+# used during development; kept here so the SAME check can run against
+# whatever is actually deployed, not just the source on disk at dev time.
+# Regenerate this list (see the dev-time AST scan) if pages are added or
+# their common.py usage changes.
+_EXPECTED_COMMON_SYMBOLS = [
+    "ANTHROPIC_AVAILABLE", "FPS_ROSTER_IDS", "GAME_CATALOG", "HOME_PAGE",
+    "PLOTLY_BASE", "PRESET_QUERIES", "T", "TPS_ROSTER_IDS",
+    "build_ccu_mecha_prompt", "build_competitive_gap_prompt",
+    "build_drilldown_prompt", "build_social_metrics_prompt",
+    "build_system_prompt", "build_table_stakes_prompt",
+    "build_weekly_report_prompt", "cache_age_str", "compute_period_diff",
+    "enforce_common_module_integrity",
+    "generate_pptx_bytes", "generate_pptx_snapshot_bytes", "get_game_events",
+    "get_roster", "init_session_defaults", "inject_css",
+    "list_archived_reports", "load_all_historical", "load_all_raw",
+    "load_ccu_snapshots", "load_daily_cache", "render_footer",
+    "render_nav_tabs", "render_report_with_tables", "render_table",
+    "render_topbar", "report_to_html", "report_to_pdf", "require_auth",
+    "run_connectivity_probe", "run_pipeline_probe", "safe_page_link",
+    "save_ccu_snapshot", "save_daily_cache", "save_report_to_archive",
+    "self_check_common_module", "should_auto_archive", "summarize_fetch_health",
+    # underscore-prefixed names individual pages import explicitly
+    "_fetch_one_game", "_REPORTLAB_AVAILABLE", "_anthropic",
+    "_archive_dir", "_cache_path",
+]
+
+
+def self_check_common_module() -> dict:
+    """Verify, at runtime, that THIS running common.py actually defines every
+    symbol the pages expect — settles "did my deployment actually pick up
+    the latest file?" definitively instead of guessing from a traceback.
+
+    A NameError reaching the page level (rather than being caught by a
+    try/except inside the called function) almost always means the deployed
+    common.py is missing something the page expects — usually because
+    common.py and the pages/ files were updated out of sync with each other,
+    or a deploy didn't fully restart the process. This check catches that
+    immediately rather than via a cryptic crash on whichever page happens to
+    use the missing symbol first.
+    """
+    import sys
+    this_module = sys.modules[__name__]
+    missing = [name for name in _EXPECTED_COMMON_SYMBOLS if not hasattr(this_module, name)]
+    return {
+        "total_checked": len(_EXPECTED_COMMON_SYMBOLS),
+        "missing": missing,
+        "ok": len(missing) == 0,
+    }
+
+
+
+def enforce_common_module_integrity() -> None:
+    """Call right after require_auth() on every page. If the currently
+    running common.py is missing anything a page expects (almost always a
+    deploy-sync issue — common.py and pages/ updated out of step with each
+    other), show one clear, actionable message and st.stop() — instead of
+    letting whichever page happens to use the missing symbol first crash
+    with a bare NameError and a redacted, hard-to-interpret traceback.
+    """
+    _check = self_check_common_module()
+    if not _check["ok"]:
+        st.error(
+            f"⚠️ **This deployment's `common.py` is out of sync with the page files** "
+            f"— missing {len(_check['missing'])} expected symbol(s): "
+            f"`{', '.join(_check['missing'])}`.\n\n"
+            f"This means common.py and the pages/ files were updated out of step "
+            f"with each other. Redeploy the latest common.py alongside the rest of "
+            f"the app. If you already did, try a full app reboot rather than just "
+            f"a rerun — see the Admin page for a detailed self-check."
+        )
+        st.stop()
+
+
+
 def run_pipeline_probe(test_app_id: int = 730, test_name: str = "Counter-Strike 2") -> dict:
     """Call _fetch_one_game() — the exact function the real Dashboard fetch
     uses — directly, once in the main thread and once inside an actual
