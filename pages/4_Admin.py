@@ -18,6 +18,7 @@ inject_css()
 init_session_defaults()
 require_auth()
 render_topbar()
+render_nav_tabs("admin")
 
 st.markdown(f"""
 <div class="hero" style="padding-top:0.75rem">
@@ -153,5 +154,29 @@ if _log_path.exists():
         st.error(f"Could not read scheduler log: {_e}")
 else:
     st.info(T("admin_log_none"))
+
+st.markdown("---")
+
+# ─────────────────────────────────────────────────────────────
+# CONNECTIVITY CHECK
+# ─────────────────────────────────────────────────────────────
+
+st.markdown(f"""
+<div class="section-header">
+  <span class="dot"></span>{T("conn_check_header")}
+</div>
+""", unsafe_allow_html=True)
+st.caption(T("conn_check_desc"))
+
+if st.button(T("conn_check_btn"), key="run_connectivity_check"):
+    with st.spinner(T("conn_check_running")):
+        _probe_results = run_connectivity_probe()
+    for _pr in _probe_results:
+        if _pr["ok"] is None:
+            st.caption(f"⚪ **{_pr['api']}** — {_pr['detail']}")
+        elif _pr["ok"]:
+            st.success(f"**{_pr['api']}** — {_pr['detail']}", icon="✅")
+        else:
+            st.error(f"**{_pr['api']}** — {_pr['detail']}", icon="❌")
 
 render_footer()
