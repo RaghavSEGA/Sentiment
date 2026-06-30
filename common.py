@@ -3620,6 +3620,12 @@ Be specific, data-driven, and concise. Avoid generic observations. Attribute dat
 #      24h after their last visit.
 # ─────────────────────────────────────────────────────────────
 
+# Filename of the entry-point script (the Dashboard page), used by every
+# "go back to Dashboard" page_link across the other pages. If you rename the
+# main script when deploying, update this constant to match — it's the only
+# place that needs to change.
+HOME_PAGE = "shooter_sentiment.py"
+
 ALLOWED_DOMAIN     = "@segaamerica.com"
 OTP_EXPIRY_SECS    = 600       # 10 minutes
 COOKIE_EXPIRY_SECS = 86400     # 1 day, sliding
@@ -3943,6 +3949,26 @@ def render_topbar() -> None:
             st.session_state.ai_report = ""
             st.session_state.report_cache = {}
             st.rerun()
+
+
+def safe_page_link(page: str, label: str, icon: str | None = None, **kwargs) -> None:
+    """st.page_link wrapper that degrades to a disabled-looking caption instead
+    of raising StreamlitPageNotFoundError and crashing the whole page.
+
+    This matters specifically for this app: files have repeatedly gone out of
+    sync between what's generated and what's actually present in the deployed
+    repo (a missing or misnamed file under pages/, or the entry script renamed
+    during deployment). One missing target should never take down an entire
+    page — it should just show a flat note so the rest of the page still works.
+    """
+    try:
+        st.page_link(page, label=label, icon=icon, **kwargs)
+    except Exception:
+        st.caption(
+            f"{icon or ''} {label} — page link unavailable "
+            f"(`{page}` not found in this deployment; check it exists in the repo with this exact name)."
+        )
+
 
 
 def render_footer() -> None:
