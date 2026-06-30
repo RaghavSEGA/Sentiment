@@ -28,6 +28,35 @@ st.markdown(f"""
 
 st.markdown(f'<div class="admin-note" style="font-size:.78rem;color:var(--muted);margin-bottom:1rem;">{T("admin_csv_note")}</div>', unsafe_allow_html=True)
 
+# ─────────────────────────────────────────────────────────────
+# MODULE SELF-CHECK  (runs automatically, no button — this is the
+# first thing to check whenever ANY page shows a NameError)
+#
+# A NameError for something that should be defined in common.py almost
+# always means the deployed common.py and the deployed pages/ files are out
+# of sync — e.g. a page was updated to call a new function before common.py
+# was redeployed with that function added (or vice versa: common.py was
+# updated but the running process didn't pick up the change, or there's a
+# duplicate/older common.py shadowing the one you think is deployed). This
+# check settles that immediately rather than via a guessing game over a
+# redacted traceback.
+# ─────────────────────────────────────────────────────────────
+
+_self_check = self_check_common_module()
+if not _self_check["ok"]:
+    st.error(
+        f"⚠️ **This page's `common.py` is missing {len(_self_check['missing'])} "
+        f"of {_self_check['total_checked']} expected symbols**: "
+        f"`{', '.join(_self_check['missing'])}`.\n\n"
+        f"This means the currently-running `common.py` doesn't match the pages/ "
+        f"files that import it — redeploy `common.py` alongside the rest of the "
+        f"app so they're back in sync. If you already redeployed it, try a full "
+        f"app reboot (not just a rerun) — Streamlit Cloud sometimes keeps the "
+        f"old module cached in a long-running process even after a file change."
+    )
+else:
+    st.caption(f"✅ Module self-check passed — all {_self_check['total_checked']} expected `common.py` symbols are present.")
+
 st.markdown(f"""
 <div class="section-header" style="margin-top:0">
   <span class="dot"></span>{T("sidebar_config")}
