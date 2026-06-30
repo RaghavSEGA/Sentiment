@@ -684,7 +684,6 @@ div[data-baseweb="notification"] {
 [data-testid="stChatMessage"] { background: var(--surface) !important; border: 1px solid var(--border) !important; border-radius: 8px !important; }
 [data-testid="stChatInput"] > div { background: var(--surface2) !important; border-color: var(--border-hi) !important; }
 [data-testid="stChatInput"] textarea { color: var(--text) !important; }
-</style>
 
 /* ─────────────────────────────────────────────────────────────
    MOBILE RESPONSIVENESS
@@ -738,6 +737,7 @@ div[data-baseweb="notification"] {
     .hero-title { font-size: 1.35rem; }
     .metric-value { font-size: 1.4rem; }
 }
+</style>
 
 """, unsafe_allow_html=True)
 
