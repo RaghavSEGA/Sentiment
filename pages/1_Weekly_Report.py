@@ -21,6 +21,7 @@ inject_css()
 init_session_defaults()
 require_auth()
 render_topbar()
+render_nav_tabs("weekly_report")
 
 st.markdown(f"""
 <div class="section-header" style="margin-top:1.5rem">
