@@ -21,6 +21,7 @@ inject_css()
 init_session_defaults()
 require_auth()
 render_topbar()
+render_nav_tabs("monthly")
 
 # ─────────────────────────────────────────────────────────────
 
