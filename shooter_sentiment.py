@@ -1,8 +1,8 @@
 """
-shooter_intel.py — SEGA Shooter Market Intelligence — Dashboard
+shooter_sentiment.py — SEGA Shooter Market Intelligence — Dashboard
 ================================================================
 Entry point for the multipage app. Run with:
-    streamlit run shooter_intel.py
+    streamlit run shooter_sentiment.py
 
 This page owns roster selection and the live CCU fetch — every other page
 (Weekly Report, Deep Dive, Monthly Analysis, Admin) reads st.session_state
@@ -46,14 +46,14 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-st.page_link("pages/1_Weekly_Report.py", label="Weekly Report & AI Analysis", icon="📝")
+safe_page_link("pages/1_Weekly_Report.py", label="Weekly Report & AI Analysis", icon="📝")
 _nav1, _nav2, _nav3 = st.columns(3)
 with _nav1:
-    st.page_link("pages/2_Deep_Dive.py", label="Game Deep Dive", icon="🔍")
+    safe_page_link("pages/2_Deep_Dive.py", label="Game Deep Dive", icon="🔍")
 with _nav2:
-    st.page_link("pages/3_Monthly_Analysis.py", label="Monthly Analysis", icon="📅")
+    safe_page_link("pages/3_Monthly_Analysis.py", label="Monthly Analysis", icon="📅")
 with _nav3:
-    st.page_link("pages/4_Admin.py", label="Admin & Settings", icon="⚙️")
+    safe_page_link("pages/4_Admin.py", label="Admin & Settings", icon="⚙️")
 
 # ─────────────────────────────────────────────────────────────
 # QUERY BLOCK
