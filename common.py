@@ -422,6 +422,45 @@ code { background: var(--surface3) !important; color: var(--blue) !important; pa
 .topbar-label { font-size: 0.6rem; font-weight: 600; color: var(--muted) !important; letter-spacing: 0.2em; text-transform: uppercase; }
 .topbar-pill { margin-left: auto; background: var(--blue-glow); border: 1px solid rgba(64,128,255,0.28); border-radius: 20px; padding: 0.18rem 0.7rem; font-size: 0.58rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--blue) !important; }
 
+/*  NAV TABS  (cross-page navigation, since st.tabs() can't navigate
+    between separate multipage-app pages — these are styled page_links) */
+.nav-tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--border);
+    margin: 0 0 1.5rem;
+    padding-bottom: 0;
+}
+.nav-tabs [data-testid="stPageLink"],
+.nav-tabs-active {
+    flex: 1;
+}
+.nav-tabs [data-testid="stPageLink"] {
+    border-radius: 6px 6px 0 0 !important;
+}
+.nav-tabs [data-testid="stPageLink"] p {
+    font-family: 'Inter Tight', sans-serif !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+    color: var(--muted) !important;
+}
+.nav-tabs [data-testid="stPageLink"]:hover p { color: var(--text-dim) !important; }
+.nav-tab-active {
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--blue) !important;
+    text-align: center;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 2px solid var(--blue);
+    margin-bottom: -1px;
+    white-space: nowrap;
+}
+
 /*  HERO  */
 .hero { padding: 1.5rem 0 0.75rem; }
 .hero-title { font-family: 'Inter Tight', sans-serif; font-size: 2.4rem; font-weight: 900; line-height: 1.05; color: var(--text) !important; letter-spacing: -0.03em; margin-bottom: 0.5rem; }
@@ -917,9 +956,36 @@ DATA_DIR = _find_data_dir()
 # Steam CCU endpoint
 CCU_URL = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/"
 
-# Max concurrent SteamSpy requests — keeps us well under their unofficial rate limit.
-# Raising this above 5 risks transient 429s; lowering to 2 is safest on slow networks.
-_STEAMSPY_SEM = threading.Semaphore(4)
+# Max concurrent requests per upstream API. The original sequential fetch
+# loop naturally spaced 41 requests out over ~16+ seconds (0.4s sleep between
+# each); the parallel fetch can blast a burst of simultaneous requests at
+# Steam/SteamSpy from a single IP instead, which is a much more likely
+# trigger for rate-limiting/throttling than the original code ever hit.
+# These semaphores cap concurrency per-API regardless of how many worker
+# threads are running, and _http_get_with_retry() below adds a couple of
+# retries with backoff so a single transient blip doesn't permanently zero
+# out that title's CCU for the rest of the 5-minute cache window.
+_STEAM_CCU_SEM = threading.Semaphore(6)
+_STEAMSPY_SEM  = threading.Semaphore(4)
+
+
+def _http_get_with_retry(url: str, params: dict, timeout: float,
+                         max_retries: int = 3, base_delay: float = 0.6) -> requests.Response | None:
+    """GET with retry-with-backoff. Returns the response on success (status
+    200-299), or None if every attempt failed (timeout, connection error, or
+    non-2xx status). Used by fetch_ccu / fetch_steamspy / fetch_steam_reviews
+    so a single rate-limited or transiently-failed request doesn't silently
+    zero out that title for the rest of the cache TTL."""
+    for attempt in range(max_retries):
+        try:
+            r = requests.get(url, params=params, timeout=timeout)
+            if r.ok:
+                return r
+        except Exception:
+            pass
+        if attempt < max_retries - 1:
+            time.sleep(base_delay * (2 ** attempt) + random.uniform(0, 0.25))
+    return None
 
 # ── Twitch Helix API ─────────────────────────────────────────
 TWITCH_TOKEN_URL   = "https://id.twitch.tv/oauth2/token"
@@ -1890,30 +1956,33 @@ STEAMSPY_URL = "https://steamspy.com/api.php"
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_ccu(app_id: int) -> int | None:
-    """Fetch live concurrent player count from the Steam public API."""
+    """Fetch live concurrent player count from the Steam public API.
+    Retries transient failures (timeout, connection error, non-2xx) up to
+    3 times with backoff before giving up — see _http_get_with_retry()."""
+    r = _http_get_with_retry(CCU_URL, {"appid": app_id}, timeout=8)
+    if r is None:
+        return None
     try:
-        r = requests.get(CCU_URL, params={"appid": app_id}, timeout=8)
-        if r.ok:
-            return r.json().get("response", {}).get("player_count")
+        return r.json().get("response", {}).get("player_count")
     except Exception:
-        pass
-    return None
+        return None
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_steam_reviews(app_id: int) -> int | None:
     """Fallback: fetch all-time review score from Steam store API."""
+    r = _http_get_with_retry(
+        f"https://store.steampowered.com/appreviews/{app_id}",
+        {"json": 1, "language": "all", "review_type": "all", "purchase_type": "all"},
+        timeout=8,
+    )
+    if r is None:
+        return None
     try:
-        r = requests.get(
-            f"https://store.steampowered.com/appreviews/{app_id}",
-            params={"json": 1, "language": "all", "review_type": "all", "purchase_type": "all"},
-            timeout=8,
-        )
-        if r.ok:
-            qs = r.json().get("query_summary", {})
-            total = qs.get("total_reviews", 0) or 0
-            pos   = qs.get("total_positive", 0) or 0
-            if total > 0:
-                return round(pos / total * 100)
+        qs = r.json().get("query_summary", {})
+        total = qs.get("total_reviews", 0) or 0
+        pos   = qs.get("total_positive", 0) or 0
+        if total > 0:
+            return round(pos / total * 100)
     except Exception:
         pass
     return None
@@ -1928,17 +1997,15 @@ def fetch_steamspy(app_id: int) -> dict:
       - owners:          estimated owner band e.g. '1,000,000 .. 2,000,000'
       - positive / negative: review counts
     """
+    r = _http_get_with_retry(
+        STEAMSPY_URL, {"request": "appdetails", "appid": app_id}, timeout=12,
+    )
+    if r is None:
+        return {}
     try:
-        r = requests.get(
-            STEAMSPY_URL,
-            params={"request": "appdetails", "appid": app_id},
-            timeout=12,
-        )
-        if r.ok:
-            return r.json()
+        return r.json()
     except Exception:
-        pass
-    return {}
+        return {}
 
 def parse_yoy_from_steamspy(ss: dict) -> tuple[str, int]:
     """
@@ -1976,15 +2043,24 @@ def _fetch_one_game(
     wrapped in @st.cache_data (thread-safe in Streamlit ≥ 1.18) so concurrent
     cache-hits are free and only genuine misses hit the network.
 
-    SteamSpy requests are serialised through _STEAMSPY_SEM (Semaphore(4)) to
-    stay within their unofficial rate limit regardless of how many workers run.
+    Both Steam CCU and SteamSpy requests are throttled through their own
+    semaphores (_STEAM_CCU_SEM / _STEAMSPY_SEM) so a burst of worker threads
+    never sends more than a handful of simultaneous requests to either API —
+    Steam's public endpoints are generally tolerant, but a single-IP burst of
+    a dozen-plus simultaneous requests (what unthrottled concurrency would
+    produce) is a much more plausible trigger for rate-limiting or transient
+    blocks than the original sequential fetch (one request every ~0.4s) ever
+    was. fetch_ccu/fetch_steamspy themselves retry transient failures with
+    backoff — see _http_get_with_retry().
 
     YoY priority: snapshot-based (real) → SteamDB CSV → SteamSpy proxy
     """
     app_id = game["app_id"]
 
-    # ── Steam live CCU ── (no rate-limit concern; separate CDN)
-    ccu = fetch_ccu(app_id)
+    # ── Steam live CCU ──
+    with _STEAM_CCU_SEM:
+        ccu = fetch_ccu(app_id)
+        time.sleep(0.08)          # polite pause while holding the semaphore
 
     # ── SteamSpy ── (one call; reused for both YoY proxy and reviews)
     with _STEAMSPY_SEM:
@@ -3037,6 +3113,12 @@ TRANSLATIONS = {
         "admin_log_header":       "Scheduler Log (last 20 entries)",
         "admin_log_none":         "No scheduler log yet — entries appear here after the first Monday run, or after any error.",
         "admin_log_clear":       "Clear log",
+        "fetch_health_warning":  "⚠️ Live CCU fetch failed for all {n} titles this run — every value below is 0 because the Steam API call didn't succeed, not because these games genuinely have no players. Check the connectivity diagnostics on the Admin page.",
+        "fetch_health_partial":  "ℹ️ Live CCU succeeded for only {pct}% of titles this run ({live}/{total}); the rest fell back to cached/CSV data or show as 0. This can happen during a transient Steam/SteamSpy rate limit — try Refresh CCU Data again in a minute.",
+        "conn_check_header":     "CONNECTIVITY CHECK",
+        "conn_check_desc":       "Tests each upstream API directly with a known title (Counter-Strike 2, app 730) and shows the raw result — use this to tell whether a fetch failure is a network/firewall issue, a rate limit, or something else.",
+        "conn_check_btn":        "Run Connectivity Check",
+        "conn_check_running":    "Testing Steam, SteamSpy, and Twitch connectivity…",
         "admin_csv_note":        "Uploaded here, used everywhere: CSVs uploaded on this page are available immediately to the Dashboard's next fetch — no need to re-upload per page.",
         "api_loaded":             "Anthropic API key loaded",
         "api_missing":            "Anthropic API key missing",
@@ -3286,6 +3368,12 @@ TRANSLATIONS = {
         "admin_log_header":       "スケジューラーログ（直近20件）",
         "admin_log_none":        "スケジューラーログはまだありません — 最初の月曜実行後、またはエラー発生時にここに表示されます。",
         "admin_log_clear":       "ログをクリア",
+        "fetch_health_warning":  "⚠️ 今回の取得で {n} タイトル全てのライブCCU取得が失敗しました — 以下の値が0なのはSteam APIの呼び出しが成功しなかったためであり、実際にプレイヤーが0人というわけではありません。Adminページの接続診断を確認してください。",
+        "fetch_health_partial":  "ℹ️ 今回はライブCCUが {live}/{total} タイトル（{pct}%）でのみ成功しました。残りはキャッシュ/CSVデータにフォールバックするか0として表示されています。Steam/SteamSpyの一時的なレート制限が原因の場合があります — 1分ほど待ってから「CCUデータを更新」を再試行してください。",
+        "conn_check_header":     "接続診断",
+        "conn_check_desc":       "既知のタイトル（Counter-Strike 2, app 730）を使って各上流APIを直接テストし、生の結果を表示します — 取得失敗がネットワーク/ファイアウォールの問題か、レート制限か、その他の原因かを判断する際に使用してください。",
+        "conn_check_btn":        "接続診断を実行",
+        "conn_check_running":    "Steam、SteamSpy、Twitchへの接続をテスト中…",
         "admin_csv_note":        "ここでアップロードすれば全ページで利用可能: このページでアップロードしたCSVは、Dashboardの次回取得で即座に反映されます — ページごとに再アップロードする必要はありません。",
         "api_loaded":             "Anthropic APIキー読み込み済み",
         "api_missing":            "Anthropic APIキーがありません",
@@ -3748,7 +3836,11 @@ def _sign_cookie(email: str) -> str:
     return base64.urlsafe_b64encode(f"{payload}|{sig}".encode()).decode()
 
 
-def _verify_cookie(token: str):
+def _verify_cookie(token: str) -> tuple[str, int] | None:
+    """Validate a signed cookie token. Returns (email, expiry_unix_ts) on
+    success, or None if missing, tampered, or expired. Exposing the expiry
+    (rather than just the email) lets the caller decide whether a refresh is
+    actually needed, instead of re-signing on every single page load."""
     try:
         secret  = _cookie_secret()
         decoded = base64.urlsafe_b64decode(token.encode()).decode()
@@ -3757,9 +3849,10 @@ def _verify_cookie(token: str):
         expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(sig, expected):
             return None
-        if int(time.time()) > int(expiry_str):
+        expiry = int(expiry_str)
+        if int(time.time()) > expiry:
             return None
-        return email
+        return email, expiry
     except Exception:
         return None
 
@@ -3795,7 +3888,8 @@ def require_auth() -> None:
         _cookie_manager  = None
         _existing_cookie = None
 
-    _cookie_email = _verify_cookie(_existing_cookie) if _existing_cookie else None
+    _verified = _verify_cookie(_existing_cookie) if _existing_cookie else None
+    _cookie_email, _cookie_expiry = _verified if _verified else (None, None)
 
     for _k, _v in [
         ("auth_verified", False), ("auth_email", ""),
@@ -3809,13 +3903,22 @@ def require_auth() -> None:
         st.session_state.auth_verified = True
         st.session_state.auth_email    = _cookie_email
 
-    # ── Sliding expiry: re-issue the cookie on every authenticated page
-    # load so active users never get logged out mid-session, while users
-    # who stop visiting still expire 24h after their last activity. ──
-    if _cookie_email and _cookie_manager:
-        _fresh_token = _sign_cookie(_cookie_email)
-        _cookie_manager.set(COOKIE_NAME, _fresh_token,
-            expires_at=None, key=f"slide_auth_cookie_{int(time.time())}")
+    # ── Sliding expiry: re-issue the cookie once its remaining lifetime
+    # drops below half of COOKIE_EXPIRY_SECS, so active users never get
+    # logged out mid-session while inactive users still expire ~24h after
+    # their last visit. Only refreshing when actually needed (rather than
+    # on every single page load) avoids hammering the underlying cookie
+    # component with writes. The key is a STABLE string, not time-based —
+    # using a key that changes every second (as an earlier version of this
+    # function did) makes the custom component remount on every single
+    # rerun instead of updating in place, which is why the cookie wasn't
+    # reliably persisting across page navigations.
+    if _cookie_email and _cookie_manager and _cookie_expiry is not None:
+        _remaining = _cookie_expiry - int(time.time())
+        if _remaining < COOKIE_EXPIRY_SECS / 2:
+            _fresh_token = _sign_cookie(_cookie_email)
+            _cookie_manager.set(COOKIE_NAME, _fresh_token,
+                expires_at=None, key="slide_auth_cookie")
 
     if not st.session_state.auth_verified:
         st.markdown("""
@@ -3949,6 +4052,141 @@ def render_topbar() -> None:
             st.session_state.ai_report = ""
             st.session_state.report_cache = {}
             st.rerun()
+
+
+# (key, page path, label, icon) for every page in the app, in display order.
+# HOME_PAGE is used here rather than a literal filename so this stays correct
+# if the entry script is ever renamed (see the HOME_PAGE constant above).
+_NAV_PAGES = [
+    ("dashboard",      HOME_PAGE,                       "Dashboard",       "📊"),
+    ("weekly_report",  "pages/1_Weekly_Report.py",       "Weekly Report",   "📝"),
+    ("deep_dive",      "pages/2_Deep_Dive.py",           "Deep Dive",       "🔍"),
+    ("monthly",        "pages/3_Monthly_Analysis.py",    "Monthly Analysis","📅"),
+    ("admin",          "pages/4_Admin.py",                "Admin",          "⚙️"),
+]
+
+
+def render_nav_tabs(current: str) -> None:
+    """Persistent tab-style navigation bar, identical on every page.
+
+    st.tabs() itself can't navigate between separate multipage-app pages —
+    it only switches content within a single page — so this is a styled row
+    of safe_page_link calls instead, with the current page shown as a plain
+    highlighted label (not a link to itself). `current` must be one of the
+    keys in _NAV_PAGES ("dashboard", "weekly_report", "deep_dive", "monthly",
+    "admin").
+    """
+    st.markdown('<div class="nav-tabs">', unsafe_allow_html=True)
+    _cols = st.columns(len(_NAV_PAGES))
+    for _col, (_key, _path, _label, _icon) in zip(_cols, _NAV_PAGES):
+        with _col:
+            if _key == current:
+                st.markdown(
+                    f'<div class="nav-tab-active">{_icon} {_label}</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                safe_page_link(_path, label=_label, icon=_icon)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def summarize_fetch_health(ccu_data: list[dict]) -> dict:
+    """Summarize how the live fetch actually went, so a systemic failure
+    (e.g. Steam/SteamSpy unreachable, or rate-limited by burst concurrency)
+    is visible as a clear signal instead of just looking like every title
+    genuinely has 0 concurrent players — which is indistinguishable from a
+    real (if surprising) result unless something explicitly flags it.
+
+    live_count   — titles where the Steam CCU API call itself succeeded
+    csv_fallback — titles where the live call failed but a CSV/snapshot
+                   number filled in instead (ccu may still be meaningful)
+    zero_count   — titles where ccu ended up at exactly 0 (live failed AND
+                   no fallback data existed)
+    """
+    total        = len(ccu_data)
+    live_count   = sum(1 for r in ccu_data if r.get("ccu_live"))
+    csv_fallback = sum(1 for r in ccu_data if r.get("ccu_from_csv"))
+    zero_count   = sum(1 for r in ccu_data if (r.get("ccu") or 0) == 0)
+    return {
+        "total": total,
+        "live_count": live_count,
+        "csv_fallback": csv_fallback,
+        "zero_count": zero_count,
+        "live_pct": round(live_count / total * 100) if total else 0,
+        "looks_systemic": total > 0 and live_count == 0 and csv_fallback == 0,
+    }
+
+
+def run_connectivity_probe(test_app_id: int = 730, test_name: str = "Counter-Strike 2") -> list[dict]:
+    """Direct, uncached connectivity test against each upstream API — used by
+    the Admin page's connectivity check. Bypasses st.cache_data entirely
+    (clears the relevant caches first) so a stale cached failure can't be
+    mistaken for a fresh one, and reports the raw status/error for each call
+    so whoever has Streamlit Cloud log access can tell at a glance whether
+    the problem is network-level, a rate limit, or something else.
+    """
+    results = []
+
+    # Steam CCU — clear cache first so this is a genuinely fresh request
+    try:
+        fetch_ccu.clear()
+    except Exception:
+        pass
+    t0 = time.time()
+    try:
+        r = requests.get(CCU_URL, params={"appid": test_app_id}, timeout=8)
+        elapsed = round((time.time() - t0) * 1000)
+        if r.ok:
+            count = r.json().get("response", {}).get("player_count")
+            results.append({"api": "Steam CCU", "ok": count is not None,
+                             "detail": f"HTTP {r.status_code} · player_count={count} · {elapsed}ms"})
+        else:
+            results.append({"api": "Steam CCU", "ok": False,
+                             "detail": f"HTTP {r.status_code} · {elapsed}ms · body: {r.text[:200]}"})
+    except Exception as e:
+        elapsed = round((time.time() - t0) * 1000)
+        results.append({"api": "Steam CCU", "ok": False,
+                         "detail": f"{type(e).__name__}: {e} · {elapsed}ms"})
+
+    # SteamSpy
+    try:
+        fetch_steamspy.clear()
+    except Exception:
+        pass
+    t0 = time.time()
+    try:
+        r = requests.get(STEAMSPY_URL, params={"request": "appdetails", "appid": test_app_id}, timeout=12)
+        elapsed = round((time.time() - t0) * 1000)
+        if r.ok:
+            data = r.json()
+            results.append({"api": "SteamSpy", "ok": bool(data),
+                             "detail": f"HTTP {r.status_code} · keys={list(data.keys())[:5]} · {elapsed}ms"})
+        else:
+            results.append({"api": "SteamSpy", "ok": False,
+                             "detail": f"HTTP {r.status_code} · {elapsed}ms · body: {r.text[:200]}"})
+    except Exception as e:
+        elapsed = round((time.time() - t0) * 1000)
+        results.append({"api": "SteamSpy", "ok": False,
+                         "detail": f"{type(e).__name__}: {e} · {elapsed}ms"})
+
+    # Twitch (only if configured)
+    if st.secrets.get("TWITCH_CLIENT_ID"):
+        t0 = time.time()
+        try:
+            v = fetch_twitch_viewers(test_app_id, test_name)
+            elapsed = round((time.time() - t0) * 1000)
+            results.append({"api": "Twitch", "ok": v is not None,
+                             "detail": f"viewer_count={v} · {elapsed}ms"})
+        except Exception as e:
+            elapsed = round((time.time() - t0) * 1000)
+            results.append({"api": "Twitch", "ok": False,
+                             "detail": f"{type(e).__name__}: {e} · {elapsed}ms"})
+    else:
+        results.append({"api": "Twitch", "ok": None,
+                         "detail": "Not configured — TWITCH_CLIENT_ID not in secrets (this is fine if you don't use Twitch data)"})
+
+    return results
+
 
 
 def safe_page_link(page: str, label: str, icon: str | None = None, **kwargs) -> None:
