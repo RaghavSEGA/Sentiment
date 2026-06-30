@@ -30,7 +30,7 @@ st.markdown(f"""
 
 if not st.session_state.ccu_data:
     st.info(T("drilldown_no_data"))
-    st.page_link("shooter_intel.py", label="Go to Dashboard to fetch live CCU data", icon="📊")
+    safe_page_link(HOME_PAGE, label="Go to Dashboard to fetch live CCU data", icon="📊")
     st.stop()
 
 ccu_data = st.session_state.ccu_data
