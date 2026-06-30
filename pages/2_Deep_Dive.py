@@ -19,6 +19,7 @@ st.set_page_config(
 inject_css()
 init_session_defaults()
 require_auth()
+enforce_common_module_integrity()
 render_topbar()
 render_nav_tabs("deep_dive")
 
