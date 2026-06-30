@@ -1289,6 +1289,7 @@ def compute_yoy_from_snapshots(snapshots: list[dict], app_id: int) -> tuple[str,
 
 
 
+def get_historical_summary(monthly_df: pd.DataFrame) -> dict:
     """Return a summary dict for the AI prompt from historical data."""
     if monthly_df is None or monthly_df.empty:
         return {}
@@ -3119,6 +3120,15 @@ TRANSLATIONS = {
         "conn_check_desc":       "Tests each upstream API directly with a known title (Counter-Strike 2, app 730) and shows the raw result — use this to tell whether a fetch failure is a network/firewall issue, a rate limit, or something else.",
         "conn_check_btn":        "Run Connectivity Check",
         "conn_check_running":    "Testing Steam, SteamSpy, and Twitch connectivity…",
+        "pipeline_check_header": "Pipeline Check (advanced)",
+        "pipeline_check_desc":   "Calls the exact function the real fetch uses — once directly, once inside a worker thread like the Dashboard does — so you can tell whether a fetch failure is a bug in the fetch logic itself (fails both ways) or something specific to running inside a thread (succeeds direct, fails threaded). Run this if the Connectivity Check above passes but the Dashboard still shows all-zero CCU.",
+        "pipeline_check_btn":    "Run Pipeline Check",
+        "pipeline_check_running": "Testing the fetch pipeline directly and inside a worker thread…",
+        "pipeline_check_thread_specific": "⚠️ The main-thread call succeeded but the worker-thread call failed — this points to something specific to running inside a background thread (e.g. a caching/session quirk), not the fetch logic itself. Worth trying a lower max_workers or removing st.cache_data from the affected function as a workaround.",
+        "pipeline_check_both_fail": "⚠️ Both calls failed — this is a bug in the fetch logic itself, not a threading issue. Check the error details above; if you can share them, that pinpoints the exact line to fix.",
+        "pipeline_check_both_ok": "✅ Both succeeded — the fetch pipeline itself is working correctly for this title right now. If the Dashboard still shows all-zero CCU, try Refresh CCU Data again; it may have been a transient issue.",
+        "pipeline_check_both_no_data": "🟡 Both calls completed without error, but neither got a live value back from Steam — the fetch logic itself is fine, but Steam's CCU endpoint isn't returning data for this title right now (could be a transient API issue, or this title genuinely has an API quirk). Try a different title or wait a few minutes.",
+        "pipeline_check_main_only_exception": "The main-thread call raised an exception but the worker-thread call didn't — this is unusual and may just mean the underlying failure was transient between the two calls. Try running the check again.",
         "admin_csv_note":        "Uploaded here, used everywhere: CSVs uploaded on this page are available immediately to the Dashboard's next fetch — no need to re-upload per page.",
         "api_loaded":             "Anthropic API key loaded",
         "api_missing":            "Anthropic API key missing",
@@ -3374,6 +3384,15 @@ TRANSLATIONS = {
         "conn_check_desc":       "既知のタイトル（Counter-Strike 2, app 730）を使って各上流APIを直接テストし、生の結果を表示します — 取得失敗がネットワーク/ファイアウォールの問題か、レート制限か、その他の原因かを判断する際に使用してください。",
         "conn_check_btn":        "接続診断を実行",
         "conn_check_running":    "Steam、SteamSpy、Twitchへの接続をテスト中…",
+        "pipeline_check_header": "パイプラインチェック（詳細）",
+        "pipeline_check_desc":   "実際の取得処理が使うのと全く同じ関数を、1回は直接、1回はDashboardと同様にワーカースレッド内で呼び出します。取得失敗が処理ロジック自体のバグ（両方失敗）なのか、スレッド内実行に特有の問題（直接は成功、スレッドでは失敗）なのかを判別できます。上の接続診断が成功してもDashboardが全て0のままの場合に実行してください。",
+        "pipeline_check_btn":    "パイプラインチェックを実行",
+        "pipeline_check_running": "取得処理を直接およびワーカースレッド内でテスト中…",
+        "pipeline_check_thread_specific": "⚠️ メインスレッドの呼び出しは成功しましたが、ワーカースレッドの呼び出しは失敗しました — これは取得ロジック自体ではなく、バックグラウンドスレッド内での実行に特有の問題（キャッシュ/セッションの不具合など）を示しています。回避策として max_workers を下げるか、該当関数から st.cache_data を外すことを検討してください。",
+        "pipeline_check_both_fail": "⚠️ 両方の呼び出しが失敗しました — これは取得ロジック自体のバグであり、スレッドの問題ではありません。上記のエラー詳細を確認してください。",
+        "pipeline_check_both_ok": "✅ 両方成功しました — 現時点でこのタイトルの取得処理は正しく動作しています。Dashboardが依然として全て0を表示する場合は「CCUデータを更新」を再試行してください。一時的な問題だった可能性があります。",
+        "pipeline_check_both_no_data": "🟡 両方の呼び出しがエラーなく完了しましたが、どちらもSteamからライブ値を取得できませんでした — 取得ロジック自体は問題ありませんが、現在このタイトルに対してSteamのCCUエンドポイントがデータを返していません（一時的なAPIの問題、またはこのタイトル特有の問題の可能性があります）。別のタイトルで試すか、数分待ってから再試行してください。",
+        "pipeline_check_main_only_exception": "メインスレッドの呼び出しはエラーになりましたが、ワーカースレッドの呼び出しは成功しました — これは珍しいケースで、2回の呼び出しの間で一時的な問題が発生しただけかもしれません。もう一度実行してみてください。",
         "admin_csv_note":        "ここでアップロードすれば全ページで利用可能: このページでアップロードしたCSVは、Dashboardの次回取得で即座に反映されます — ページごとに再アップロードする必要はありません。",
         "api_loaded":             "Anthropic APIキー読み込み済み",
         "api_missing":            "Anthropic APIキーがありません",
@@ -4118,55 +4137,52 @@ def summarize_fetch_health(ccu_data: list[dict]) -> dict:
 
 
 def run_connectivity_probe(test_app_id: int = 730, test_name: str = "Counter-Strike 2") -> list[dict]:
-    """Direct, uncached connectivity test against each upstream API — used by
-    the Admin page's connectivity check. Bypasses st.cache_data entirely
-    (clears the relevant caches first) so a stale cached failure can't be
-    mistaken for a fresh one, and reports the raw status/error for each call
-    so whoever has Streamlit Cloud log access can tell at a glance whether
-    the problem is network-level, a rate limit, or something else.
+    """Connectivity test against each upstream API — used by the Admin page's
+    connectivity check.
+
+    Calls the REAL application functions (fetch_ccu, fetch_steamspy), not raw
+    requests.get() — an earlier version of this probe bypassed fetch_ccu()
+    entirely, which meant a passing probe only proved the network and Steam's
+    API were reachable, NOT that the actual fetch pipeline (retry wrapper,
+    cache decorator, semaphore throttling) worked. That gap is exactly why a
+    user could see this probe succeed while the real Dashboard fetch still
+    returned all zeros — the probe wasn't testing the same code.
+
+    Clears the relevant @st.cache_data caches first so a stale cached failure
+    can't be mistaken for a fresh one.
     """
     results = []
 
-    # Steam CCU — clear cache first so this is a genuinely fresh request
+    # Steam CCU — via the real fetch_ccu(), main thread
     try:
         fetch_ccu.clear()
     except Exception:
         pass
     t0 = time.time()
     try:
-        r = requests.get(CCU_URL, params={"appid": test_app_id}, timeout=8)
+        count = fetch_ccu(test_app_id)
         elapsed = round((time.time() - t0) * 1000)
-        if r.ok:
-            count = r.json().get("response", {}).get("player_count")
-            results.append({"api": "Steam CCU", "ok": count is not None,
-                             "detail": f"HTTP {r.status_code} · player_count={count} · {elapsed}ms"})
-        else:
-            results.append({"api": "Steam CCU", "ok": False,
-                             "detail": f"HTTP {r.status_code} · {elapsed}ms · body: {r.text[:200]}"})
+        results.append({"api": "Steam CCU (fetch_ccu)", "ok": count is not None,
+                         "detail": f"player_count={count} · {elapsed}ms"})
     except Exception as e:
         elapsed = round((time.time() - t0) * 1000)
-        results.append({"api": "Steam CCU", "ok": False,
+        results.append({"api": "Steam CCU (fetch_ccu)", "ok": False,
                          "detail": f"{type(e).__name__}: {e} · {elapsed}ms"})
 
-    # SteamSpy
+    # SteamSpy — via the real fetch_steamspy(), main thread
     try:
         fetch_steamspy.clear()
     except Exception:
         pass
     t0 = time.time()
     try:
-        r = requests.get(STEAMSPY_URL, params={"request": "appdetails", "appid": test_app_id}, timeout=12)
+        data = fetch_steamspy(test_app_id)
         elapsed = round((time.time() - t0) * 1000)
-        if r.ok:
-            data = r.json()
-            results.append({"api": "SteamSpy", "ok": bool(data),
-                             "detail": f"HTTP {r.status_code} · keys={list(data.keys())[:5]} · {elapsed}ms"})
-        else:
-            results.append({"api": "SteamSpy", "ok": False,
-                             "detail": f"HTTP {r.status_code} · {elapsed}ms · body: {r.text[:200]}"})
+        results.append({"api": "SteamSpy (fetch_steamspy)", "ok": bool(data),
+                         "detail": f"keys={list(data.keys())[:5]} · {elapsed}ms"})
     except Exception as e:
         elapsed = round((time.time() - t0) * 1000)
-        results.append({"api": "SteamSpy", "ok": False,
+        results.append({"api": "SteamSpy (fetch_steamspy)", "ok": False,
                          "detail": f"{type(e).__name__}: {e} · {elapsed}ms"})
 
     # Twitch (only if configured)
@@ -4186,6 +4202,79 @@ def run_connectivity_probe(test_app_id: int = 730, test_name: str = "Counter-Str
                          "detail": "Not configured — TWITCH_CLIENT_ID not in secrets (this is fine if you don't use Twitch data)"})
 
     return results
+
+
+def run_pipeline_probe(test_app_id: int = 730, test_name: str = "Counter-Strike 2") -> dict:
+    """Call _fetch_one_game() — the exact function the real Dashboard fetch
+    uses — directly, once in the main thread and once inside an actual
+    ThreadPoolExecutor worker, and report the full result or exception from
+    each.
+
+    This exists specifically to distinguish two different failure modes that
+    look identical from the Dashboard (every title at 0):
+      1. A bug in _fetch_one_game() itself (e.g. a call to something that
+         doesn't actually exist) — would fail in BOTH the main-thread and
+         worker-thread call below.
+      2. Something specific to running inside a worker thread (e.g. a
+         Streamlit caching/session quirk without an active ScriptRunContext)
+         — would succeed in the main-thread call but fail in the worker-
+         thread call.
+
+    run_connectivity_probe() only proves the network and upstream APIs are
+    reachable; it doesn't exercise _fetch_one_game() or the thread pool at
+    all, so it can pass while the real fetch still fails. This probe closes
+    that gap.
+    """
+    game = {"app_id": test_app_id, "name": test_name, "sub": "Tactical / Competitive",
+             "publisher": "Valve", "f2p": True, "year": 2023}
+
+    # Use real historical/raw data if a CSV happens to exist for this app_id,
+    # otherwise empty dicts — _fetch_one_game() handles both cases.
+    try:
+        historical = load_all_historical(frozenset({test_app_id}))
+    except Exception:
+        historical = {}
+    try:
+        raw_data = load_all_raw(frozenset({test_app_id}))
+    except Exception:
+        raw_data = {}
+    try:
+        snapshots = load_ccu_snapshots()
+    except Exception:
+        snapshots = []
+
+    out = {"main_thread": None, "worker_thread": None}
+
+    # ── Main thread — direct call ──
+    try:
+        result = _fetch_one_game(game, historical, raw_data, snapshots)
+        if result.get("ccu_live"):
+            out["main_thread"] = {"status": "ok",
+                "detail": f"ccu={result['ccu']:,} (live) · yoy_source={result['yoy_source']}"}
+        else:
+            out["main_thread"] = {"status": "ran_but_no_live_data",
+                "detail": f"completed without error, but the live Steam call itself returned nothing "
+                          f"(ccu={result['ccu']}, ccu_live=False, yoy_source={result['yoy_source']})"}
+    except Exception as e:
+        out["main_thread"] = {"status": "exception", "detail": f"{type(e).__name__}: {e}"}
+
+    # ── Worker thread — via a real one-off ThreadPoolExecutor, same as the
+    # Dashboard's actual fetch loop uses ──
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _pool:
+            _fut = _pool.submit(_fetch_one_game, game, historical, raw_data, snapshots)
+            result = _fut.result(timeout=20)
+        if result.get("ccu_live"):
+            out["worker_thread"] = {"status": "ok",
+                "detail": f"ccu={result['ccu']:,} (live) · yoy_source={result['yoy_source']}"}
+        else:
+            out["worker_thread"] = {"status": "ran_but_no_live_data",
+                "detail": f"completed without error, but the live Steam call itself returned nothing "
+                          f"(ccu={result['ccu']}, ccu_live=False, yoy_source={result['yoy_source']})"}
+    except Exception as e:
+        out["worker_thread"] = {"status": "exception", "detail": f"{type(e).__name__}: {e}"}
+
+    return out
 
 
 
