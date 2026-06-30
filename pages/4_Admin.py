@@ -179,4 +179,36 @@ if st.button(T("conn_check_btn"), key="run_connectivity_check"):
         else:
             st.error(f"**{_pr['api']}** — {_pr['detail']}", icon="❌")
 
+st.markdown("<br>", unsafe_allow_html=True)
+st.markdown(f"**{T('pipeline_check_header')}**")
+st.caption(T("pipeline_check_desc"))
+
+if st.button(T("pipeline_check_btn"), key="run_pipeline_check"):
+    with st.spinner(T("pipeline_check_running")):
+        _pipeline_results = run_pipeline_probe()
+
+    def _render_probe_state(label: str, state: dict) -> None:
+        if state["status"] == "ok":
+            st.success(f"**{label}** — {state['detail']}", icon="✅")
+        elif state["status"] == "ran_but_no_live_data":
+            st.warning(f"**{label}** — {state['detail']}", icon="🟡")
+        else:
+            st.error(f"**{label}** — {state['detail']}", icon="❌")
+
+    _mt = _pipeline_results["main_thread"]
+    _wt = _pipeline_results["worker_thread"]
+    _render_probe_state("Main thread", _mt)
+    _render_probe_state("Worker thread", _wt)
+
+    if _mt["status"] == "exception" and _wt["status"] != "exception":
+        st.info(T("pipeline_check_main_only_exception"))
+    elif _mt["status"] != "exception" and _wt["status"] == "exception":
+        st.warning(T("pipeline_check_thread_specific"))
+    elif _mt["status"] == "exception" and _wt["status"] == "exception":
+        st.warning(T("pipeline_check_both_fail"))
+    elif _mt["status"] == "ok" and _wt["status"] == "ok":
+        st.info(T("pipeline_check_both_ok"))
+    elif _mt["status"] == "ran_but_no_live_data" and _wt["status"] == "ran_but_no_live_data":
+        st.info(T("pipeline_check_both_no_data"))
+
 render_footer()
