@@ -34,6 +34,7 @@ inject_css()
 init_session_defaults()
 require_auth()
 render_topbar()
+render_nav_tabs("dashboard")
 
 # ─────────────────────────────────────────────────────────────
 # HERO
@@ -45,15 +46,6 @@ st.markdown(f"""
   <div class="hero-sub">{T("hero_sub")}</div>
 </div>
 """, unsafe_allow_html=True)
-
-safe_page_link("pages/1_Weekly_Report.py", label="Weekly Report & AI Analysis", icon="📝")
-_nav1, _nav2, _nav3 = st.columns(3)
-with _nav1:
-    safe_page_link("pages/2_Deep_Dive.py", label="Game Deep Dive", icon="🔍")
-with _nav2:
-    safe_page_link("pages/3_Monthly_Analysis.py", label="Monthly Analysis", icon="📅")
-with _nav3:
-    safe_page_link("pages/4_Admin.py", label="Admin & Settings", icon="⚙️")
 
 # ─────────────────────────────────────────────────────────────
 # QUERY BLOCK
@@ -208,9 +200,11 @@ if not st.session_state.ccu_data:
             "pos_reviews": 0, "neg_reviews": 0,
         }
 
-        # Spawn up to 12 workers.  SteamSpy concurrency is capped separately
-        # by _STEAMSPY_SEM (Semaphore(4)) inside each worker.
-        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as _pool:
+        # Worker count kept moderate (was 12) — Steam/SteamSpy concurrency is
+        # capped separately per-API by _STEAM_CCU_SEM / _STEAMSPY_SEM inside
+        # each worker regardless, but fewer total threads means less burst
+        # pressure overall when many titles miss cache at once.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as _pool:
             _futures = {
                 _pool.submit(_fetch_one_game, game, historical, raw_data, _snapshots): game
                 for game in roster
@@ -233,6 +227,10 @@ if not st.session_state.ccu_data:
         status.empty()
         results.sort(key=lambda x: x["ccu"], reverse=True)
         st.session_state.ccu_data = results
+        # Record how the fetch actually went — surfaced as a banner below so
+        # a systemic failure (every title at 0 because the live API call
+        # itself failed) is visible instead of looking like real data.
+        st.session_state["_fetch_health"] = summarize_fetch_health(results)
         save_ccu_snapshot(results)  # persist live CCU for future WoW comparison
         save_daily_cache(
             st.session_state.get("roster_genre", "FPS"),
@@ -283,6 +281,16 @@ _C_STEAM   = T("col_steam_page")
 _C_1YR     = T("col_1yr_ago")
 _C_ANNUAL  = T("col_annual_change")
 _C_MONTH   = T("col_month_change")
+
+#  Fetch health banner — only shown when the last fetch looked unhealthy.
+# Recomputed from ccu_data itself if _fetch_health wasn't set this run (e.g.
+# data came from the daily cache rather than a fresh fetch this session).
+_fetch_health = st.session_state.get("_fetch_health") or summarize_fetch_health(ccu_data)
+if _fetch_health["looks_systemic"]:
+    st.warning(T("fetch_health_warning", n=_fetch_health["total"]))
+elif _fetch_health["total"] > 0 and _fetch_health["live_pct"] < 50:
+    st.info(T("fetch_health_partial", pct=_fetch_health["live_pct"],
+              live=_fetch_health["live_count"], total=_fetch_health["total"]))
 
 #  Row 1: Primary KPI cards
 _kc1, _kc2, _kc3 = st.columns(3)
