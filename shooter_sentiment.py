@@ -18,7 +18,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from common import *  # noqa: F401,F403 — shared module; see common.py docstring
-from common import _fetch_one_game  # leading underscore — import * skips these
+from common import _fetch_one_game, _anthropic  # leading underscore — import * skips these
 
 # ─────────────────────────────────────────────────────────────
 # PAGE SETUP  (must run before any other Streamlit call)
@@ -325,8 +325,50 @@ with _kc3:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
+# ─────────────────────────────────────────────────────────────
+# EXECUTIVE SUMMARY
+# Auto-generated after every live fetch. Cached in session_state
+# so it doesn't regenerate on every Streamlit rerun, only when
+# ccu_data changes (genre switch, roster change, or refresh).
+# ─────────────────────────────────────────────────────────────
+
+st.markdown(f"""
+<div class="section-header">
+  <span class="dot"></span>{T("exec_summary_header")}
+</div>
+""", unsafe_allow_html=True)
+
+_exec_key = f"exec_summary_{st.session_state.get('roster_genre','FPS')}_{len(ccu_data)}"
+if not st.session_state.get(_exec_key):
+    if not st.secrets.get("AWS_ACCESS_KEY_ID_API"):
+        st.caption(T("exec_summary_no_key"))
+    else:
+        try:
+            _exec_prompt = build_exec_summary_prompt(ccu_data, st.session_state.report_language)
+            with st.spinner(T("exec_summary_spinner")):
+                _exec_client = _anthropic.AnthropicBedrock(
+                    aws_access_key=st.secrets.get("AWS_ACCESS_KEY_ID_API", ""),
+                    aws_secret_key=st.secrets.get("AWS_SECRET_ACCESS_KEY_API", ""),
+                    aws_region=st.secrets.get("AWS_BEDROCK_REGION", "us-east-1"),
+                )
+                _exec_resp = _exec_client.messages.create(
+                    model="us.anthropic.claude-sonnet-4-6",
+                    max_tokens=600,
+                    system=build_system_prompt(st.session_state.report_language),
+                    messages=[{"role": "user", "content": _exec_prompt}],
+                )
+            st.session_state[_exec_key] = _exec_resp.content[0].text
+        except Exception as _exec_e:
+            st.caption(T("exec_summary_error"))
+
+if st.session_state.get(_exec_key):
+    st.markdown(st.session_state[_exec_key])
+    st.caption(T("exec_summary_caption"))
+
+st.markdown("---")
+
 #  WoW expander
-with st.expander(T("wow_expander", up=wow_up, down=wow_down)):
+with st.expander(T("wow_expander", up=wow_up, down=wow_down), expanded=True):
     if wow_diff:
         _w_up   = [r["name"] for r in ccu_data if wow_diff.get(r["app_id"], {}).get("delta", 0) > 0]
         _w_down = [r["name"] for r in ccu_data if wow_diff.get(r["app_id"], {}).get("delta", 0) < 0]
@@ -358,7 +400,7 @@ with st.expander(T("wow_expander", up=wow_up, down=wow_down)):
         st.info(T("wow_none", appid="{appid}"))
 
 #  MoM expander
-with st.expander(T("mom_expander", up=mom_up, down=mom_down)):
+with st.expander(T("mom_expander", up=mom_up, down=mom_down), expanded=True):
     _m_up   = [r["name"] for r in ccu_data if ((r.get("hist_summary") or {}).get("mom_pct") or 0) > 0]
     _m_down = [r["name"] for r in ccu_data if ((r.get("hist_summary") or {}).get("mom_pct") or 0) < 0]
     if _m_up:
@@ -387,7 +429,7 @@ with st.expander(T("mom_expander", up=mom_up, down=mom_down)):
         st.info(T("yoy_none"))
 
 #  YoY breakdown expander
-with st.expander(T("yoy_expander", up=growing, down=declining)):
+with st.expander(T("yoy_expander", up=growing, down=declining), expanded=True):
     _y_up   = [r["name"] for r in ccu_data if r.get("yoy_val", 0) > 0]
     _y_down = [r["name"] for r in ccu_data if r.get("yoy_val", 0) < 0]
     if _y_up:
@@ -424,7 +466,7 @@ with st.expander(T("yoy_expander", up=growing, down=declining)):
 st.caption(T("formulas_caption"))
 
 #  Sub-genre heatmap
-with st.expander(T("heatmap_expander")):
+with st.expander(T("heatmap_expander"), expanded=True):
     sub_totals: dict[str, int] = {}
     for r in ccu_data:
         sub_totals[r["sub"]] = sub_totals.get(r["sub"], 0) + r["ccu"]
@@ -518,7 +560,7 @@ if rest_n:
 
 #  Full data table
 _tbl_genre = st.session_state.get("roster_genre", "FPS")
-with st.expander(T("table_expander", genre=_tbl_genre)):
+with st.expander(T("table_expander", genre=_tbl_genre), expanded=True):
     _C_RANK = T("col_rank");      _C_SUB  = T("col_subgenre")
     _C_PUB  = T("col_publisher"); _C_F2P  = T("col_f2p")
     _C_YOY  = T("col_yoy");       _C_PEAK = T("col_peak_ever")
