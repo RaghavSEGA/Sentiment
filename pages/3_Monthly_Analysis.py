@@ -32,6 +32,40 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
+# ─── AUTO-ARCHIVE ────────────────────────────────────────────
+# Archive the current session's data the first time this page is
+# visited, so the user never has to click a button manually.
+#
+# Guards that prevent this from doing the wrong thing:
+#   1. Only archives if CCU data was fetched this session and is
+#      non-empty (no data = nothing to archive).
+#   2. Skips when the fetch health looks systemic (all-zero CCU
+#      means the live API failed — bad data shouldn't be archived).
+#   3. Only archives once per session per genre (session_state flag)
+#      so Streamlit reruns don't create duplicate entries.
+#   4. Only archives when an AI report exists in session_state —
+#      the snapshot alone (without a report) isn't useful in the
+#      Monthly view.
+# ─────────────────────────────────────────────────────────────
+
+_ccu_data_now  = st.session_state.get("ccu_data", [])
+_report_now    = st.session_state.get("ai_report", "")
+_label_now     = st.session_state.get("report_label", "Weekly Report")
+_genre_now     = st.session_state.get("roster_genre", "FPS")
+_fh            = summarize_fetch_health(_ccu_data_now) if _ccu_data_now else {"looks_systemic": True}
+_archive_flag  = f"_auto_archived_{_genre_now}"
+
+if (_ccu_data_now and _report_now and not _fh["looks_systemic"]
+        and not st.session_state.get(_archive_flag)):
+    _saved = save_report_to_archive(_report_now, _label_now, _genre_now, _ccu_data_now)
+    if _saved:
+        st.session_state[_archive_flag] = True
+        st.toast(T("auto_archive_success"), icon="📦")
+    else:
+        st.caption(T("auto_archive_failed"))
+elif _ccu_data_now and _fh["looks_systemic"]:
+    st.caption(T("auto_archive_skipped"))
+
 _all_archives = list_archived_reports()
 
 if not _all_archives:
@@ -47,7 +81,7 @@ else:
 
     st.caption(T("monthly_count", n=len(_all_archives), m=len(_month_keys)))
 
-    with st.expander(T("monthly_expander"), expanded=False):
+    with st.expander(T("monthly_expander"), expanded=True):
         _sel_month = st.selectbox(
             T("monthly_select"),
             options=_month_keys,
