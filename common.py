@@ -1584,6 +1584,76 @@ def should_auto_archive(genre: str) -> bool:
     week_str = today.strftime("%Y-%m-%d")
     return not (_archive_dir() / f"report_{week_str}_{genre.lower()}.json").exists()
 
+def build_exec_summary_prompt(ccu_data: list[dict], language: str = "English") -> str:
+    """Build a short executive summary prompt for the Dashboard.
+
+    Intentionally shorter and faster than the full weekly report — aims for
+    5-7 bullet points that a senior leader can read in under 90 seconds:
+    the #1 and #2 titles by CCU, the biggest weekly mover (up and down),
+    one cross-genre signal, and one sharp SEGA-relevant takeaway.
+    """
+    from datetime import datetime, timezone
+    date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
+    _wow = st.session_state.get("_wow_diff_cache", {})
+
+    top5 = ccu_data[:5]
+    rows = []
+    for rank, r in enumerate(ccu_data[:15], 1):
+        wow_d   = _wow.get(r["app_id"])
+        wow_str = (f"+{round(wow_d['delta_pct'])}%" if wow_d and wow_d["delta_pct"] >= 0
+                   else f"{round(wow_d['delta_pct'])}%" if wow_d else "N/A")
+        rows.append(
+            f"{rank}. {r['name']}: {r['ccu']:,} CCU | WoW {wow_str} | "
+            f"YoY {r.get('yoy','N/A')} | Review {r.get('review_pct','?')}%"
+        )
+    data_str = "\n".join(rows)
+
+    if language == "Japanese":
+        return f"""あなたはSEGA Americaの市場情報アナリストです。
+本日（{date_str}）のSteamシューター市場の概要を、役員向けエグゼクティブサマリーとして作成してください。
+
+【データ（上位15タイトル）】
+{data_str}
+
+以下の形式で、日本語のビジネス文書として記述してください：
+
+**市場概況（1〜2文）**
+現在のシューター市場の全体的な健全性と方向性。
+
+**注目ポイント（箇条書き5〜7点）**
+- 首位タイトルと2位タイトルの状況
+- 今週の最大上昇タイトルと下降タイトル
+- 今週のクロスジャンルシグナル（あれば）
+- SEGAにとって最も重要なビジネス示唆（1点）
+
+**対応推奨事項（1文）**
+今週のデータに基づく具体的なアクション提言。
+
+簡潔・具体的・データドリブンで。ゲームタイトルは英語表記のまま可。"""
+    else:
+        return f"""You are a market intelligence analyst at SEGA America.
+Today is {date_str}. Produce a brief executive summary of the Steam shooter market for senior leadership.
+
+DATA (top 15 titles by live CCU):
+{data_str}
+
+Write in this exact format:
+
+**Market Pulse (1–2 sentences)**
+Overall health and direction of the shooter market right now.
+
+**Key Signals (5–7 bullet points)**
+- Status of the #1 and #2 titles
+- Biggest weekly gainer and loser
+- Any notable cross-genre pattern this week
+- Single most actionable insight for SEGA publishing leadership
+
+**Recommended Action (1 sentence)**
+One concrete, specific action based on this week's data.
+
+Be sharp, data-driven, and under 200 words total."""
+
+
 def data_hash(ccu_data: list[dict]) -> str:
     """Stable hash of CCU values for cache-key purposes."""
     import hashlib, json
@@ -3193,6 +3263,14 @@ TRANSLATIONS = {
         "kpi_csvs_sub":           "titles with full historical data",
         "kpi_health":             "Avg Peak Health",
         "kpi_health_sub":         "current CCU vs. all-time peak",
+        "exec_summary_header":    "EXECUTIVE SUMMARY",
+        "exec_summary_spinner":   "Generating executive summary…",
+        "exec_summary_caption":   "AI-generated from live CCU data · refreshes when data refreshes · full analysis on the Weekly Report tab",
+        "exec_summary_error":     "Summary generation failed — check AWS Bedrock credentials on the Admin page.",
+        "exec_summary_no_key":    "Add AWS Bedrock credentials to secrets.toml to enable the executive summary.",
+        "auto_archive_success":   "📦 This week's data has been automatically archived for the Monthly Analysis.",
+        "auto_archive_skipped":   "Archive skipped — data looks incomplete (all CCU values are 0). Archive manually once data is healthy.",
+        "auto_archive_failed":    "Auto-archive failed — try the Archive button on Weekly Report.",
         "kpi_twitch":             "Total Twitch Viewers",
         "kpi_twitch_sub":         "across {n} tracked titles (top-100 streams)",
         "kpi_twitch_none":        "Add TWITCH_CLIENT_ID to secrets to enable",
@@ -3457,6 +3535,14 @@ TRANSLATIONS = {
         "kpi_csvs_sub":           "完全な履歴データを持つタイトル数",
         "kpi_health":             "平均ピーク健全度",
         "kpi_health_sub":         "現在CCU ÷ 過去最高ピーク",
+        "exec_summary_header":    "エグゼクティブサマリー",
+        "exec_summary_spinner":   "エグゼクティブサマリーを生成中…",
+        "exec_summary_caption":   "ライブCCUデータから自動生成 · データ更新時に再生成 · 詳細分析はWeekly Reportタブで",
+        "exec_summary_error":     "サマリー生成に失敗しました。AdminページでAWS Bedrockの認証情報を確認してください。",
+        "exec_summary_no_key":    "エグゼクティブサマリーを有効にするにはsecrets.tomlにAWS Bedrockの認証情報を追加してください。",
+        "auto_archive_success":   "📦 今週のデータが月次分析用に自動アーカイブされました。",
+        "auto_archive_skipped":   "アーカイブをスキップしました — データが不完全な可能性があります（CCU値がすべて0）。データが正常になったら手動でアーカイブしてください。",
+        "auto_archive_failed":    "自動アーカイブに失敗しました。Weekly Reportのアーカイブボタンを試してください。",
         "kpi_twitch":             "Twitch総視聴者数",
         "kpi_twitch_sub":         "{n} タイトル（上位100ストリーム合計）",
         "kpi_twitch_none":        "TWITCH_CLIENT_ID を設定すると有効になります",
@@ -4217,7 +4303,7 @@ _EXPECTED_COMMON_SYMBOLS = [
     "build_ccu_mecha_prompt", "build_competitive_gap_prompt",
     "build_drilldown_prompt", "build_social_metrics_prompt",
     "build_system_prompt", "build_table_stakes_prompt",
-    "build_weekly_report_prompt", "cache_age_str", "compute_period_diff",
+    "build_exec_summary_prompt", "build_weekly_report_prompt", "cache_age_str", "compute_period_diff",
     "enforce_common_module_integrity",
     "generate_pptx_bytes", "generate_pptx_snapshot_bytes", "get_game_events",
     "get_roster", "init_session_defaults", "inject_css",
